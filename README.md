@@ -1,1 +1,1 @@
-# olompiadas-prog
+# olimpiadas-prog
