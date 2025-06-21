@@ -24,7 +24,7 @@ class AddressType(Enum):
 
     @classmethod
     def choices(cls):
-        return [(tag.value, tags.name.title()) for tag in cls]
+        return [(tag.value, tag.name.title()) for tag in cls]
 
 
 class Addresses(models.Model):
