@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from myweb.env import DEBUG, DATABASE_URL, SECRET_KEY
+from env import DEBUG, DATABASE_URL, SECRET_KEY
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = SECRET_KEY
 
 
-DEBUG = True
+DEBUG = DEBUG
 
 ALLOWED_HOSTS = ["*"]
 
@@ -16,7 +16,8 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 LOCAL_APPS = [
-    'api.apps.ApiConfig'
+    'api.users',
+    'api.clients'
 ]
 
 DJANGO_APPS = [
