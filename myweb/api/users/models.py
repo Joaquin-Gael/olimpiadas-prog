@@ -23,13 +23,14 @@ class UserManager(BaseUserManager):
 
 
 class Users(AbstractBaseUser, PermissionsMixin):
-    id = models.UUIDField("user_id", primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.AutoField("user_id", primary_key=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     email = models.EmailField(max_length=255, unique=True)
     telephone = models.CharField(max_length=255, unique=True)
     born_date = models.DateField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    state = models.CharField(max_length=32)
 
     is_staff = models.BooleanField(default=False)
 
