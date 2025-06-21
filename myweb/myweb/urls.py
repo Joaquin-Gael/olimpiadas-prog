@@ -333,7 +333,7 @@ def get_scalar_api_reference(
     """
     return HttpResponse(html)
 
-@api.get("/scalar")
+@api.get("/scalar", include_in_schema=False)
 async def scalar_html(request):
     return get_scalar_api_reference(
         openapi_url=api.openapi_url,

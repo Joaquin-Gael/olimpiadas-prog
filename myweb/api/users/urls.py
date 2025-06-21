@@ -1,4 +1,7 @@
-from django.urls import path
+from ninja import Router
 
-urlpatterns = [
-]
+from .models import Users
+
+user_router = Router(
+    tags=["users"],
+)
