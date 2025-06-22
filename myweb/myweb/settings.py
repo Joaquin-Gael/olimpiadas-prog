@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from django.conf.global_settings import AUTH_USER_MODEL
 from env import DEBUG, DATABASE_URL, SECRET_KEY
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +18,9 @@ ALLOWED_HOSTS = ["*"]
 
 LOCAL_APPS = [
     'api.users',
-    'api.clients'
+    'api.clients',
+    'api.employees',
+    'api.products'
 ]
 
 DJANGO_APPS = [
@@ -67,6 +70,7 @@ DATABASES = {
     }
 }
 
+AUTH_USER_MODEL = "users.Users"
 
 AUTH_PASSWORD_VALIDATORS = [
     {
