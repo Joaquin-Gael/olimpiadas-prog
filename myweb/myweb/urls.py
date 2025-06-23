@@ -9,11 +9,17 @@ from typing_extensions import Annotated, Doc
 from ninja import NinjaAPI
 from ninja.responses import Response
 
+# Importar las rutas de usuarios
+from api.users.urls import user_router
+
 api = NinjaAPI(
     title="TITLE-API",
     description="DESCRIPTION-API",
     version="1.0.0",
 )
+
+# Agregar las rutas de usuarios
+api.add_router("/users/", user_router)
 
 class Layout(Enum):
     MODERN = "modern"
