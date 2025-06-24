@@ -2,26 +2,67 @@ from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.db import IntegrityError
 from django.conf import settings
+from django.http import HttpResponse
+import json, jwt
+from .utils import *
 from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
 from typing import List
 from datetime import datetime, timedelta
-import jwt
 from jwt import PyJWTError
 
 from .models import Users
-from .schemas import (
-    UserRegistrationSchema,
-    UserResponseSchema,
-    UserUpdateSchema,
-    UserLoginSchema,
-    ErrorResponseSchema,
-    SuccessResponseSchema
-)
+from .schemas import *
 
 user_router = Router(tags=["users"])
 
+from ninja import Schema
+
+
+
+@user_router.post("/refresh")
+def refresh_token(request, payload: RefreshTokenSchema):
+    """
+    Genera un nuevo access token usando un refresh token válido.
+    """
+    try:
+        # Decodificar el refresh token
+        refresh_payload = jwt.decode(payload.refresh_token, settings.JWT_SECRET_KEY, algorithms=['HS256'])
+        
+        # Verificar que es un refresh token
+        if refresh_payload.get('type') != 'refresh':
+            return Response({"message": "Token inválido, no es un refresh token"}, status=401)
+        
+        user_id = refresh_payload.get('user_id')
+        if not user_id:
+            return Response({"message": "El token no contiene user_id"}, status=401)
+        
+        # Verificar que el usuario existe
+        user = User.objects.get(id=user_id)
+        if not user.is_active:
+            return Response({"message": "Usuario inactivo"}, status=401)
+        
+        # Generar un nuevo access token
+        access_payload = {
+            'user_id': user.id,
+            'exp': datetime.utcnow() + timedelta(seconds=settings.JWT_ACCESS_TOKEN_EXPIRATION),
+            'iat': datetime.utcnow(),
+            'type': 'access'
+        }
+        new_access_token = jwt.encode(access_payload, settings.JWT_SECRET_KEY, algorithm='HS256')
+        
+        return Response({
+            "message": "Token renovado",
+            "access_token": new_access_token
+        }, status=200)
+    
+    except jwt.ExpiredSignatureError:
+        return Response({"message": "Refresh token expirado"}, status=401)
+    except jwt.InvalidTokenError:
+        return Response({"message": "Refresh token inválido"}, status=401)
+    except User.DoesNotExist:
+        return Response({"message": "Usuario no encontrado"}, status=401)
 
 @user_router.post("/register", response={201: UserResponseSchema, 400: ErrorResponseSchema})
 def register_user(request, payload: UserRegistrationSchema):
@@ -82,49 +123,51 @@ def register_user(request, payload: UserRegistrationSchema):
         )
 
 
-@user_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
+@user_router.post("/login")
 def login_user(request, payload: UserLoginSchema):
     """
-    Autentica un usuario y retorna información básica
+    Autentica al usuario y devuelve un access token y un refresh token.
     """
-    try:
-        # Autenticar usuario
-        user = authenticate(request, email=payload.email, password=payload.password)
-        
-        if user is None:
-            return Response(
-                {"message": "Credenciales inválidas", "detail": "Email o contraseña incorrectos"},
-                status=401
-            )
-        
-        if not user.is_active:
-            return Response(
-                {"message": "Usuario inactivo", "detail": "El usuario está deshabilitado"},
-                status=401
-            )
-        
+    user = authenticate(request, email=payload.email, password=payload.password)
+    
+    if user is None or not user.is_active:
         return Response(
-            {
-                "message": "Login exitoso",
-                "data": {
-                    "id": user.id,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "email": user.email,
-                    "is_staff": user.is_staff
-                }
-            },
-            status=200
+            {"message": "Credenciales inválidas o usuario inactivo"},
+            status=401
         )
-        
-    except Exception as e:
-        return Response(
-            {"message": "Error interno del servidor", "detail": str(e)},
-            status=400
-        )
+    
+    # Generar access token
+    access_payload = {
+        'user_id': user.id,
+        'exp': datetime.utcnow() + timedelta(seconds=settings.JWT_ACCESS_TOKEN_EXPIRATION),
+        'iat': datetime.utcnow(),
+        'type': 'access'
+    }
+    access_token = jwt.encode(access_payload, settings.JWT_SECRET_KEY, algorithm='HS256')
+    
+    # Generar refresh token
+    refresh_payload = {
+        'user_id': user.id,
+        'exp': datetime.utcnow() + timedelta(seconds=settings.JWT_REFRESH_TOKEN_EXPIRATION),
+        'iat': datetime.utcnow(),
+        'type': 'refresh'
+    }
+    refresh_token = jwt.encode(refresh_payload, settings.JWT_SECRET_KEY, algorithm='HS256')
+    
+    # Preparar la respuesta
+    response_data = {
+        "message": "Login exitoso",
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "data": {
+            "id": user.id,
+            "email": user.email
+        }
+    }
+    
+    return Response(response_data, status=200)
 
-
-@user_router.get("/", response=List[UserResponseSchema])
+@user_router.get("/", response=List[UserResponseSchema], auth=HeaderJWTAuth())
 def list_users(request):
     """
     Lista todos los usuarios registrados
@@ -149,7 +192,7 @@ def list_users(request):
         raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
 
-@user_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
+@user_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema}, auth=HeaderJWTAuth())
 def get_user(request, user_id: int):
     """
     Obtiene un usuario específico por ID
@@ -179,7 +222,7 @@ def get_user(request, user_id: int):
         )
 
 
-@user_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
+@user_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema}, auth=HeaderJWTAuth())
 def update_user(request, user_id: int, payload: UserUpdateSchema):
     """
     Actualiza un usuario específico
@@ -236,7 +279,7 @@ def update_user(request, user_id: int, payload: UserUpdateSchema):
         )
 
 
-@user_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema})
+@user_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema}, auth=HeaderJWTAuth())
 def delete_user(request, user_id: int):
     """
     Elimina completamente un usuario de la base de datos

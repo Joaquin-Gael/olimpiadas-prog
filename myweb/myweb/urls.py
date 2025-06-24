@@ -10,7 +10,7 @@ from ninja import NinjaAPI
 from ninja.responses import Response
 
 # Importar las rutas de usuarios
-from api.users.urls import user_router
+from api.users.api import user_router
 
 api = NinjaAPI(
     title="TITLE-API",

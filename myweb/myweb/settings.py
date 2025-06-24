@@ -1,5 +1,5 @@
 from pathlib import Path
-
+from datetime import timedelta
 from django.conf.global_settings import AUTH_USER_MODEL
 from env import DEBUG, DATABASE_URL, SECRET_KEY
 
@@ -33,6 +33,11 @@ DJANGO_APPS = [
 ]
 
 INSTALLED_APPS: list = DJANGO_APPS + LOCAL_APPS
+
+
+JWT_SECRET_KEY='aa'  
+JWT_ACCESS_TOKEN_EXPIRATION=20
+JWT_REFRESH_TOKEN_EXPIRATION=86400  # 1 día 
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

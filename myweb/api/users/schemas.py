@@ -2,6 +2,9 @@ from ninja import Schema
 from typing import Optional
 from datetime import date, datetime
 
+class RefreshTokenSchema(Schema):
+    refresh_token: str
+
 
 class UserRegistrationSchema(Schema):
     """Schema para el registro de usuarios"""
