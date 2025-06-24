@@ -32,14 +32,17 @@ class Suppliers(models.Model):
         return f"*{self.__dict__}"
 
 
-class Spaces(models.Model):
-    id = models.AutoField("space_id", primary_key=True)
-    quantity = models.IntegerField(
-        validators=[
-            MinValueValidator(0),
-            MaxValueValidator(100)
-        ]
-    )
+class Location(models.Model):
+    # País donde se encuentra la ubicación
+    country = models.CharField(max_length=64)
+    # Provincia o estado dentro del país
+    state = models.CharField(max_length=64)
+    # Ciudad específica
+    city = models.CharField(max_length=64)
+
+    def __str__(self):
+        return f"{self.city}, {self.state}, {self.country}"
+
 
 class DifficultyLevel(Enum):
     """
@@ -61,7 +64,7 @@ class Activities(models.Model):
     id = models.AutoField("activity_id", primary_key=True)
     name = models.CharField(max_length=128)
     description = models.TextField()
-    location = models.CharField(max_length=64)
+    location = models.ForeignKey(Location, on_delete=models.PROTECT)
     date = models.DateField()
     start_time = models.TimeField()
     duration_hours = models.IntegerField(
@@ -82,7 +85,13 @@ class Activities(models.Model):
         choices=DifficultyLevel.choices(),
     )
     language = models.CharField()
-    space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
+    available_slots = models.IntegerField(
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(100)
+        ],
+        help_text="Cantidad de lugares disponibles para esta actividad"
+    )
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -115,7 +124,8 @@ class Flights(models.Model):
     id = models.AutoField("flight_id", primary_key=True)
     airline = models.CharField(max_length=32)
     flight_number = models.CharField(max_length=16)
-    destination = models.CharField(max_length=64)
+    origin = models.ForeignKey(Location, related_name="flights_departing", on_delete=models.PROTECT)
+    destination = models.ForeignKey(Location, related_name="flights_arriving", on_delete=models.PROTECT)
     departure_date = models.DateField()
     arrival_date = models.DateField()
     duration_hours = models.IntegerField(
@@ -126,7 +136,14 @@ class Flights(models.Model):
         help_text="duration (puede ser positivo y menor o igual a 192)"
     )
     class_flight = models.CharField(choices=ClassFlight.choices())
-    space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
+    available_seats = models.IntegerField(
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(500)
+        ],
+        help_text="Cantidad de asientos disponibles en este vuelo"
+    )
+
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -141,9 +158,9 @@ class Flights(models.Model):
 class Lodgments(models.Model):
     id = models.AutoField("lod_id", primary_key=True)
     name = models.CharField("lod_name", max_length=64)
+    location = models.ForeignKey(Location, on_delete=models.PROTECT)
     date_checkin = models.DateField()
     date_checkout = models.DateField()
-    space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -152,18 +169,60 @@ class Lodgments(models.Model):
         related_query_name="lodgment",
     )
 
-
     def __str__(self):
         return f"*{self.__dict__}"
 
+class Room(models.Model):
+    # A qué alojamiento pertenece esta habitación
+    lodgment = models.ForeignKey(
+        Lodgments,
+        related_name="rooms",
+        on_delete=models.CASCADE
+    )
+
+    # Tipo de habitación (ej. Doble, Triple, Suite)
+    room_type = models.CharField(max_length=64)
+
+    # Descripción opcional (vista, servicios, etc.)
+    description = models.TextField(blank=True)
+
+    # Capacidad máxima de personas
+    capacity = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        help_text="Cantidad máxima de personas por habitación"
+    )
+
+    # Precio por noche (unitario)
+    price_per_night = models.FloatField(
+        validators=[MinValueValidator(0)],
+        help_text="Precio base por noche de esta habitación"
+    )
+
+    # Cantidad de habitaciones disponibles de este tipo
+    available_quantity = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Cantidad disponible para reservar"
+    )
+
+    def __str__(self):
+        return f"{self.room_type} - {self.lodgment.name}"
+
+
 class Transportation(models.Model):
     id = models.AutoField("transportation_id", primary_key=True)
-    origin = models.CharField(max_length=64)
-    destination = models.CharField(max_length=64)
+    origin = models.ForeignKey(Location, related_name="transport_departures", on_delete=models.PROTECT)
+    destination = models.ForeignKey(Location, related_name="transport_arrivals", on_delete=models.PROTECT)
     departure_date = models.DateField()
     arrival_date = models.DateField()
     description = models.TextField()
-    capacity = models.IntegerField()
+    capacity = models.IntegerField(
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(100)
+        ],
+        help_text="Cantidad de lugares disponibles en el transporte"
+    )
+
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -175,12 +234,33 @@ class Transportation(models.Model):
     def __str__(self):
         return f"*{self.__dict__}"
 
+class ProductType(Enum):
+    ACTIVIDAD = "actividad"
+    VUELO = "vuelo"
+    ALOJAMIENTO = "alojamiento"
+    TRANSPORTE = "transporte"
+
+    @classmethod
+    def choices(cls):
+        return [(tag.value, tag.name.title()) for tag in cls]
+
 class ProductsMetadata(models.Model):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, verbose_name="supplier_id", on_delete=models.PROTECT)
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
+    precio_unitario = models.FloatField(
+        validators=[
+            MinValueValidator(0)
+        ],
+        help_text="Precio base por unidad o persona"
+    )
+    tipo_producto = models.CharField(
+        max_length=32,
+        choices=ProductType.choices(),
+        help_text="Tipo de producto: actividad, vuelo, alojamiento, transporte"
+    )
 
 
 #TODO: Terminar de hacer los enums, a quien mrd se le ocurrio hacer tantos enums sin dar la lista
