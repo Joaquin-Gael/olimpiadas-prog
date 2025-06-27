@@ -8,6 +8,13 @@ from enum import Enum
 
 from api.clients.models import Clients
 
+class ActiveManager(models.Manager):
+    """
+    Manager personalizado que filtra solo los objetos activos (is_active=True)
+    """
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
+
 class Suppliers(models.Model):
     id = models.AutoField("supplier_id", primary_key=True)
     first_name = models.CharField(max_length=64)
@@ -92,7 +99,11 @@ class Activities(models.Model):
         ],
         help_text="Cantidad de lugares disponibles para esta actividad"
     )
+    is_active  = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
+    objects = models.Manager()
+    active  = ActiveManager()
     metadata = GenericRelation(
         "ProductsMetadata",
         content_type_field="content_type_id",
@@ -103,7 +114,10 @@ class Activities(models.Model):
     def __str__(self):
         return f"*{self.__dict__}"
 
-
+    def clean(self):
+        if self.available_slots > self.maximum_spaces:
+            raise ValidationError("Los cupos disponibles no pueden superar al máximo.")
+            
 class ClassFlight(Enum):
     """
     Enumeration of airline travel classes.
@@ -143,6 +157,11 @@ class Flights(models.Model):
         ],
         help_text="Cantidad de asientos disponibles en este vuelo"
     )
+    is_active  = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = models.Manager()
+    active  = ActiveManager()
 
 
     metadata = GenericRelation(
@@ -154,6 +173,15 @@ class Flights(models.Model):
 
     def __str__(self):
         return f"*{self.__dict__}"
+    
+    def clean(self):
+        # llegada > salida
+        if self.arrival_date <= self.departure_date:
+            raise ValidationError("La fecha de llegada debe ser posterior a la de salida.")
+
+        # opcional: no permitir en el pasado
+        if self.departure_date < timezone.localdate():
+            raise ValidationError("No se pueden crear vuelos en el pasado.")
 
 class Lodgments(models.Model):
     id = models.AutoField("lod_id", primary_key=True)
@@ -161,6 +189,11 @@ class Lodgments(models.Model):
     location = models.ForeignKey(Location, on_delete=models.PROTECT)
     date_checkin = models.DateField()
     date_checkout = models.DateField()
+    is_active  = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = models.Manager()
+    active  = ActiveManager()
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -171,6 +204,10 @@ class Lodgments(models.Model):
 
     def __str__(self):
         return f"*{self.__dict__}"
+
+    def clean(self):
+        if self.date_checkout <= self.date_checkin:
+            raise ValidationError("El checkout debe ser posterior al check-in.")
 
 class Room(models.Model):
     # A qué alojamiento pertenece esta habitación
@@ -222,7 +259,11 @@ class Transportation(models.Model):
         ],
         help_text="Cantidad de lugares disponibles en el transporte"
     )
+    is_active  = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
+    objects = models.Manager()
+    active  = ActiveManager()
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -233,6 +274,10 @@ class Transportation(models.Model):
 
     def __str__(self):
         return f"*{self.__dict__}"
+
+    def clean(self):
+        if self.arrival_date <= self.departure_date:
+            raise ValidationError("La llegada debe ser posterior a la salida.")
 
 class ProductType(Enum):
     ACTIVIDAD = "actividad"
@@ -261,6 +306,14 @@ class ProductsMetadata(models.Model):
         choices=ProductType.choices(),
         help_text="Tipo de producto: actividad, vuelo, alojamiento, transporte"
     )
+    is_active   = models.BooleanField(default=True)
+    deleted_at  = models.DateTimeField(null=True, blank=True)
+
+    # manager por defecto: sólo activos
+    objects     = models.Manager()
+    active      = models.Manager.from_queryset(
+        lambda qs: qs.filter(is_active=True)
+    )()
 
 
 #TODO: Terminar de hacer los enums, a quien mrd se le ocurrio hacer tantos enums sin dar la lista
@@ -272,7 +325,11 @@ class Packages(models.Model):
     final_price = models.FloatField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField()
+    is_active  = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = models.Manager()
+    active  = ActiveManager()
 
 class ComponentPackages(models.Model):
     id = models.AutoField("component_package_id", primary_key=True)

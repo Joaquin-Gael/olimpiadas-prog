@@ -3,10 +3,9 @@ from .schemas import (
     ActivityOut,
     FlightOut,
     LodgmentOut,
-    TransportationOut,
-    ComponentPackageOut, PackageOut
+    TransportationOut
 )
-from api.models import ProductsMetadata
+from .models import ProductsMetadata
 
 def serialize_product_metadata(metadata: ProductsMetadata) -> ProductsMetadataOut:
     tipo = metadata.tipo_producto

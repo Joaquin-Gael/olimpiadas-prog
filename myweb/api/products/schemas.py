@@ -1,5 +1,5 @@
 from ninja import Schema
-from typing import Union, Literal
+from typing import Union, Literal, Optional
 from datetime import date, time, datetime
 from pydantic import Field
 
@@ -9,7 +9,7 @@ class LocationOut(Schema):
     city: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Actividad
 class ActivityOut(Schema):
@@ -27,7 +27,7 @@ class ActivityOut(Schema):
     available_slots: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Vuelo
 class FlightOut(Schema):
@@ -43,7 +43,7 @@ class FlightOut(Schema):
     available_seats: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Alojamiento
 class LodgmentOut(Schema):
@@ -54,7 +54,7 @@ class LodgmentOut(Schema):
     date_checkout: date
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Transporte
 class TransportationOut(Schema):
@@ -67,7 +67,7 @@ class TransportationOut(Schema):
     capacity: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ActivityCreate(Schema):
     name: str
@@ -111,6 +111,48 @@ class TransportationCreate(Schema):
     description: str
     capacity: int = Field(..., ge=0)
 
+# Esquemas de actualización
+class ActivityUpdate(Schema):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    location_id: Optional[int] = None
+    date: Optional[date] = None
+    start_time: Optional[time] = None
+    duration_hours: Optional[int] = Field(None, ge=0, le=24)
+    include_guide: Optional[bool] = None
+    maximum_spaces: Optional[int] = Field(None, ge=0)
+    difficulty_level: Optional[Literal[
+        "Very Easy", "Easy", "Medium", "Hard", "Very Hard", "Extreme"
+    ]] = None
+    language: Optional[str] = None
+    available_slots: Optional[int] = Field(None, ge=0)
+
+class FlightUpdate(Schema):
+    airline: Optional[str] = None
+    flight_number: Optional[str] = None
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    departure_date: Optional[date] = None
+    arrival_date: Optional[date] = None
+    duration_hours: Optional[int] = Field(None, ge=0, le=192)
+    class_flight: Optional[Literal[
+        "Basic Economy", "Economy", "Premium Economy", "Business Class", "First Class"
+    ]] = None
+    available_seats: Optional[int] = Field(None, ge=0)
+
+class LodgmentUpdate(Schema):
+    name: Optional[str] = None
+    location_id: Optional[int] = None
+    date_checkin: Optional[date] = None
+    date_checkout: Optional[date] = None
+
+class TransportationUpdate(Schema):
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    departure_date: Optional[date] = None
+    arrival_date: Optional[date] = None
+    description: Optional[str] = None
+    capacity: Optional[int] = Field(None, ge=0)
 
 class ProductsMetadataOut(Schema):
     id: int
@@ -119,10 +161,18 @@ class ProductsMetadataOut(Schema):
     producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ProductsMetadataCreate(Schema):
     tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     precio_unitario: float
     supplier_id: int  # clave foránea
     producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
+
+class ProductsMetadataUpdate(Schema):
+    precio_unitario: Optional[float] = None
+    supplier_id:     Optional[int]   = None
+    # tipo_producto **NO** se permite cambiar
+    producto: Union[
+        ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
+    ] = None
