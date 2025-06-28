@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import dj_database_url
+
 from django.conf.global_settings import AUTH_USER_MODEL
 from env import DEBUG, DATABASE_URL, SECRET_KEY
 
@@ -7,7 +9,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 SECRET_KEY = SECRET_KEY
-
 
 DEBUG = DEBUG
 
@@ -64,10 +65,11 @@ TEMPLATES = [
 ASGI_APPLICATION = 'myweb.asgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        conn_max_age=600,
+        conn_health_checks=True,
+        default=DATABASE_URL
+    )
 }
 
 AUTH_USER_MODEL = "users.Users"
@@ -98,7 +100,10 @@ USE_I18N = True
 USE_TZ = True
 
 
-STATIC_URL = '/static/'
-
+STATIC_URL = '/assets/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'assets',
+]
+STATIC_ROOT = BASE_DIR / "assets_production"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

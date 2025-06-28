@@ -1,13 +1,14 @@
 from django.contrib import admin
 from django.urls import path
 from django.http import HttpResponse
+from django.views.static import serve
+from django.conf import settings
 
 import json
 from enum import Enum
 from typing_extensions import Annotated, Doc
 
 from ninja import NinjaAPI
-from ninja.responses import Response
 
 # Importar las rutas de usuarios
 from api.users.urls import user_router
@@ -15,7 +16,7 @@ from api.users.urls import user_router
 api = NinjaAPI(
     title="TITLE-API",
     description="DESCRIPTION-API",
-    version="1.0.0",
+    version="0.0.21",
 )
 
 # Agregar las rutas de usuarios
@@ -347,10 +348,18 @@ async def scalar_html(request):
         hide_download_button=True,
         layout=Layout.MODERN,
         dark_mode=True,
-        scalar_favicon_url="/assets/logo-siglas-negro.png"
+        scalar_favicon_url="/assets/img/logo-rest-doc.png"
     )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', api.urls)
+    path('', api.urls),
+    path(
+        'assets/<path:path>',
+        serve,
+        {
+            "document_root":settings.STATICFILES_DIRS[0],
+        },
+        name="static-serve",
+    )
 ]
