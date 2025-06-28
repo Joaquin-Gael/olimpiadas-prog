@@ -1,5 +1,8 @@
 from ninja import Router
-from .schemas import ProductsMetadataOut, ProductsMetadataCreate, ProductsMetadataUpdate
+from .schemas import (
+    ProductsMetadataOut, ProductsMetadataCreate, ProductsMetadataUpdate,
+    ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate
+)
 from .helpers import serialize_product_metadata
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
@@ -14,46 +17,63 @@ from .pagination import DefaultPagination
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime
+from typing import List
+from django.core.exceptions import ValidationError
 
-products_router = Router(tags=["Productos"]) 
+products_router = Router(tags=["Productos"])
 
 @products_router.post("/productos/crear/", response=ProductsMetadataOut)
+@transaction.atomic
 def crear_producto(request, data: ProductsMetadataCreate):
     supplier = get_object_or_404(Suppliers, id=data.supplier_id)
 
-    tipo = data.tipo_producto
-    producto_creado = None
-
-    # Crear el producto correspondiente
-    if tipo == "actividad":
-        producto_creado = Activities.objects.create(**data.producto.dict())
-    elif tipo == "vuelo":
-        producto_creado = Flights.objects.create(**data.producto.dict())
-    elif tipo == "alojamiento":
-        producto_creado = Lodgments.objects.create(**data.producto.dict())
-    elif tipo == "transporte":
-        producto_creado = Transportation.objects.create(**data.producto.dict())
-    else:
+    # Mapa tipo → Clase de modelo
+    model_map = {
+        "actividad": Activities,
+        "vuelo": Flights,
+        "alojamiento": Lodgments,
+        "transporte": Transportation,
+    }
+    Model = model_map.get(data.tipo_producto)
+    if not Model:
         raise HttpError(400, "Tipo de producto no válido")
 
-    # Crear metadata relacionada
+    # 1️⃣ Instanciar sin grabar
+    producto = Model(**data.producto.dict())
+
+    # 2️⃣ Validar reglas de negocio (clean())
+    try:
+        producto.full_clean()        # llama clean() + validadores ORM
+    except ValidationError as e:
+        raise HttpError(422, e.message_dict)
+
+    # 3️⃣ Guardar si es válido
+    producto.save()
+
+    # 4️⃣ Crear metadata
     metadata = ProductsMetadata.objects.create(
         supplier=supplier,
-        content_object=producto_creado,
-        tipo_producto=tipo,
+        content_object=producto,
+        tipo_producto=data.tipo_producto,
         precio_unitario=data.precio_unitario
     )
 
-    # Devolver schema serializado
     return serialize_product_metadata(metadata)
+
 
 @products_router.get("/productos/", response=list[ProductsMetadataOut])
 @paginate(DefaultPagination)
 def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
     qs = (
-        ProductsMetadata.active      # <-- Solo productos activos
-        .select_related("content_type")
+    ProductsMetadata.active
+    .select_related("content_type")          
+    .prefetch_related(                       
+        "activity",                        
+        "flights",        
+        "lodgment",       
+        "transportation",  
     )
+)
 
     # --- filtros por campo directo ---
     if filtros.tipo:
@@ -124,12 +144,28 @@ def obtener_producto(request, id: int):
     metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type"), id=id)
     return serialize_product_metadata(metadata)
 
+TYPE_MAP = {
+    ActivityUpdate:      "actividad",
+    FlightUpdate:        "vuelo",
+    LodgmentUpdate:      "alojamiento",
+    TransportationUpdate:"transporte",
+}
+
 @products_router.patch("/producto/{id}/", response=ProductsMetadataOut)
 @transaction.atomic
 def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
     metadata = get_object_or_404(
         ProductsMetadata.objects.select_related("content_type"), id=id
     )
+
+    if data.producto is not None:
+        expected = TYPE_MAP.get(type(data.producto))
+        if expected != metadata.tipo_producto:
+            raise HttpError(
+                422,
+                f"El sub-esquema enviado ({expected}) no coincide con "
+                f"el tipo del producto ({metadata.tipo_producto})."
+            )
 
     # --- reglas: tipo_producto NO cambia ---
     if data.producto and metadata.tipo_producto != data.producto.__class__.__name__.lower():
@@ -159,21 +195,33 @@ def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
 @products_router.delete("/producto/{id}/", response={204: None})
 @transaction.atomic
 def inactivar_producto(request, id: int):
+    """
+    Desactiva (soft-delete) un producto.
+    Cuando el módulo de Pedidos esté implementado volveremos a verificar
+    si el producto tiene ventas confirmadas antes de permitir la inactivación.
+    """
     metadata = get_object_or_404(ProductsMetadata, id=id)
 
-    # Regla: si el producto tiene ventas confirmadas ⇒ sólo se inactiva
-    if metadata.orders.exists():             # su nombre real del related_name
-        metadata.is_active  = False
-        metadata.deleted_at = timezone.now()
-        metadata.save(update_fields=["is_active", "deleted_at"])
-    else:
-        # Producto nunca vendido → inactiva metadata y sub-modelo
-        metadata.is_active  = False
-        metadata.deleted_at = timezone.now()
-        metadata.save(update_fields=["is_active", "deleted_at"])
-        metadata.content.is_active = False   # si el sub-modelo también lo tiene
-        metadata.content.save(update_fields=["is_active"])
+    # ───── TODO: reactivar esta lógica cuando el modelo Order exista ─────
+    # tiene_ventas_confirmadas = metadata.orders.filter(status="confirmed").exists()
+    # if tiene_ventas_confirmadas:
+    #     # Solo inactivamos metadata; no tocamos el objeto real para preservar trazabilidad
+    #     metadata.is_active = False
+    #     metadata.deleted_at = timezone.now()
+    #     metadata.save(update_fields=["is_active", "deleted_at"])
+    #     return 204, None
+    # ─────────────────────────────────────────────────────────────────────
+
+    # Versión temporal: siempre inactivamos tanto metadata como el objeto real
+    metadata.is_active  = False
+    metadata.deleted_at = timezone.now()
+    metadata.save(update_fields=["is_active", "deleted_at"])
+
+    # Inactivar también el modelo concreto (Activities, Flights, etc.)
+    metadata.content.is_active = False
+    metadata.content.save(update_fields=["is_active"])
 
     return 204, None
+
 
     

@@ -3,17 +3,12 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.fields import GenericRelation
-
+from django.core.exceptions import ValidationError
+from django.utils import timezone
+from .common.ActiveManager import ActiveManager
 from enum import Enum
-
 from api.clients.models import Clients
 
-class ActiveManager(models.Manager):
-    """
-    Manager personalizado que filtra solo los objetos activos (is_active=True)
-    """
-    def get_queryset(self):
-        return super().get_queryset().filter(is_active=True)
 
 class Suppliers(models.Model):
     id = models.AutoField("supplier_id", primary_key=True)
@@ -89,6 +84,7 @@ class Activities(models.Model):
         ]
     )
     difficulty_level = models.CharField(
+        max_length=16,                       # ❶ añadido
         choices=DifficultyLevel.choices(),
     )
     language = models.CharField()
@@ -117,7 +113,7 @@ class Activities(models.Model):
     def clean(self):
         if self.available_slots > self.maximum_spaces:
             raise ValidationError("Los cupos disponibles no pueden superar al máximo.")
-            
+
 class ClassFlight(Enum):
     """
     Enumeration of airline travel classes.
@@ -149,7 +145,10 @@ class Flights(models.Model):
         ],
         help_text="duration (puede ser positivo y menor o igual a 192)"
     )
-    class_flight = models.CharField(choices=ClassFlight.choices())
+    class_flight = models.CharField(
+        max_length=16,                 
+        choices=ClassFlight.choices(),
+    )
     available_seats = models.IntegerField(
         validators=[
             MinValueValidator(0),
@@ -311,9 +310,7 @@ class ProductsMetadata(models.Model):
 
     # manager por defecto: sólo activos
     objects     = models.Manager()
-    active      = models.Manager.from_queryset(
-        lambda qs: qs.filter(is_active=True)
-    )()
+    active      = ActiveManager()
 
 
 #TODO: Terminar de hacer los enums, a quien mrd se le ocurrio hacer tantos enums sin dar la lista
