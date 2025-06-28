@@ -3,6 +3,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.fields import GenericRelation
+from django.utils import timezone
 
 from enum import Enum
 
@@ -116,8 +117,8 @@ class Flights(models.Model):
     airline = models.CharField(max_length=32)
     flight_number = models.CharField(max_length=16)
     destination = models.CharField(max_length=64)
-    departure_date = models.DateField()
-    arrival_date = models.DateField()
+    departure_date = models.DateTimeField()
+    arrival_date = models.DateTimeField()
     duration_hours = models.IntegerField(
         validators=[
             MinValueValidator(0),
@@ -143,7 +144,7 @@ class Lodgments(models.Model):
     name = models.CharField("lod_name", max_length=64)
     date_checkin = models.DateField()
     date_checkout = models.DateField()
-    space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
+    #space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -175,9 +176,19 @@ class Transportation(models.Model):
     def __str__(self):
         return f"*{self.__dict__}"
 
+
+class ProductType(models.TextChoices):
+    ACTIVITY       = "ACTIVITY", "Activity"
+    FLIGHT         = "FLIGHT", "Flight"
+    LODGMENT       = "LODGMENT", "Lodgment"
+    TRANSPORTATION = "TRANSPORTATION", "Transportation"
+
 class ProductsMetadata(models.Model):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, verbose_name="supplier_id", on_delete=models.PROTECT)
+    product_type = models.CharField(choices=ProductType.choices)
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField(default=timezone.now)
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
