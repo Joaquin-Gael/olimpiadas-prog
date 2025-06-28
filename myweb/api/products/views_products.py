@@ -36,7 +36,7 @@ def crear_producto(request, data: ProductsMetadataCreate):
     }
     Model = model_map.get(data.tipo_producto)
     if not Model:
-        raise HttpError(400, "Tipo de producto no válido")
+        raise HttpError(400, {"detail": "Tipo de producto no válido"})
 
     # 1️⃣ Instanciar sin grabar
     producto = Model(**data.producto.dict())
@@ -45,7 +45,13 @@ def crear_producto(request, data: ProductsMetadataCreate):
     try:
         producto.full_clean()        # llama clean() + validadores ORM
     except ValidationError as e:
-        raise HttpError(422, e.message_dict)
+        # Convertir el diccionario de errores a una cadena legible
+        error_messages = []
+        for field, errors in e.message_dict.items():
+            for error in errors:
+                error_messages.append(f"{field}: {error}")
+        error_detail = "; ".join(error_messages)
+        raise HttpError(422, {"detail": error_detail})
 
     # 3️⃣ Guardar si es válido
     producto.save()
@@ -163,18 +169,18 @@ def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
         if expected != metadata.tipo_producto:
             raise HttpError(
                 422,
-                f"El sub-esquema enviado ({expected}) no coincide con "
-                f"el tipo del producto ({metadata.tipo_producto})."
+                {"detail": f"El sub-esquema enviado ({expected}) no coincide con "
+                f"el tipo del producto ({metadata.tipo_producto})."}
             )
 
     # --- reglas: tipo_producto NO cambia ---
     if data.producto and metadata.tipo_producto != data.producto.__class__.__name__.lower():
-        raise HttpError(422, "No se puede cambiar el tipo de producto")
+        raise HttpError(422, {"detail": "No se puede cambiar el tipo de producto"})
 
     # --- actualizar precio y proveedor si se envían ---
     if data.precio_unitario is not None:
         if data.precio_unitario < 0:
-            raise HttpError(400, "El precio no puede ser negativo")
+            raise HttpError(400, {"detail": "El precio no puede ser negativo"})
         metadata.precio_unitario = data.precio_unitario
 
     if data.supplier_id is not None:
@@ -222,6 +228,3 @@ def inactivar_producto(request, id: int):
     metadata.content.save(update_fields=["is_active"])
 
     return 204, None
-
-
-    

@@ -12,6 +12,7 @@ from ninja.responses import Response
 from api.users.urls import user_router
 from api.products.views_products import products_router
 from api.products.views_package import package_router
+from api.products.views_supliers import suppliers_router
 
 api = NinjaAPI(
     title="TITLE-API",
@@ -25,6 +26,8 @@ api.add_router("/users/", user_router)
 api.add_router("/products/", products_router)
 # Agregar las rutas de package
 api.add_router("/package/", package_router)
+# Agregar las rutas de suppliers
+api.add_router("/suppliers/", suppliers_router)
 
 class Layout(Enum):
     MODERN = "modern"

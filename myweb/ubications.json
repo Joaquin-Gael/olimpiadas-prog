@@ -1,0 +1,29 @@
+[
+    {
+      "model": "products.location",
+      "pk": 1,
+      "fields": {
+        "country": "Argentina",
+        "state": "Salta",
+        "city": "Salta Capital"
+      }
+    },
+    {
+      "model": "products.location",
+      "pk": 2,
+      "fields": {
+        "country": "Argentina",
+        "state": "Jujuy",
+        "city": "Tilcara"
+      }
+    },
+    {
+      "model": "products.location",
+      "pk": 3,
+      "fields": {
+        "country": "Argentina",
+        "state": "Buenos Aires",
+        "city": "CABA"
+      }
+    }
+] 
