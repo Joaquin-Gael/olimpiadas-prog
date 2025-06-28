@@ -162,7 +162,7 @@ def list_users(request):
             for user in users
         ]
     except Exception as e:
-        raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
+        raise HttpError(500, {"detail": f"Error al obtener usuarios: {str(e)}"})
 
 @user_router.get("/me", response=UserResponseSchema)
 def me(request):

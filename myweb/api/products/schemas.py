@@ -1,18 +1,16 @@
 from ninja import Schema
 from typing import Union, Literal, Optional
 from datetime import date, time, datetime
-from pydantic import Field
+from pydantic import Field, EmailStr, AnyUrl
+from api.products.common.schemas import BaseSchema
 
-class LocationOut(Schema):
+class LocationOut(BaseSchema):
     country: str
     state: str
     city: str
 
-    class Config:
-        from_attributes = True
-
 # Actividad
-class ActivityOut(Schema):
+class ActivityOut(BaseSchema):
     id: int
     name: str
     description: str
@@ -26,11 +24,8 @@ class ActivityOut(Schema):
     language: str
     available_slots: int
 
-    class Config:
-        from_attributes = True
-
 # Vuelo
-class FlightOut(Schema):
+class FlightOut(BaseSchema):
     id: int
     airline: str
     flight_number: str
@@ -42,22 +37,16 @@ class FlightOut(Schema):
     class_flight: str
     available_seats: int
 
-    class Config:
-        from_attributes = True
-
 # Alojamiento
-class LodgmentOut(Schema):
+class LodgmentOut(BaseSchema):
     id: int
     name: str
     location: LocationOut
     date_checkin: date
     date_checkout: date
 
-    class Config:
-        from_attributes = True
-
 # Transporte
-class TransportationOut(Schema):
+class TransportationOut(BaseSchema):
     id: int
     origin: LocationOut
     destination: LocationOut
@@ -66,10 +55,7 @@ class TransportationOut(Schema):
     description: str
     capacity: int
 
-    class Config:
-        from_attributes = True
-
-class ActivityCreate(Schema):
+class ActivityCreate(BaseSchema):
     name: str
     description: str
     location_id: int  # FK a Location
@@ -84,7 +70,7 @@ class ActivityCreate(Schema):
     language: str
     available_slots: int = Field(..., ge=0)
 
-class FlightCreate(Schema):
+class FlightCreate(BaseSchema):
     airline: str
     flight_number: str
     origin_id: int       # FK a Location
@@ -97,13 +83,13 @@ class FlightCreate(Schema):
     ]
     available_seats: int = Field(..., ge=0)
 
-class LodgmentCreate(Schema):
+class LodgmentCreate(BaseSchema):
     name: str
     location_id: int
     date_checkin: date
     date_checkout: date
 
-class TransportationCreate(Schema):
+class TransportationCreate(BaseSchema):
     origin_id: int
     destination_id: int
     departure_date: date
@@ -112,7 +98,7 @@ class TransportationCreate(Schema):
     capacity: int = Field(..., ge=0)
 
 # Esquemas de actualización
-class ActivityUpdate(Schema):
+class ActivityUpdate(BaseSchema):
     name: Optional[str] = None
     description: Optional[str] = None
     location_id: Optional[int] = None
@@ -127,7 +113,7 @@ class ActivityUpdate(Schema):
     language: Optional[str] = None
     available_slots: Optional[int] = Field(None, ge=0)
 
-class FlightUpdate(Schema):
+class FlightUpdate(BaseSchema):
     airline: Optional[str] = None
     flight_number: Optional[str] = None
     origin_id: Optional[int] = None
@@ -140,13 +126,13 @@ class FlightUpdate(Schema):
     ]] = None
     available_seats: Optional[int] = Field(None, ge=0)
 
-class LodgmentUpdate(Schema):
+class LodgmentUpdate(BaseSchema):
     name: Optional[str] = None
     location_id: Optional[int] = None
     date_checkin: Optional[date] = None
     date_checkout: Optional[date] = None
 
-class TransportationUpdate(Schema):
+class TransportationUpdate(BaseSchema):
     origin_id: Optional[int] = None
     destination_id: Optional[int] = None
     departure_date: Optional[date] = None
@@ -154,22 +140,19 @@ class TransportationUpdate(Schema):
     description: Optional[str] = None
     capacity: Optional[int] = Field(None, ge=0)
 
-class ProductsMetadataOut(Schema):
+class ProductsMetadataOut(BaseSchema):
     id: int
     precio_unitario: float
     tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
-    class Config:
-        from_attributes = True
-
-class ProductsMetadataCreate(Schema):
+class ProductsMetadataCreate(BaseSchema):
     tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     precio_unitario: float
     supplier_id: int  # clave foránea
     producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
-class ProductsMetadataUpdate(Schema):
+class ProductsMetadataUpdate(BaseSchema):
     precio_unitario: Optional[float] = None
     supplier_id:     Optional[int]   = None
     # tipo_producto **NO** se permite cambiar
@@ -177,4 +160,42 @@ class ProductsMetadataUpdate(Schema):
         ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
     ] = None
 
+class SupplierCreate(BaseSchema):
+    first_name: str
+    last_name: str
+    organization_name: str
+    description: str
+    street: str
+    street_number: int
+    city: str
+    country: str
+    email: EmailStr
+    telephone: str
+    website: str
 
+class SupplierUpdate(BaseSchema):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    organization_name: Optional[str] = None
+    description: Optional[str] = None
+    street: Optional[str] = None
+    street_number: Optional[int] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    email: Optional[EmailStr] = None
+    telephone: Optional[str] = None
+    website: Optional[AnyUrl] = None
+
+class SupplierOut(BaseSchema):
+    id: int
+    first_name: str
+    last_name: str
+    organization_name: str
+    description: str
+    street: str
+    street_number: int
+    city: str
+    country: str
+    email: str
+    telephone: str
+    website: str
