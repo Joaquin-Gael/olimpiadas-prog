@@ -176,3 +176,5 @@ class ProductsMetadataUpdate(Schema):
     producto: Union[
         ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
     ] = None
+
+
