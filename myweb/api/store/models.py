@@ -98,7 +98,6 @@ class BillType(models.TextChoices):
     TIMESHEET = "TIMESHEET", "Timesheet"
     COMMERCIAL = "COMMERCIAL", "Commercial"
     EXPENSE = "EXPENSE", "Expense"
-    RECURRING = "RECURRING", "Recurring"
     COMPOSITE = "COMPOSITE", "Composite"
     PAST_DUE = "PAST_DUE", "Past Due"
 

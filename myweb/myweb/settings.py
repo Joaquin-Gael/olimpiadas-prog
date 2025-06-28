@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import dj_database_url
+from datetime import timedelta
 
 from django.conf.global_settings import AUTH_USER_MODEL
 from env import DEBUG, DATABASE_URL, SECRET_KEY
@@ -14,14 +15,20 @@ DEBUG = DEBUG
 
 ALLOWED_HOSTS = ["*"]
 
+API_TITLE = "TITLE-API"
+API_DESCRIPTION = "DESCRIPTION-API"
+API_VERSION = "0.0.24"
 
-# Application definition
+JWT_TOKEN_EXPIRES = timedelta(minutes=15)
+JWT_REFRESH_TOKEN_EXPIRES = timedelta(minutes=30)
 
 LOCAL_APPS = [
     'api.users',
     'api.clients',
     'api.employees',
-    'api.products'
+    'api.products',
+    'api.store',
+    'api.core'
 ]
 
 DJANGO_APPS = [

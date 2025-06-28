@@ -15,9 +15,9 @@ from api.products.views_products import products_router
 from api.products.views_package import package_router
 
 api = NinjaAPI(
-    title="TITLE-API",
-    description="DESCRIPTION-API",
-    version="0.0.21",
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION,
 )
 
 # Agregar las rutas de usuarios

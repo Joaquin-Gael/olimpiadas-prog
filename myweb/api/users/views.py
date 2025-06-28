@@ -1,14 +1,14 @@
-from django.shortcuts import render
 from django.contrib.auth import authenticate
 from django.db import IntegrityError
 from django.conf import settings
-from ninja import Router
+from ninja import Router, Header
 from ninja.responses import Response
 from ninja.errors import HttpError
 from typing import List
-from datetime import datetime, timedelta
-import jwt
-from jwt import PyJWTError
+
+from rich.console import Console
+
+from api.core.auth import JWTBearer
 
 from .models import Users
 from .schemas import (
@@ -20,14 +20,23 @@ from .schemas import (
     SuccessResponseSchema
 )
 
-user_router = Router(tags=["users"])
+console = Console()
+
+user_router = Router(
+    tags=["users"],
+    auth=JWTBearer(),
+)
 
 
 @user_router.post("/register", response={201: UserResponseSchema, 400: ErrorResponseSchema})
 def register_user(request, payload: UserRegistrationSchema):
     """
-    Registra un nuevo usuario en el sistema
-    """
+   Registra un nuevo usuario en el sistema.
+
+   - Verifica que el email y el número de teléfono no estén previamente registrados.
+   - Si las validaciones son exitosas, crea un nuevo usuario y devuelve su información (sin la contraseña).
+   - En caso de error de duplicado o error en base de datos, devuelve un mensaje descriptivo con código 400.
+   """
     try:
         # Verificar si el email ya existe
         if Users.objects.filter(email=payload.email).exists():
@@ -85,7 +94,11 @@ def register_user(request, payload: UserRegistrationSchema):
 @user_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
 def login_user(request, payload: UserLoginSchema):
     """
-    Autentica un usuario y retorna información básica
+    Autentica un usuario utilizando email y contraseña.
+
+    - Si las credenciales son válidas, retorna datos básicos del usuario.
+    - Si el usuario no existe o las credenciales son incorrectas, responde con código 401.
+    - También verifica si el usuario está activo antes de autorizar el acceso.
     """
     try:
         # Autenticar usuario
@@ -127,7 +140,10 @@ def login_user(request, payload: UserLoginSchema):
 @user_router.get("/", response=List[UserResponseSchema])
 def list_users(request):
     """
-    Lista todos los usuarios registrados
+    Retorna una lista con todos los usuarios registrados en el sistema.
+
+    - Los usuarios se ordenan por fecha de creación descendente.
+    - En caso de error al acceder a la base de datos, devuelve un error 500 con el detalle.
     """
     try:
         users = Users.objects.all().order_by('-created_at')
@@ -148,11 +164,37 @@ def list_users(request):
     except Exception as e:
         raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
+@user_router.get("/me", response=UserResponseSchema)
+def me(request):
+    """
+    Retorna un usuario en el sistema.
+    :param request:
+    :return: UserResponseSchema
+    """
+
+    try:
+        return UserResponseSchema(
+            id=request.user.id,
+            first_name=request.user.first_name,
+            last_name=request.user.last_name,
+            email=request.user.email,
+            telephone=request.user.telephone,
+            born_date=request.user.born_date,
+            state=request.user.state,
+            created_at=request.user.created_at,
+            is_staff=request.user.is_staff
+        )
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
 @user_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
 def get_user(request, user_id: int):
     """
-    Obtiene un usuario específico por ID
+    Obtiene los datos de un usuario específico mediante su ID.
+
+    - Si el usuario existe, retorna su información completa.
+    - Si no se encuentra el usuario, retorna un mensaje de error con código 404.
     """
     try:
         user = Users.objects.get(id=user_id)
@@ -179,10 +221,15 @@ def get_user(request, user_id: int):
         )
 
 
+
 @user_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
 def update_user(request, user_id: int, payload: UserUpdateSchema):
     """
-    Actualiza un usuario específico
+    Actualiza los datos de un usuario específico.
+
+    - Solo se actualizan los campos enviados (parcial).
+    - Si el teléfono ya está en uso por otro usuario, devuelve un error 400.
+    - Si el usuario no existe, devuelve un error 404.
     """
     try:
         user = Users.objects.get(id=user_id)
@@ -239,7 +286,10 @@ def update_user(request, user_id: int, payload: UserUpdateSchema):
 @user_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema})
 def delete_user(request, user_id: int):
     """
-    Elimina completamente un usuario de la base de datos
+    Elimina completamente un usuario por su ID.
+
+    - Si el usuario existe, lo elimina de la base de datos y devuelve un mensaje de éxito.
+    - Si no se encuentra el usuario, responde con un error 404.
     """
     try:
         user = Users.objects.get(id=user_id)
@@ -260,4 +310,3 @@ def delete_user(request, user_id: int):
             {"message": "Error interno del servidor", "detail": str(e)},
             status=400
         )
-

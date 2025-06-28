@@ -299,7 +299,7 @@ class ProductsMetadata(models.Model):
     )
     tipo_producto = models.CharField(
         max_length=32,
-        choices=ProductType.choices(),
+        choices=ProductType.choices,
         help_text="Tipo de producto: actividad, vuelo, alojamiento, transporte"
     )
     is_active   = models.BooleanField(default=True)
