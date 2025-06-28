@@ -3,14 +3,9 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.fields import GenericRelation
-<<<<<<< HEAD
-from django.utils import timezone
-
-=======
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .common.ActiveManager import ActiveManager
->>>>>>> bfa7a83f74d2947975aab497f40d36cb3dded08f
 from enum import Enum
 from api.clients.models import Clients
 
@@ -139,16 +134,10 @@ class Flights(models.Model):
     id = models.AutoField("flight_id", primary_key=True)
     airline = models.CharField(max_length=32)
     flight_number = models.CharField(max_length=16)
-<<<<<<< HEAD
-    destination = models.CharField(max_length=64)
-    departure_date = models.DateTimeField()
-    arrival_date = models.DateTimeField()
-=======
     origin = models.ForeignKey(Location, related_name="flights_departing", on_delete=models.PROTECT)
     destination = models.ForeignKey(Location, related_name="flights_arriving", on_delete=models.PROTECT)
     departure_date = models.DateField()
     arrival_date = models.DateField()
->>>>>>> bfa7a83f74d2947975aab497f40d36cb3dded08f
     duration_hours = models.IntegerField(
         validators=[
             MinValueValidator(0),
@@ -199,15 +188,11 @@ class Lodgments(models.Model):
     location = models.ForeignKey(Location, on_delete=models.PROTECT)
     date_checkin = models.DateField()
     date_checkout = models.DateField()
-<<<<<<< HEAD
-    #space = models.ForeignKey(Spaces, verbose_name="space_id", on_delete=models.PROTECT, null=True)
-=======
     is_active  = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     objects = models.Manager()
     active  = ActiveManager()
->>>>>>> bfa7a83f74d2947975aab497f40d36cb3dded08f
 
     metadata = GenericRelation(
         "ProductsMetadata",
@@ -289,28 +274,13 @@ class Transportation(models.Model):
     def __str__(self):
         return f"*{self.__dict__}"
 
-<<<<<<< HEAD
 
 class ProductType(models.TextChoices):
     ACTIVITY       = "ACTIVITY", "Activity"
     FLIGHT         = "FLIGHT", "Flight"
     LODGMENT       = "LODGMENT", "Lodgment"
     TRANSPORTATION = "TRANSPORTATION", "Transportation"
-=======
-    def clean(self):
-        if self.arrival_date <= self.departure_date:
-            raise ValidationError("La llegada debe ser posterior a la salida.")
 
-class ProductType(Enum):
-    ACTIVIDAD = "actividad"
-    VUELO = "vuelo"
-    ALOJAMIENTO = "alojamiento"
-    TRANSPORTE = "transporte"
-
-    @classmethod
-    def choices(cls):
-        return [(tag.value, tag.name.title()) for tag in cls]
->>>>>>> bfa7a83f74d2947975aab497f40d36cb3dded08f
 
 class ProductsMetadata(models.Model):
     id = models.AutoField("product_metadata_id", primary_key=True)
