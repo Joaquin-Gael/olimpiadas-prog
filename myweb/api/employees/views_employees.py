@@ -5,7 +5,7 @@ from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
 
-from apí.core.auth import JWTBearer
+from api.core.auth import JWTBearer
 from api.users.schemas import ErrorResponseSchema
 
 from .models import Employees
