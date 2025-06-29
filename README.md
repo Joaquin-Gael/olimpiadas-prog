@@ -55,27 +55,29 @@ myweb/
 │   └── 🚀 asgi.py               # Configuración ASGI
 │
 ├── 📂 api/                      # Aplicaciones Django
+│   ├── 👤 core/                # Gestión de usuarios
+│   │   └── 🔐 auth.py           # Autenticación JWT
+│   │   
 │   ├── 👤 users/                # Gestión de usuarios
 │   │   ├── 📄 models.py         # Modelos de usuario
-│   │   ├── 🔗 api.py            # Endpoints con Django-Ninja
-│   │   └── 🔐 auth.py           # Autenticación JWT
+│   │   └── 🔗 views.py          # Endpoints con Django-Ninja
 │   │
 │   ├── 🛍️ products/            # Catálogo de productos
-│   │   ├── 📄 models.py         # Modelos de productos
-│   │   ├── 🔗 api.py            # API de productos
-│   │   └── 🏷️ serializers.py   # Serializadores
+│   │   ├── 📄 models.py        # Modelos de productos
+│   │   ├── 🔗 views_sufix.py           # API de productos
+│   │   └── 🏷️ serializers.py   # Serializadores (En organizacion)
 │   │
-│   ├── 🛒 cart/                 # Carrito de compras
-│   │   ├── 📄 models.py         # Modelo del carrito
-│   │   ├── 🔗 api.py            # API del carrito
+│   ├── 🛒 store/                # Tienda general de la app
+│   │   ├── 📄 models.py         # Modelo de la tienda
+│   │   ├── 🔗 views_sufix.py    # API de la tienda
 │   │   └── ⚡ services.py       # Lógica de negocio
 │   │
-│   ├── 📦 orders/               # Gestión de pedidos
-│   │   ├── 📄 models.py         # Modelos de pedidos
-│   │   ├── 🔗 api.py            # API de pedidos
-│   │   └── 📊 utils.py          # Utilidades
+│   ├── 📦 employees/            # Gestión de empleados
+│   │   ├── 📄 models.py         # Modelos de empleados, etc
+│   │   ├── 🔗 views.py          # API de empleados
+│   │   └── 📊 utils.py          # Utilidades (Opcional)
 │   │
-│   └── 💳 payments/             # Procesamiento de pagos
+│   └── 💳 payments/             # Procesamiento de pagos (En debate)
 │       ├── 📄 models.py         # Modelos de pago
 │       ├── 🔗 api.py            # API de pagos
 │       └── 🏦 gateways.py       # Pasarelas de pago
