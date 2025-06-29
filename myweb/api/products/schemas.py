@@ -3,7 +3,7 @@ from ninja import Schema
 from typing import Union, Literal, Optional, List
 
 from datetime import date, time, datetime
-z
+
 from pydantic import Field
 
 # TODO: traducir todo al ingles evitando incompatibilidad con el contrato entre el schema y la base de datos
