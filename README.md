@@ -55,7 +55,7 @@ myweb/
 │   └── 🚀 asgi.py               # Configuración ASGI
 │
 ├── 📂 api/                      # Aplicaciones Django
-│   ├── 👤 core/                # Gestión de usuarios
+│   ├── ⚙️ core/                # Gestión de usuarios
 │   │   └── 🔐 auth.py           # Autenticación JWT
 │   │   
 │   ├── 👤 users/                # Gestión de usuarios
