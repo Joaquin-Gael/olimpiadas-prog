@@ -162,23 +162,23 @@ class TransportationUpdate(Schema):
 class ProductsMetadataOut(Schema):
     id: int
     precio_unitario: float
-    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
     class Config:
         from_attributes = True
 
 class ProductsMetadataCreate(Schema):
-    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
-    unit_price: float
+    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    precio_unitario: float
     supplier_id: int  # clave foránea
-    product: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
+    producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
 class ProductsMetadataUpdate(Schema):
-    unit_price: Optional[float] = None
+    precio_unitario: Optional[float] = None
     supplier_id:     Optional[int]   = None
-    # product_type **NO** se permite cambiar
-    product: Union[
+    # tipo_producto **NO** se permite cambiar
+    producto: Union[
         ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
     ] = None
 
