@@ -100,8 +100,8 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(primary_key=True, serialize=False, verbose_name='product_metadata_id')),
                 ('object_id', models.PositiveIntegerField()),
-                ('precio_unitario', models.FloatField(help_text='Precio base por unidad o persona', validators=[django.core.validators.MinValueValidator(0)])),
-                ('tipo_producto', models.CharField(choices=[('actividad', 'Actividad'), ('vuelo', 'Vuelo'), ('alojamiento', 'Alojamiento'), ('transporte', 'Transporte')], help_text='Tipo de producto: actividad, vuelo, alojamiento, transporte', max_length=32)),
+                ('unit_price', models.FloatField(help_text='Precio base por unidad o persona', validators=[django.core.validators.MinValueValidator(0)])),
+                ('product_type', models.CharField(choices=[('actividad', 'Actividad'), ('vuelo', 'Vuelo'), ('alojamiento', 'Alojamiento'), ('transporte', 'Transporte')], help_text='Tipo de product: actividad, vuelo, alojamiento, transporte', max_length=32)),
                 ('content_type_id', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
                 ('supplier', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='products.suppliers', verbose_name='supplier_id')),
             ],
