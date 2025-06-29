@@ -285,22 +285,20 @@ class ProductType(models.TextChoices):
 class ProductsMetadata(models.Model):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, verbose_name="supplier_id", on_delete=models.PROTECT)
-    product_type = models.CharField(choices=ProductType.choices)
     start_date = models.DateField(default=timezone.now)
     end_date = models.DateField(default=timezone.now)
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
-    precio_unitario = models.FloatField(
+    unit_price = models.FloatField(
         validators=[
             MinValueValidator(0)
         ],
         help_text="Precio base por unidad o persona"
     )
-    tipo_producto = models.CharField(
-        max_length=32,
+    product_type = models.CharField(
         choices=ProductType.choices,
-        help_text="Tipo de producto: actividad, vuelo, alojamiento, transporte"
+        help_text="Tipo de product: actividad, vuelo, alojamiento, transporte"
     )
     is_active   = models.BooleanField(default=True)
     deleted_at  = models.DateTimeField(null=True, blank=True)

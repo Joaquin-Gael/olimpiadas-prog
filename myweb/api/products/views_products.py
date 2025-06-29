@@ -20,62 +20,88 @@ from datetime import datetime
 from typing import List
 from django.core.exceptions import ValidationError
 
-products_router = Router(tags=["Productos"])
+products_router = Router(tags=["Products"])
 
-@products_router.post("/productos/crear/", response=ProductsMetadataOut)
+# TODO: terminar de traducir todas las dependencias al ingles
+
+@products_router.post("/create", response=ProductsMetadataOut)
 @transaction.atomic
-def crear_producto(request, data: ProductsMetadataCreate):
+def create_product(request, data: ProductsMetadataCreate):
+    """
+    Create a new product and its metadata.
+
+    Steps:
+    1. Validate the supplier exists.
+    2. Determine the actual product model from `product_type`.
+    3. Instantiate and validate the domain object (`Activities`, `Flights`, etc.).
+    4. Save the domain object to the database.
+    5. Create a `ProductsMetadata` record linking supplier, pricing, and the newly created object.
+
+    Returns the serialized metadata of the created product.
+    Raises HTTP 400 if `product_type` is invalid or business validation fails.
+    """
     supplier = get_object_or_404(Suppliers, id=data.supplier_id)
 
-    # Mapa tipo → Clase de modelo
+    # Map product_type to model class
     model_map = {
         "actividad": Activities,
         "vuelo": Flights,
         "alojamiento": Lodgments,
         "transporte": Transportation,
     }
-    Model = model_map.get(data.tipo_producto)
-    if not Model:
-        raise HttpError(400, "Tipo de producto no válido")
+    _model = model_map.get(data.product_type)
+    if not _model:
+        raise HttpError(400, "Invalid product_type provided.")
 
-    # 1️⃣ Instanciar sin grabar
-    producto = Model(**data.producto.dict())
+    # 1️⃣ Instantiate without saving
+    product = _model(**data.product.dict())
 
-    # 2️⃣ Validar reglas de negocio (clean())
+    # 2️⃣ Perform full_clean() to enforce model validators and custom clean()
     try:
-        producto.full_clean()        # llama clean() + validadores ORM
-    except ValidationError as e:
-        raise HttpError(422, e.message_dict)
+        product.full_clean()
+    except Exception as e:
+        raise HttpError(422, e.message_dict if hasattr(e, 'message_dict') else str(e))
 
-    # 3️⃣ Guardar si es válido
-    producto.save()
+    # 3️⃣ Save valid domain object
+    product.save()
 
-    # 4️⃣ Crear metadata
+    # 4️⃣ Create metadata record
     metadata = ProductsMetadata.objects.create(
         supplier=supplier,
-        content_object=producto,
-        tipo_producto=data.tipo_producto,
-        precio_unitario=data.precio_unitario
+        content_object=product,
+        tipo_producto=data.product_type,
+        precio_unitario=data.unit_price
     )
 
     return serialize_product_metadata(metadata)
 
 
-@products_router.get("/productos/", response=list[ProductsMetadataOut])
+@products_router.get("/", response=list[ProductsMetadataOut])
 @paginate(DefaultPagination)
-def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
-    qs = (
-    ProductsMetadata.active
-    .select_related("content_type")          
-    .prefetch_related(                       
-        "activity",                        
-        "flights",        
-        "lodgment",       
-        "transportation",  
-    )
-)
+def list_products(request, filtros: ProductosFiltro = ProductosFiltro()):
+    """
+    List active products metadata with optional filters.
 
-    # --- filtros por campo directo ---
+    Available filters:
+    - tipo: filter by product type (actividad, vuelo, alojamiento, transporte)
+    - precio_min, precio_max: filter by unit price range
+    - supplier_id: filter by supplier
+    - destino_id, origen_id: filter by destination or origin ID across related models
+    - fecha_min, fecha_max: filter by date range on activities, flights, transportation, or lodging
+    - search: full-text search on name/description fields
+    - ordering: order by price or date (e.g., 'precio', '-fecha')
+
+    Returns a paginated list of serialized product metadata.
+    """
+    qs = (
+        ProductsMetadata.active
+        .select_related("content_type")
+        .prefetch_related(
+            "activity", "flights", "lodgment", "transportation"
+        )
+    )
+
+    # --- direct field filters ---
     if filtros.tipo:
         qs = qs.filter(tipo_producto=filtros.tipo)
     if filtros.precio_min is not None:
@@ -85,7 +111,7 @@ def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
     if filtros.supplier_id:
         qs = qs.filter(supplier_id=filtros.supplier_id)
 
-    # --- filtros que dependen del modelo real ---
+    # --- related model filters ---
     if filtros.destino_id:
         qs = qs.filter(
             Q(flights__destination_id=filtros.destino_id) |
@@ -123,26 +149,34 @@ def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
             Q(transportation__description__icontains=filtros.search)
         )
 
-    # --- orden ---
+    # --- ordering ---
     if filtros.ordering:
-        # mapa de alias → campo real
         order_map = {
-            "precio": "precio_unitario",
-            "-precio": "-precio_unitario",
+            "precio": "unit_price",
+            "-precio": "-unit_price",
             "fecha": "activity__date",
             "-fecha": "-activity__date",
         }
-        qs = qs.order_by(order_map.get(filtros.ordering, "precio_unitario"))
+        qs = qs.order_by(order_map.get(filtros.ordering, "unit_price"))
 
-    # Devolvemos queryset paginado; Ninja llamará a serialize_product_metadata para cada item
+    # Paginate and serialize
     return [serialize_product_metadata(p) for p in qs]
 
 
+@products_router.get("/{id}", response=ProductsMetadataOut)
+def get_product(request, id: int):
+    """
+    Retrieve a single product metadata by its ID.
 
-@products_router.get("/productos/{id}/", response=ProductsMetadataOut)
-def obtener_producto(request, id: int):
-    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type"), id=id)
+    Returns serialized metadata for the product if found.
+    Raises HTTP 404 if no active record exists with the given ID.
+    """
+    metadata = get_object_or_404(
+        ProductsMetadata.active.select_related("content_type"),
+        id=id
+    )
     return serialize_product_metadata(metadata)
+
 
 TYPE_MAP = {
     ActivityUpdate:      "actividad",
@@ -151,77 +185,72 @@ TYPE_MAP = {
     TransportationUpdate:"transporte",
 }
 
-@products_router.patch("/producto/{id}/", response=ProductsMetadataOut)
+@products_router.patch("/update/{id}", response=ProductsMetadataOut)
 @transaction.atomic
-def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
+def update_product(request, id: int, data: ProductsMetadataUpdate):
+    """
+    Update product metadata and optionally its underlying product object.
+
+    - Validates that the provided sub-schema matches the existing `product_type`.
+    - Allows updating `unit_price` and `supplier_id`.
+    - Applies partial updates to the real product (Activities, Flights, etc.) if included.
+    - Raises HTTP 422 if attempting to change the product type or mismatched schema.
+    """
     metadata = get_object_or_404(
         ProductsMetadata.objects.select_related("content_type"), id=id
     )
 
-    if data.producto is not None:
-        expected = TYPE_MAP.get(type(data.producto))
-        if expected != metadata.tipo_producto:
+    if data.product is not None:
+        expected = TYPE_MAP.get(type(data.product))
+        if expected != metadata.product_type:
             raise HttpError(
                 422,
-                f"El sub-esquema enviado ({expected}) no coincide con "
-                f"el tipo del producto ({metadata.tipo_producto})."
+                f"Provided sub-schema ({expected}) does not match product_type ({metadata.product_type})."
             )
 
-    # --- reglas: tipo_producto NO cambia ---
-    if data.producto and metadata.tipo_producto != data.producto.__class__.__name__.lower():
-        raise HttpError(422, "No se puede cambiar el tipo de producto")
+    # Prevent product_type change
+    if data.product and metadata.product_type != data.product.__class__.__name__.lower():
+        raise HttpError(422, "Changing product_type is not allowed.")
 
-    # --- actualizar precio y proveedor si se envían ---
-    if data.precio_unitario is not None:
-        if data.precio_unitario < 0:
-            raise HttpError(400, "El precio no puede ser negativo")
-        metadata.precio_unitario = data.precio_unitario
+    # Update metadata fields
+    if data.unit_price is not None:
+        if data.unit_price < 0:
+            raise HttpError(400, "unit_price cannot be negative.")
+        metadata.precio_unitario = data.unit_price
 
     if data.supplier_id is not None:
         metadata.supplier_id = data.supplier_id
 
-    # --- actualizar campos del objeto real ---
-    if data.producto is not None:
-        producto = metadata.content          # instancia concreta
-        for attr, value in data.producto.dict(exclude_unset=True).items():
+    # Update underlying product fields
+    if data.product is not None:
+        producto = metadata.content
+        for attr, value in data.product.dict(exclude_unset=True).items():
             setattr(producto, attr, value)
-        producto.full_clean()                # valida reglas de modelo
-        producto.save(update_fields=list(data.producto.dict(exclude_unset=True).keys()))
+        producto.full_clean()
+        producto.save(update_fields=list(data.product.dict(exclude_unset=True).keys()))
 
     metadata.save(update_fields=["precio_unitario", "supplier_id"])
-
     return serialize_product_metadata(metadata)
 
-@products_router.delete("/producto/{id}/", response={204: None})
+
+@products_router.patch("/deactivate/{id}", response={204: None})
 @transaction.atomic
-def inactivar_producto(request, id: int):
+def deactivate_product(request, id: int):
     """
-    Desactiva (soft-delete) un producto.
-    Cuando el módulo de Pedidos esté implementado volveremos a verificar
-    si el producto tiene ventas confirmadas antes de permitir la inactivación.
+    Soft-deactivate a product metadata (and its underlying product) by ID.
+
+    - Marks `is_active=False` and sets `deleted_at` timestamp.
+    - Also deactivates the related domain object (Activities, Flights, etc.).
+    - In the future, will check for confirmed sales before inactivation.
     """
     metadata = get_object_or_404(ProductsMetadata, id=id)
 
-    # ───── TODO: reactivar esta lógica cuando el modelo Order exista ─────
-    # tiene_ventas_confirmadas = metadata.orders.filter(status="confirmed").exists()
-    # if tiene_ventas_confirmadas:
-    #     # Solo inactivamos metadata; no tocamos el objeto real para preservar trazabilidad
-    #     metadata.is_active = False
-    #     metadata.deleted_at = timezone.now()
-    #     metadata.save(update_fields=["is_active", "deleted_at"])
-    #     return 204, None
-    # ─────────────────────────────────────────────────────────────────────
-
-    # Versión temporal: siempre inactivamos tanto metadata como el objeto real
     metadata.is_active  = False
     metadata.deleted_at = timezone.now()
     metadata.save(update_fields=["is_active", "deleted_at"])
 
-    # Inactivar también el modelo concreto (Activities, Flights, etc.)
+    # Also deactivate the real product instance
     metadata.content.is_active = False
     metadata.content.save(update_fields=["is_active"])
 
-    return 204, None
-
-
-    
+    return None

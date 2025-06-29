@@ -1,7 +1,12 @@
 from ninja import Schema
-from typing import Union, Literal, Optional
+
+from typing import Union, Literal, Optional, List
+
 from datetime import date, time, datetime
+
 from pydantic import Field
+
+# TODO: traducir todo al ingles evitando incompatibilidad con el contrato entre el schema y la base de datos
 
 class LocationOut(Schema):
     country: str
@@ -157,24 +162,74 @@ class TransportationUpdate(Schema):
 class ProductsMetadataOut(Schema):
     id: int
     precio_unitario: float
-    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
     class Config:
         from_attributes = True
 
 class ProductsMetadataCreate(Schema):
-    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
-    precio_unitario: float
+    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    unit_price: float
     supplier_id: int  # clave foránea
-    producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
+    product: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
 class ProductsMetadataUpdate(Schema):
-    precio_unitario: Optional[float] = None
+    unit_price: Optional[float] = None
     supplier_id:     Optional[int]   = None
-    # tipo_producto **NO** se permite cambiar
-    producto: Union[
+    # product_type **NO** se permite cambiar
+    product: Union[
         ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
     ] = None
 
 
+
+class ProductMetadataOut(Schema):
+    """
+    Represents a single ProductsMetadata entry.
+    """
+    id: int
+    supplier_id: int
+    product_type: str
+    start_date: date
+    end_date: date
+    precio_unitario: float
+    tipo_producto: str
+    is_active: bool
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+class ComponentPackageOut(Schema):
+    """
+    Represents a ComponentPackages entry, with its metadata.
+    """
+    id: int
+    order: int
+    quantity: Optional[int]
+    product_metadata: ProductMetadataOut
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+class PackageOut(Schema):
+    """
+    Read/Out schema for a Package, including its components.
+    """
+    id: int
+    name: str
+    description: str
+    final_price: float
+    created_at: datetime
+    updated_at: datetime
+    is_active: bool
+    deleted_at: Optional[datetime]
+    components: List[ComponentPackageOut] = []
+
+    class Config:
+        orm_mode = True
+        from_attributes = True

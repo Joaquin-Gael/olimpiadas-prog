@@ -20,11 +20,11 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> ProductsMetadataOu
     elif tipo == "transporte":
         producto_schema = TransportationOut.from_orm(producto)
     else:
-        raise ValueError("Tipo de producto no reconocido")
+        raise ValueError("Tipo de product no reconocido")
 
     return ProductsMetadataOut(
         id=metadata.id,
         precio_unitario=metadata.precio_unitario,
-        tipo_producto=tipo,
+        product_type=tipo,
         producto=producto_schema
     )
