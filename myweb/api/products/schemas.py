@@ -3,7 +3,7 @@ from ninja import Schema
 from typing import Union, Literal, Optional, List
 
 from datetime import date, time, datetime
-
+z
 from pydantic import Field
 
 # TODO: traducir todo al ingles evitando incompatibilidad con el contrato entre el schema y la base de datos
@@ -161,23 +161,23 @@ class TransportationUpdate(Schema):
 
 class ProductsMetadataOut(Schema):
     id: int
-    precio_unitario: float
-    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    unit_price: float
+    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
     producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
     class Config:
         from_attributes = True
 
 class ProductsMetadataCreate(Schema):
-    tipo_producto: Literal["actividad", "vuelo", "alojamiento", "transporte"]
-    precio_unitario: float
+    product_type: Literal["actividad", "vuelo", "alojamiento", "transporte"]
+    unit_price: float
     supplier_id: int  # clave foránea
     producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
 class ProductsMetadataUpdate(Schema):
-    precio_unitario: Optional[float] = None
+    unit_price: Optional[float] = None
     supplier_id:     Optional[int]   = None
-    # tipo_producto **NO** se permite cambiar
+    # product_type **NO** se permite cambiar
     producto: Union[
         ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate, None
     ] = None

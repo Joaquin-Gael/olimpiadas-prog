@@ -216,7 +216,7 @@ def update_product(request, id: int, data: ProductsMetadataUpdate):
     if data.unit_price is not None:
         if data.unit_price < 0:
             raise HttpError(400, "unit_price cannot be negative.")
-        metadata.precio_unitario = data.unit_price
+        metadata.unit_price = data.unit_price
 
     if data.supplier_id is not None:
         metadata.supplier_id = data.supplier_id
@@ -229,7 +229,7 @@ def update_product(request, id: int, data: ProductsMetadataUpdate):
         producto.full_clean()
         producto.save(update_fields=list(data.product.dict(exclude_unset=True).keys()))
 
-    metadata.save(update_fields=["precio_unitario", "supplier_id"])
+    metadata.save(update_fields=["unit_price", "supplier_id"])
     return serialize_product_metadata(metadata)
 
 

@@ -24,7 +24,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> ProductsMetadataOu
 
     return ProductsMetadataOut(
         id=metadata.id,
-        precio_unitario=metadata.precio_unitario,
+        unit_price=metadata.precio_unitario,
         product_type=tipo,
         producto=producto_schema
     )
