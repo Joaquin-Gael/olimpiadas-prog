@@ -194,9 +194,9 @@ class Flights(models.Model):
     
     luggage_info = models.CharField(max_length=128)
     aircraft_type = models.CharField(max_length=32)
-    terminal = models.CharField(max_length=16, blank=True)
-    gate = models.CharField(max_length=8, blank=True)
-    notes = models.TextField(blank=True)
+    terminal = models.CharField(max_length=32, null=True, blank=True)
+    gate = models.CharField(max_length=32, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -212,6 +212,10 @@ class Flights(models.Model):
             raise ValidationError("When departure and arrival are on the same date, arrival time must be after departure time.")
         if self.departure_date < timezone.localdate():
             raise ValidationError("Departure date cannot be in the past.")
+        if self.available_seats is not None and self.available_seats < 0:
+            raise ValidationError({"available_seats": "Available seats must be greater than or equal to 0."})
+        if self.duration_hours is not None and self.duration_hours < 0:
+            raise ValidationError({"duration_hours": "Duration hours must be greater than or equal to 0."})
 
 
 class LodgmentType(Enum):
@@ -572,13 +576,13 @@ class ProductsMetadata(models.Model):
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
-    precio_unitario = models.FloatField(validators=[MinValueValidator(0)])
+    unit_price = models.FloatField(validators=[MinValueValidator(0)])
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     
     # Propiedad para obtener el tipo de producto
     @property
-    def tipo_producto(self):
+    def product_type(self):
         model_name = self.content_type_id.model.lower()
         # Mapeo de nombres de modelos a tipos de producto en inglés
         type_mapping = {
@@ -599,14 +603,14 @@ class ProductsMetadata(models.Model):
     active = ActiveManager()
 
     def clean(self):
-        if self.precio_unitario < 0:
+        if self.unit_price < 0:
             raise ValidationError("El precio no puede ser negativo")
         
         if not self.content:
             raise ValidationError("El producto referenciado no existe")
 
     def __str__(self):
-        return f"{self.tipo_producto.title()} - {self.content} - ${self.precio_unitario}"
+        return f"{self.product_type.title()} - {self.content} - ${self.unit_price}"
 
     @property
     def is_available(self):
@@ -615,30 +619,151 @@ class ProductsMetadata(models.Model):
 
     def get_final_price(self, discount_percent=0):
         """Calcula el precio final con descuento"""
-        return self.precio_unitario * (1 - discount_percent / 100)
+        return self.unit_price * (1 - discount_percent / 100)
 
 
 #TODO: Terminar de hacer los enums, a quien mrd se le ocurrio hacer tantos enums sin dar la lista
+
+class Category(models.Model):
+    """Modelo para categorizar paquetes turísticos"""
+    name = models.CharField(max_length=64, unique=True)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=64, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = models.Manager()
+    active = ActiveManager()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Categoría"
+        verbose_name_plural = "Categorías"
+        ordering = ['name']
 
 class Packages(models.Model):
     id = models.AutoField("package_id", primary_key=True)
     name = models.CharField("package_name", max_length=64)
     description = models.TextField()
-    final_price = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    is_active  = models.BooleanField(default=True)
+    
+    # Categoría del paquete
+    category = models.ForeignKey(
+        Category, 
+        on_delete=models.PROTECT, 
+        null=True, 
+        blank=True,
+        help_text="Categoría del paquete turístico"
+    )
+
+    # Imagen destacada para mostrar en la web
+    cover_image = models.URLField(blank=True, help_text="Imagen destacada del paquete")
+
+    # Precios
+    base_price = models.FloatField(null=True, blank=True, help_text="Precio base sin impuestos")
+    taxes = models.FloatField(null=True, blank=True, help_text="Impuestos o recargos")
+    final_price = models.FloatField(help_text="Precio final total del paquete")
+
+    # Reseñas (promedio y total)
+    rating_average = models.FloatField(default=0)
+    total_reviews = models.IntegerField(default=0)
+
+    # Estado
+    is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    # Fechas de creación y actualización
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     objects = models.Manager()
-    active  = ActiveManager()
+    active = ActiveManager()
+
+    def __str__(self):
+        return f"{self.name} (${self.final_price})"
+
+    def clean(self):
+        """Validaciones del modelo Packages"""
+        if self.final_price < 0:
+            raise ValidationError("El precio final no puede ser negativo.")
+
+        if self.base_price is not None and self.taxes is not None:
+            total = round(self.base_price + self.taxes, 2)
+            if round(self.final_price, 2) != total:
+                raise ValidationError("El precio final no coincide con base + impuestos.")
+
+        if self.rating_average < 0 or self.rating_average > 5:
+            raise ValidationError("El rating promedio debe estar entre 0 y 5.")
+
+        if self.total_reviews < 0:
+            raise ValidationError("El total de reseñas no puede ser negativo.")
+
+    @property
+    def duration_days(self):
+        """Calcula la duración del paquete según las fechas de sus componentes"""
+        fechas_inicio = [cp.start_date for cp in self.componentpackages.all() if cp.start_date]
+        fechas_fin = [cp.end_date for cp in self.componentpackages.all() if cp.end_date]
+        if fechas_inicio and fechas_fin:
+            return (max(fechas_fin) - min(fechas_inicio)).days + 1
+        return None
 
 class ComponentPackages(models.Model):
     id = models.AutoField("component_package_id", primary_key=True)
-    product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.CASCADE)
-    package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.PROTECT)
-    order = models.IntegerField()
-    quantity = models.IntegerField(null=True)
+
+    package = models.ForeignKey(
+        Packages, 
+        verbose_name="package_id", 
+        on_delete=models.PROTECT,
+        related_name="componentpackages"
+    )
+    product_metadata = models.ForeignKey(
+        ProductsMetadata, 
+        verbose_name="product_metadata_id", 
+        on_delete=models.CASCADE
+    )
+
+    # Campos extra de gestión
+    order = models.IntegerField(help_text="Orden de visualización dentro del paquete")
+    quantity = models.IntegerField(null=True, help_text="Cantidad de veces que se incluye este producto")
+
+    # Mejora visual y de trazabilidad
+    title = models.CharField(
+        max_length=128, 
+        blank=True, 
+        help_text="Nombre visible del componente en la ficha del paquete"
+    )
+
+    # Fechas específicas del componente (opcional)
+    start_date = models.DateField(null=True, blank=True, help_text="Fecha de inicio de uso del componente")
+    end_date = models.DateField(null=True, blank=True, help_text="Fecha de fin de uso del componente")
+
+    def __str__(self):
+        return f"{self.package.name} - {self.product_metadata.product_type.title()}"
+
+    def clean(self):
+        """Validaciones del modelo ComponentPackages"""
+        if self.start_date and self.end_date:
+            if self.end_date < self.start_date:
+                raise ValidationError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+
+        if self.quantity is not None and self.quantity < 1:
+            raise ValidationError("La cantidad debe ser al menos 1 si está especificada.")
+
+        if self.order < 0:
+            raise ValidationError("El orden debe ser mayor o igual a 0.")
+
+    def get_summary(self):
+        """Devuelve un resumen del componente con fecha, tipo y nombre"""
+        fecha_info = ""
+        if self.start_date:
+            fecha_info = f" ({self.start_date}"
+            if self.end_date:
+                fecha_info += f" - {self.end_date}"
+            fecha_info += ")"
+        
+        return f"{self.product_metadata.product_type.title()}{fecha_info}: {self.title or self.product_metadata.content}"
 
 class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)

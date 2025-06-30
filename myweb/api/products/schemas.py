@@ -1,5 +1,5 @@
 from ninja import Schema
-from pydantic import BaseModel, Field, validator, EmailStr, AnyUrl
+from pydantic import BaseModel, Field, field_validator, EmailStr, AnyUrl, ConfigDict
 from typing import Union, Literal, Optional, List
 from enum import Enum
 from datetime import date, time, datetime
@@ -38,31 +38,35 @@ class ActivityCreate(BaseSchema):
     language: str
     available_slots: int = Field(..., ge=0, le=100)
 
-    @validator("date")
+    @field_validator("date")
+    @classmethod
     def validate_date(cls, v):
         if v < date.today():
             raise ValueError("La fecha de la actividad no puede estar en el pasado.")
         return v
 
 
-class ActivityAvailabilityCreate(BaseModel):
+class ActivityAvailabilityCreate(BaseSchema):
     """Schema para crear disponibilidad de actividad"""
     event_date: date
     start_time: time
-    total_seats: int = Field(..., ge=1, description="Total number of seats available")
-    reserved_seats: int = Field(..., ge=0, description="Number of already reserved seats")
-    price: float = Field(..., gt=0, description="Price per person")
-    currency: str = Field(..., max_length=8, description="Currency code, e.g., USD")
+    total_seats: int = Field(..., ge=1, json_schema_extra={"description": "Total number of seats available"})
+    reserved_seats: int = Field(..., ge=0, json_schema_extra={"description": "Number of already reserved seats"})
+    price: float = Field(..., gt=0, json_schema_extra={"description": "Price per person"})
+    currency: str = Field(..., max_length=8, json_schema_extra={"description": "Currency code, e.g., USD"})
     state: Optional[str] = Field(default="active")
 
-    @validator("event_date")
+    @field_validator("event_date")
+    @classmethod
     def validate_event_date(cls, v):
         if v < date.today():
-            raise ValueError("Event date cannot be in the past.")
+            raise ValueError("Event date cannot be in el pasado.")
         return v
 
-    @validator("reserved_seats")
-    def validate_reserved_seats(cls, v, values):
+    @field_validator("reserved_seats")
+    @classmethod
+    def validate_reserved_seats(cls, v, info):
+        values = info.data
         if "total_seats" in values and v > values["total_seats"]:
             raise ValueError("Reserved seats cannot exceed total seats.")
         return v
@@ -118,9 +122,6 @@ class ActivityAvailabilityOut(ActivityAvailabilityCreate):
     """Schema de salida para disponibilidad de actividades"""
     id: int
     activity_id: int
-
-    class Config:
-        orm_mode = True
 
 
 # ──────────────────────────────────────────────────────────────
@@ -216,14 +217,17 @@ class LodgmentCreate(BaseSchema):
     date_checkin: date
     date_checkout: date
 
-    @validator("date_checkin")
+    @field_validator("date_checkin")
+    @classmethod
     def validate_checkin_date(cls, v):
         if v < date.today():
             raise ValueError("Check-in date cannot be in the past.")
         return v
 
-    @validator("date_checkout")
-    def validate_checkout_date(cls, v, values):
+    @field_validator("date_checkout")
+    @classmethod
+    def validate_checkout_date(cls, v, info):
+        values = info.data
         if "date_checkin" in values and v <= values["date_checkin"]:
             raise ValueError("Check-out date must be after check-in date.")
         return v
@@ -258,14 +262,17 @@ class RoomAvailabilityCreate(BaseSchema):
     is_blocked: bool = False
     minimum_stay: int = Field(default=1, ge=1)
 
-    @validator("start_date")
+    @field_validator("start_date")
+    @classmethod
     def validate_start_date(cls, v):
         if v < date.today():
             raise ValueError("Start date cannot be in the past.")
         return v
 
-    @validator("end_date")
-    def validate_end_date(cls, v, values):
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        values = info.data
         if "start_date" in values and v <= values["start_date"]:
             raise ValueError("End date must be after start date.")
         return v
@@ -383,11 +390,6 @@ class RoomDetailOut(RoomOut):
     availabilities: List[RoomAvailabilityOut]
 
 
-class LodgmentWithRoomsOut(LodgmentOut):
-    """Schema de salida para alojamientos con habitaciones"""
-    rooms: List[RoomOut]
-
-
 class RoomWithAvailabilityOut(RoomOut):
     """Schema de salida para habitaciones con disponibilidad y precio efectivo"""
     availabilities: List[RoomAvailabilityOut]
@@ -447,14 +449,15 @@ class TransportationCreate(BaseSchema):
     notes: Optional[str] = ""
     capacity: int = Field(..., gt=0, le=100)
 
-    @validator("description")
+    @field_validator("description")
+    @classmethod
     def desc_required(cls, v):
         if not v.strip():
             raise ValueError("Description cannot be empty")
         return v
 
 
-class TransportationAvailabilityCreate(BaseModel):
+class TransportationAvailabilityCreate(BaseSchema):
     """Schema para crear disponibilidad de transporte"""
     departure_date: date
     departure_time: time
@@ -466,20 +469,23 @@ class TransportationAvailabilityCreate(BaseModel):
     currency: str = Field(..., max_length=8, description="Currency code, e.g., USD")
     state: Optional[str] = Field(default="active")
 
-    @validator("departure_date")
+    @field_validator("departure_date")
+    @classmethod
     def validate_departure_date(cls, v):
         if v < date.today():
             raise ValueError("Departure date cannot be in the past.")
         return v
 
-    @validator("arrival_date")
+    @field_validator("arrival_date")
+    @classmethod
     def validate_arrival_date(cls, v, values):
         departure_date = values.get("departure_date")
         if departure_date and v < departure_date:
             raise ValueError("Arrival date cannot be before departure date.")
         return v
 
-    @validator("arrival_time")
+    @field_validator("arrival_time")
+    @classmethod
     def validate_arrival_time(cls, v, values):
         departure_date = values.get("departure_date")
         arrival_date = values.get("arrival_date")
@@ -490,7 +496,8 @@ class TransportationAvailabilityCreate(BaseModel):
                 raise ValueError("Arrival time must be after departure time on the same day.")
         return v
 
-    @validator("reserved_seats")
+    @field_validator("reserved_seats")
+    @classmethod
     def validate_reserved_seats(cls, v, values):
         if "total_seats" in values and v > values["total_seats"]:
             raise ValueError("Reserved seats cannot exceed total seats.")
@@ -539,9 +546,6 @@ class TransportationAvailabilityOut(TransportationAvailabilityCreate):
     """Schema de salida para disponibilidad de transporte"""
     id: int
     transportation_id: int
-
-    class Config:
-        orm_mode = True
 
 
 # ──────────────────────────────────────────────────────────────
@@ -605,53 +609,61 @@ class SupplierOut(BaseSchema):
 class ProductsMetadataOut(BaseSchema):
     """Schema de salida para metadata de productos"""
     id: int
-    precio_unitario: float
-    tipo_producto: Literal["activity", "flight", "lodgment", "transportation"]
-    producto: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    unit_price: float
+    product_type: Literal["activity", "flight", "lodgment", "transportation"]
+    product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+
+
+class ProductsMetadataOutLodgmentDetail(BaseSchema):
+    """Schema de salida para metadata de productos con detalle de alojamiento (incluye rooms)"""
+    id: int
+    unit_price: float
+    product_type: Literal["lodgment"]
+    product: LodgmentDetailOut
 
 
 # ── CREATE ────────────────────────────────────────────────────
 class ProductsMetadataCreate(BaseSchema):
     """Schema para crear metadata de productos"""
-    tipo_producto: Literal["activity", "flight", "lodgment", "transportation"]
-    precio_unitario: float
+    product_type: Literal["activity", "flight", "lodgment", "transportation"]
+    unit_price: float
     supplier_id: int
-    producto: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
+    product: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
 
 # ── UPDATE ────────────────────────────────────────────────────
 class ProductsMetadataUpdate(BaseSchema):
     """Schema base para actualizar metadata de productos"""
-    precio_unitario: Optional[float] = None
+    unit_price: Optional[float] = None
     supplier_id: Optional[int] = None
-    producto: Optional[Union[ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate]] = None
+    product: Optional[Union[ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate]] = None
 
 
 class ProductsMetadataUpdateActivity(ProductsMetadataUpdate):
     """Schema para actualizar metadata de actividades"""
-    producto: Optional[ActivityUpdate] = None
+    product: Optional[ActivityUpdate] = None
 
 
 class ProductsMetadataUpdateFlight(ProductsMetadataUpdate):
     """Schema para actualizar metadata de vuelos"""
-    producto: Optional[FlightUpdate] = None
+    product: Optional[FlightUpdate] = None
 
 
 class ProductsMetadataUpdateLodgment(ProductsMetadataUpdate):
     """Schema para actualizar metadata de alojamientos"""
-    producto: Optional[LodgmentUpdate] = None
+    product: Optional[LodgmentUpdate] = None
 
 
 class ProductsMetadataUpdateTransportation(ProductsMetadataUpdate):
     """Schema para actualizar metadata de transporte"""
-    producto: Optional[TransportationUpdate] = None
+    product: Optional[TransportationUpdate] = None
 
 
 # ──────────────────────────────────────────────────────────────
 # 6. SCHEMAS PARA CREACIÓN COMPLETA DE ACTIVIDADES
 # ──────────────────────────────────────────────────────────────
 
-class ActivityAvailabilityCreateNested(BaseModel):
+class ActivityAvailabilityCreateNested(BaseSchema):
     """Schema para disponibilidad anidada en creación completa de actividad"""
     event_date: date
     start_time: time
@@ -660,22 +672,26 @@ class ActivityAvailabilityCreateNested(BaseModel):
     price: float = Field(..., gt=0)
     currency: str = Field(..., max_length=8)
 
-    @validator("event_date")
+    @field_validator("event_date")
+    @classmethod
     def check_event_date(cls, v):
         if v < date.today():
             raise ValueError("La fecha no puede estar en el pasado.")
         return v
 
-    @validator("reserved_seats")
-    def check_reserved_seats(cls, v, values):
+    @field_validator("reserved_seats")
+    @classmethod
+    def check_reserved_seats(cls, v, info):
+        values = info.data
         total = values.get("total_seats", 0)
         if v > total:
             raise ValueError("Los lugares reservados no pueden superar el total.")
         return v
 
 
-class ActivityFullCreate(BaseModel):
+class ActivityCompleteCreate(BaseSchema):
     """Schema para crear una actividad completa con disponibilidades"""
+    # Datos de la actividad
     name: str
     description: str
     location_id: int
@@ -689,16 +705,23 @@ class ActivityFullCreate(BaseModel):
     ]
     language: str
     available_slots: int = Field(..., ge=0, le=100)
-    supplier_id: int
-    precio_unitario: float = Field(..., gt=0)
-    currency: str = Field(default="USD", max_length=8)
+    
+    # Disponibilidades
     availabilities: List[ActivityAvailabilityCreateNested] = []
 
-    @validator("date")
+    @field_validator("date")
+    @classmethod
     def check_date(cls, v):
         if v < date.today():
             raise ValueError("La fecha de la actividad no puede ser en el pasado.")
         return v
+
+
+class ActivityMetadataCreate(BaseSchema):
+    """Schema para metadata de actividad"""
+    supplier_id: int
+    unit_price: float = Field(..., gt=0)
+    currency: str = Field(default="USD", max_length=8)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -715,14 +738,17 @@ class RoomAvailabilityCreateNested(BaseSchema):
     is_blocked: bool = False
     minimum_stay: int = Field(default=1, ge=1)
 
-    @validator("start_date")
+    @field_validator("start_date")
+    @classmethod
     def validate_start_date(cls, v):
         if v < date.today():
             raise ValueError("Start date cannot be in the past.")
         return v
 
-    @validator("end_date")
-    def validate_end_date(cls, v, values):
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        values = info.data
         if "start_date" in values and v <= values["start_date"]:
             raise ValueError("End date must be after start date.")
         return v
@@ -747,13 +773,9 @@ class RoomCreateNested(BaseSchema):
     availabilities: List[RoomAvailabilityCreateNested] = Field(default_factory=list)
 
 
-class LodgmentFullCreate(BaseSchema):
+class LodgmentCompleteCreate(BaseSchema):
     """Schema para crear un alojamiento completo con habitaciones y disponibilidades"""
-    # Metadata
-    precio_unitario: float = Field(..., gt=0)
-    supplier_id: int
-
-    # Alojamiento
+    # Datos del alojamiento
     name: str = Field(..., max_length=128)
     description: Optional[str] = None
     location_id: int
@@ -768,26 +790,36 @@ class LodgmentFullCreate(BaseSchema):
     date_checkin: date
     date_checkout: date
 
-    rooms: List[RoomCreateNested] = Field(default_factory=list)
+    # Habitaciones
+    rooms: List[RoomCreateNested] = Field(..., min_length=1)
 
-    @validator("date_checkin")
+    @field_validator("date_checkin")
+    @classmethod
     def validate_checkin_date(cls, v):
         if v < date.today():
             raise ValueError("Check-in date cannot be in the past.")
         return v
 
-    @validator("date_checkout")
-    def validate_checkout_date(cls, v, values):
+    @field_validator("date_checkout")
+    @classmethod
+    def validate_checkout_date(cls, v, info):
+        values = info.data
         if "date_checkin" in values and v <= values["date_checkin"]:
             raise ValueError("Check-out date must be after check-in date.")
         return v
+
+
+class LodgmentMetadataCreate(BaseSchema):
+    """Schema para metadata de alojamiento"""
+    supplier_id: int
+    unit_price: float = Field(..., gt=0)
 
 
 # ──────────────────────────────────────────────────────────────
 # 8. SCHEMAS PARA CREACIÓN COMPLETA DE TRANSPORTE
 # ──────────────────────────────────────────────────────────────
 
-class TransportationAvailabilityCreateNested(BaseModel):
+class TransportationAvailabilityCreateNested(BaseSchema):
     """Schema para disponibilidad de transporte anidada en creación completa"""
     departure_date: date
     departure_time: time
@@ -799,21 +831,26 @@ class TransportationAvailabilityCreateNested(BaseModel):
     currency: str = Field(..., max_length=8)
     state: str = Field(default="active")
 
-    @validator("departure_date")
+    @field_validator("departure_date")
+    @classmethod
     def check_departure_date(cls, v):
         if v < date.today():
             raise ValueError("La fecha de salida no puede estar en el pasado.")
         return v
 
-    @validator("arrival_date")
-    def check_arrival_date(cls, v, values):
+    @field_validator("arrival_date")
+    @classmethod
+    def check_arrival_date(cls, v, info):
+        values = info.data
         departure_date = values.get("departure_date")
         if departure_date and v < departure_date:
             raise ValueError("La fecha de llegada no puede ser anterior a la de salida.")
         return v
 
-    @validator("arrival_time")
-    def check_arrival_time(cls, v, values):
+    @field_validator("arrival_time")
+    @classmethod
+    def check_arrival_time(cls, v, info):
+        values = info.data
         departure_date = values.get("departure_date")
         arrival_date = values.get("arrival_date")
         departure_time = values.get("departure_time")
@@ -823,24 +860,22 @@ class TransportationAvailabilityCreateNested(BaseModel):
                 raise ValueError("La hora de llegada debe ser posterior a la de salida en el mismo día.")
         return v
 
-    @validator("reserved_seats")
-    def check_reserved_seats(cls, v, values):
+    @field_validator("reserved_seats")
+    @classmethod
+    def check_reserved_seats(cls, v, info):
+        values = info.data
         total = values.get("total_seats", 0)
         if v > total:
             raise ValueError("Los asientos reservados no pueden superar el total.")
         return v
 
 
-class TransportationFullCreate(BaseModel):
+class TransportationCompleteCreate(BaseSchema):
     """Schema para crear un transporte completo con disponibilidades"""
-    # Metadata
-    precio_unitario: float = Field(..., gt=0)
-    supplier_id: int
-
-    # Transporte
+    # Datos del transporte
     origin_id: int
     destination_id: int
-    type: TransportationType = TransportationType.bus
+    type: TransportationType  # Obligatorio, sin valor por defecto
     description: str
     notes: Optional[str] = ""
     capacity: int = Field(..., gt=0, le=100)
@@ -848,8 +883,262 @@ class TransportationFullCreate(BaseModel):
     # Disponibilidades
     availabilities: List[TransportationAvailabilityCreateNested] = Field(default_factory=list)
 
-    @validator("description")
+    @field_validator("description")
+    @classmethod
     def validate_description(cls, v):
         if not v.strip():
             raise ValueError("La descripción no puede estar vacía.")
         return v
+
+
+class TransportationMetadataCreate(BaseSchema):
+    """Schema para metadata de transporte"""
+    supplier_id: int
+    unit_price: float = Field(..., gt=0)
+
+
+# ──────────────────────────────────────────────────────────────
+# 9. PAQUETES (PACKAGES)
+# ──────────────────────────────────────────────────────────────
+
+# ── CREATE ────────────────────────────────────────────────────
+class ComponentPackageCreate(BaseSchema):
+    """Schema para crear un componente de paquete"""
+    product_metadata_id: int
+    order: int = Field(..., ge=0, json_schema_extra={"help_text": "Orden de visualización dentro del paquete"})
+    quantity: Optional[int] = Field(None, ge=1, json_schema_extra={"help_text": "Cantidad de veces que se incluye este producto"})
+    title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Nombre visible del componente"})
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        values = info.data
+        start = values.get("start_date")
+        if v and not start:
+            raise ValueError("Debe establecer start_date si se incluye end_date.")
+        if v and start and v < start:
+            raise ValueError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+        return v
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity_positive(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("La cantidad debe ser al menos 1.")
+        return v
+
+
+class PackageCreate(BaseSchema):
+    """Schema para crear un paquete"""
+    name: str = Field(..., max_length=64)
+    description: str
+    cover_image: Optional[str] = Field(None, max_length=500)
+    
+    # Precios
+    base_price: Optional[float] = Field(None, ge=0)
+    taxes: Optional[float] = Field(None, ge=0)
+    final_price: float = Field(..., gt=0)
+    
+    # Componentes del paquete
+    components: List[ComponentPackageCreate] = Field(default_factory=list)
+
+    @field_validator("final_price")
+    @classmethod
+    def validate_final_price(cls, v, info):
+        values = info.data
+        base_price = values.get("base_price")
+        taxes = values.get("taxes")
+        
+        if base_price is not None and taxes is not None:
+            total = round(base_price + taxes, 2)
+            if round(v, 2) != total:
+                raise ValueError("El precio final no coincide con base + impuestos.")
+        return v
+
+
+# ── UPDATE ────────────────────────────────────────────────────
+class ComponentPackageUpdate(BaseSchema):
+    """Schema para actualizar un componente de paquete"""
+    order: Optional[int] = Field(None, ge=0)
+    quantity: Optional[int] = Field(None, ge=1)
+    title: Optional[str] = Field(None, max_length=128)
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_end_date(cls, v, info):
+        values = info.data
+        start = values.get("start_date")
+        if v and not start:
+            raise ValueError("Debe establecer start_date si se incluye end_date.")
+        if v and start and v < start:
+            raise ValueError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+        return v
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity_positive(cls, v):
+        if v is not None and v < 1:
+            raise ValueError("La cantidad debe ser al menos 1.")
+        return v
+
+
+class PackageUpdate(BaseSchema):
+    """Schema para actualizar un paquete"""
+    name: Optional[str] = Field(None, max_length=64)
+    description: Optional[str] = None
+    cover_image: Optional[str] = None
+    
+    # Precios
+    base_price: Optional[float] = Field(None, ge=0)
+    taxes: Optional[float] = Field(None, ge=0)
+    final_price: Optional[float] = Field(None, gt=0)
+    
+    is_active: Optional[bool] = None
+
+    @field_validator("final_price")
+    @classmethod
+    def validate_final_price(cls, v, info):
+        if v is not None:
+            values = info.data
+            base_price = values.get("base_price")
+            taxes = values.get("taxes")
+            
+            if base_price is not None and taxes is not None:
+                total = round(base_price + taxes, 2)
+                if round(v, 2) != total:
+                    raise ValueError("El precio final no coincide con base + impuestos.")
+        return v
+
+
+# ── OUTPUT ────────────────────────────────────────────────────
+class ComponentPackageOut(BaseSchema):
+    """Schema de salida para componentes de paquete"""
+    id: int
+    product_metadata_id: int
+    order: int
+    quantity: Optional[int]
+    title: Optional[str]
+    start_date: Optional[date]
+    end_date: Optional[date]
+    
+    # Información del producto relacionado
+    product_type: str
+    product_name: str
+
+
+class PackageOut(BaseSchema):
+    """Schema de salida para paquetes"""
+    id: int
+    name: str
+    description: str
+    cover_image: Optional[str]
+    
+    # Precios
+    base_price: Optional[float]
+    taxes: Optional[float]
+    final_price: float
+    
+    # Reseñas
+    rating_average: float
+    total_reviews: int
+    
+    # Estado
+    is_active: bool
+    
+    # Fechas
+    created_at: datetime
+    updated_at: datetime
+    
+    # Duración calculada
+    duration_days: Optional[int]
+
+
+class PackageDetailOut(PackageOut):
+    """Schema de salida detallado para paquetes con componentes"""
+    components: List[ComponentPackageOut]
+
+
+# ── SEARCH PARAMS ─────────────────────────────────────────────
+class PackageSearchParams(BaseSchema):
+    """Parámetros de búsqueda para paquetes"""
+    name: Optional[str] = None
+    min_price: Optional[float] = Field(None, ge=0)
+    max_price: Optional[float] = Field(None, ge=0)
+    min_rating: Optional[float] = Field(None, ge=0, le=5)
+    max_rating: Optional[float] = Field(None, ge=0, le=5)
+    min_duration: Optional[int] = Field(None, ge=1)
+    max_duration: Optional[int] = Field(None, ge=1)
+    is_active: Optional[bool] = None
+    product_type: Optional[str] = None  # activity, flight, lodgment, transportation
+
+
+# ──────────────────────────────────────────────────────────────
+# 10. SCHEMAS PARA CREACIÓN COMPLETA DE PAQUETES
+# ──────────────────────────────────────────────────────────────
+
+class PackageCompleteCreate(BaseSchema):
+    """Schema para crear un paquete completo con todos los datos"""
+    # Datos del paquete
+    name: str = Field(..., max_length=64)
+    description: str
+    cover_image: Optional[str] = Field(None, max_length=500)
+    
+    # Precios
+    base_price: Optional[float] = Field(None, ge=0)
+    taxes: Optional[float] = Field(None, ge=0)
+    final_price: float = Field(..., gt=0)
+    
+    # Componentes del paquete
+    components: List[ComponentPackageCreate] = Field(default_factory=list)
+
+    @field_validator("final_price")
+    @classmethod
+    def validate_final_price(cls, v, info):
+        values = info.data
+        base_price = values.get("base_price")
+        taxes = values.get("taxes")
+        
+        if base_price is not None and taxes is not None:
+            total = round(base_price + taxes, 2)
+            if round(v, 2) != total:
+                raise ValueError("El precio final no coincide con base + impuestos.")
+        return v
+
+    @field_validator("components")
+    @classmethod
+    def validate_components(cls, v):
+        if not v:
+            raise ValueError("El paquete debe tener al menos un componente.")
+        
+        # Validar que no haya órdenes duplicados
+        orders = [comp.order for comp in v]
+        if len(orders) != len(set(orders)):
+            raise ValueError("Los órdenes de los componentes deben ser únicos.")
+        
+        return v
+
+
+class CategoryCreate(BaseSchema):
+    name: str = Field(..., max_length=64)
+    description: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class CategoryUpdate(BaseSchema):
+    name: Optional[str] = Field(None, max_length=64)
+    description: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class CategoryOut(BaseSchema):
+    id: int
+    name: str
+    description: Optional[str]
+    icon: Optional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
