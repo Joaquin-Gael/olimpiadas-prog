@@ -30,7 +30,6 @@ api.add_router("/products/", products_router)
 api.add_router("/package/", package_router)
 # Agregar las rutas de suppliers
 api.add_router("/suppliers/", suppliers_router)
-api.add_router("/packages/", package_router)
 # Agregar las rutas de employees
 api.add_router("/employees/", employees_router)
 

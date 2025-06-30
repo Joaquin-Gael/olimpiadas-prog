@@ -7,7 +7,7 @@ from .schemas import (
 )
 from .models import ProductsMetadata
 from typing import Dict, Any
-from api.products.models import Activities, Flights, Lodgment, Transportation
+from api.products.models import Activities, Flights, Lodgments, Transportation
 from api.products.models import Location
 
 def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
