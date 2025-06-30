@@ -187,6 +187,9 @@ class TestPackageList:
         response = ninja_client.get("/package/")
         assert response.status_code == 200
         data = response.json()
+        # Verificar que la respuesta tiene la estructura paginada
+        assert "results" in data
+        assert "count" in data
         assert len(data["results"]) >= 3
 
     def test_search_packages_by_name(self, ninja_client):
@@ -204,6 +207,8 @@ class TestPackageList:
         response = ninja_client.get("/package/?name=aventura")
         assert response.status_code == 200
         data = response.json()
+        # Verificar que la respuesta tiene la estructura paginada
+        assert "results" in data
         assert len(data["results"]) >= 1
         assert "Aventura" in data["results"][0]["name"]
 
@@ -222,6 +227,8 @@ class TestPackageList:
         response = ninja_client.get("/package/?min_price=200&max_price=600")
         assert response.status_code == 200
         data = response.json()
+        # Verificar que la respuesta tiene la estructura paginada
+        assert "results" in data
         assert len(data["results"]) >= 1
         for pkg in data["results"]:
             assert 200 <= pkg["final_price"] <= 600
