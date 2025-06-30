@@ -21,9 +21,17 @@ class LocationOut(BaseSchema):
 # 2. ACTIVIDADES (ACTIVITIES)
 # ──────────────────────────────────────────────────────────────
 
-# ── CREATE ────────────────────────────────────────────────────
+# Transporte
+class TransportationOut(BaseSchema):
+    id: int
+    origin: LocationOut
+    destination: LocationOut
+    departure_date: date
+    arrival_date: date
+    description: str
+    capacity: int
+
 class ActivityCreate(BaseSchema):
-    """Schema para crear una actividad"""
     name: str
     description: str
     location_id: int
@@ -69,7 +77,7 @@ class ActivityAvailabilityCreate(BaseModel):
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class ActivityUpdate(BaseSchema):
+class ActivityUpdate(Schema):
     """Schema para actualizar una actividad"""
     name: Optional[str] = None
     description: Optional[str] = None
@@ -151,7 +159,7 @@ class FlightCreate(BaseSchema):
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class FlightUpdate(BaseSchema):
+class FlightUpdate(Schema):
     """Schema para actualizar un vuelo"""
     airline: Optional[str] = None
     flight_number: Optional[str] = None
@@ -206,7 +214,7 @@ class LodgmentCreate(BaseSchema):
     description: Optional[str] = None
     location_id: int
     type: Literal[
-        "hotel", "hostel", "apartment", "house", "cabin", 
+        "hotel", "hostel", "apartment", "house", "cabin",
         "resort", "bed_and_breakfast", "villa", "camping"
     ]
     max_guests: int = Field(..., ge=1, le=50)
@@ -233,7 +241,7 @@ class RoomCreate(BaseSchema):
     """Schema para crear una habitación"""
     lodgment_id: int
     room_type: Literal[
-        "single", "double", "triple", "quadruple", 
+        "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
     ]
     name: Optional[str] = Field(None, max_length=64)
@@ -272,13 +280,13 @@ class RoomAvailabilityCreate(BaseSchema):
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class LodgmentUpdate(BaseSchema):
+class LodgmentUpdate(Schema):
     """Schema para actualizar un alojamiento"""
     name: Optional[str] = Field(None, max_length=128)
     description: Optional[str] = None
     location_id: Optional[int] = None
     type: Optional[Literal[
-        "hotel", "hostel", "apartment", "house", "cabin", 
+        "hotel", "hostel", "apartment", "house", "cabin",
         "resort", "bed_and_breakfast", "villa", "camping"
     ]] = None
     max_guests: Optional[int] = Field(None, ge=1, le=50)
@@ -293,7 +301,7 @@ class LodgmentUpdate(BaseSchema):
 class RoomUpdate(BaseSchema):
     """Schema para actualizar una habitación"""
     room_type: Optional[Literal[
-        "single", "double", "triple", "quadruple", 
+        "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
     ]] = None
     name: Optional[str] = Field(None, max_length=64)
@@ -484,7 +492,7 @@ class TransportationAvailabilityCreate(BaseModel):
         departure_date = values.get("departure_date")
         arrival_date = values.get("arrival_date")
         departure_time = values.get("departure_time")
-        
+
         if departure_date and arrival_date and departure_time:
             if departure_date == arrival_date and v <= departure_time:
                 raise ValueError("Arrival time must be after departure time on the same day.")
@@ -498,7 +506,7 @@ class TransportationAvailabilityCreate(BaseModel):
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class TransportationUpdate(BaseSchema):
+class TransportationUpdate(Schema):
     """Schema para actualizar transporte"""
     origin_id: Optional[int] = None
     destination_id: Optional[int] = None
@@ -523,7 +531,7 @@ class TransportationAvailabilityUpdate(BaseSchema):
 
 
 # ── OUTPUT ────────────────────────────────────────────────────
-class TransportationOut(BaseSchema):
+class TransportationOut(Schema):
     """Schema de salida para transporte"""
     id: int
     origin: LocationOut
@@ -584,9 +592,7 @@ class SupplierUpdate(BaseSchema):
 class SupplierOut(BaseSchema):
     """Schema de salida para proveedores"""
     id: int
-    first_name: str
-    last_name: str
-    organization_name: str
+    name: str
     description: str
     street: str
     street_number: int
@@ -731,7 +737,7 @@ class RoomAvailabilityCreateNested(BaseSchema):
 class RoomCreateNested(BaseSchema):
     """Schema para habitación anidada en creación completa de alojamiento"""
     room_type: Literal[
-        "single", "double", "triple", "quadruple", 
+        "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
     ]
     name: Optional[str] = Field(None, max_length=64)
@@ -758,7 +764,7 @@ class LodgmentFullCreate(BaseSchema):
     description: Optional[str] = None
     location_id: int
     type: Literal[
-        "hotel", "hostel", "apartment", "house", "cabin", 
+        "hotel", "hostel", "apartment", "house", "cabin",
         "resort", "bed_and_breakfast", "villa", "camping"
     ]
     max_guests: int = Field(..., ge=1, le=50)
@@ -817,7 +823,7 @@ class TransportationAvailabilityCreateNested(BaseModel):
         departure_date = values.get("departure_date")
         arrival_date = values.get("arrival_date")
         departure_time = values.get("departure_time")
-        
+
         if departure_date and arrival_date and departure_time:
             if departure_date == arrival_date and v <= departure_time:
                 raise ValueError("La hora de llegada debe ser posterior a la de salida en el mismo día.")
@@ -853,3 +859,52 @@ class TransportationFullCreate(BaseModel):
         if not v.strip():
             raise ValueError("La descripción no puede estar vacía.")
         return v
+
+
+class ProductMetadataOut(Schema):
+    """
+    Represents a single ProductsMetadata entry.
+    """
+    id: int
+    supplier_id: int
+    product_type: str
+    start_date: date
+    end_date: date
+    precio_unitario: float
+    tipo_producto: str
+    is_active: bool
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class ComponentPackageOut(Schema):
+    """
+    Represents a ComponentPackages entry, with its metadata.
+    """
+    id: int
+    order: int
+    quantity: Optional[int]
+    product_metadata: ProductMetadataOut
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class PackageOut(Schema):
+    """
+    Read/Out schema for a Package, including its components.
+    """
+    id: int
+    name: str
+    description: str
+    final_price: float
+    created_at: datetime
+    updated_at: datetime
+    is_active: bool
+    deleted_at: Optional[datetime]
+    components: List[ComponentPackageOut] = []
+
+    class Config:
+        orm_mode = True
+        from_attributes = True

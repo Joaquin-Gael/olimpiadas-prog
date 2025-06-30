@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
     ProductsMetadata, Suppliers,
-    Activities, Flights, Lodgment, Transportation, ActivityAvailability, TransportationAvailability
+    Activities, Flights, Lodgments, Transportation, ActivityAvailability, TransportationAvailability
 )
 from django.db.models import Q
 from ninja.pagination import paginate
@@ -26,27 +26,45 @@ from typing import List
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 
-products_router = Router(tags=["Productos"])
+products_router = Router(tags=["Products"])
 
-@products_router.post("/productos/crear/", response=ProductsMetadataOut)
+# TODO: terminar de traducir todas las dependencias al ingles
+
+@products_router.post("/create", response=ProductsMetadataOut)
 @transaction.atomic
-def crear_producto(request, data: ProductsMetadataCreate):
+def create_product(request, data: ProductsMetadataCreate):
+    """
+    Create a new product and its metadata.
+
+    Steps:
+    1. Validate the supplier exists.
+    2. Determine the actual product model from `product_type`.
+    3. Instantiate and validate the domain object (`Activities`, `Flights`, etc.).
+    4. Save the domain object to the database.
+    5. Create a `ProductsMetadata` record linking supplier, pricing, and the newly created object.
+
+    Returns the serialized metadata of the created product.
+    Raises HTTP 400 if `product_type` is invalid or business validation fails.
+    """
     supplier = get_object_or_404(Suppliers, id=data.supplier_id)
 
+    # Map product_type to model class
     model_map = {
-        "activity": Activities,
-        "flight": Flights,
-        "lodgment": Lodgment,
-        "transportation": Transportation,
+        "actividad": Activities,
+        "vuelo": Flights,
+        "alojamiento": Lodgments,
+        "transporte": Transportation,
     }
-    Model = model_map.get(data.tipo_producto)
-    if not Model:
-        raise HttpError(400, "Tipo de producto no válido")
+    _model = model_map.get(data.product_type)
+    if not _model:
+        raise HttpError(400, "Invalid product_type provided.")
 
-    producto = Model(**data.producto.dict())
+    # 1️⃣ Instantiate without saving
+    product = _model(**data.product.dict())
 
+    # 2️⃣ Perform full_clean() to enforce model validators and custom clean()
     try:
-        producto.full_clean()
+        product.full_clean()
     except ValidationError as e:
         error_messages = []
         for field, errors in e.message_dict.items():
@@ -55,393 +73,39 @@ def crear_producto(request, data: ProductsMetadataCreate):
         error_detail = "; ".join(error_messages)
         raise HttpError(422, error_detail)
 
-    producto.save()
+    # 3️⃣ Save valid domain object
+    product.save()
 
     # Obtener el ContentType para el modelo
-    content_type = ContentType.objects.get_for_model(Model)
-    
+    content_type = ContentType.objects.get_for_model(_model)
+
     metadata = ProductsMetadata.objects.create(
         supplier=supplier,
         content_type_id=content_type,
-        object_id=producto.id,
-        precio_unitario=data.precio_unitario
+        object_id=product.id,
+        unit_price=data.unit_price
     )
 
     return serialize_product_metadata(metadata)
 
 
-@products_router.post("/productos/actividad-completa/", response=ProductsMetadataOut)
-@transaction.atomic
-def crear_actividad_completa(request, data: ActivityFullCreate):
-    """
-    Crea una actividad completa con sus disponibilidades en una sola operación.
-    """
-    # 1. Verificar que el proveedor existe
-    supplier = get_object_or_404(Suppliers, id=data.supplier_id)
-    
-    # 2. Crear la actividad
-    activity_data = {
-        "name": data.name,
-        "description": data.description,
-        "location_id": data.location_id,
-        "date": data.date,
-        "start_time": data.start_time,
-        "duration_hours": data.duration_hours,
-        "include_guide": data.include_guide,
-        "maximum_spaces": data.maximum_spaces,
-        "difficulty_level": data.difficulty_level,
-        "language": data.language,
-        "available_slots": data.available_slots,
-    }
-    
-    activity = Activities(**activity_data)
-    
-    try:
-        activity.full_clean()
-    except ValidationError as e:
-        error_messages = []
-        for field, errors in e.message_dict.items():
-            for error in errors:
-                error_messages.append(f"{field}: {error}")
-        error_detail = "; ".join(error_messages)
-        raise HttpError(422, error_detail)
-    
-    activity.save()
-    
-    # 3. Crear la metadata del producto
-    content_type = ContentType.objects.get_for_model(Activities)
-    
-    metadata = ProductsMetadata.objects.create(
-        supplier=supplier,
-        content_type_id=content_type,
-        object_id=activity.id,
-        precio_unitario=data.precio_unitario
-    )
-    
-    # 4. Crear las disponibilidades si se proporcionan
-    created_availabilities = []
-    for availability_data in data.availabilities:
-        availability = activity.availabilities.create(
-            event_date=availability_data.event_date,
-            start_time=availability_data.start_time,
-            total_seats=availability_data.total_seats,
-            reserved_seats=availability_data.reserved_seats,
-            price=availability_data.price,
-            currency=availability_data.currency,
-            state="active"
-        )
-        created_availabilities.append(availability)
-    
-    return serialize_product_metadata(metadata)
-
-
-@products_router.post("/productos/alojamiento-completo/", response=ProductsMetadataOut)
-@transaction.atomic
-def crear_alojamiento_completo(request, data: LodgmentFullCreate):
-    """
-    Crea un alojamiento completo con habitaciones y disponibilidades en una sola operación.
-    """
-    # 1. Verificar que el proveedor existe
-    supplier = get_object_or_404(Suppliers, id=data.supplier_id)
-    
-    # 2. Crear el alojamiento
-    lodgment_data = {
-        "name": data.name,
-        "description": data.description,
-        "location_id": data.location_id,
-        "type": data.type,
-        "max_guests": data.max_guests,
-        "contact_phone": data.contact_phone,
-        "contact_email": data.contact_email,
-        "amenities": data.amenities,
-        "date_checkin": data.date_checkin,
-        "date_checkout": data.date_checkout,
-    }
-    
-    lodgment = Lodgment(**lodgment_data)
-    
-    try:
-        lodgment.full_clean()
-    except ValidationError as e:
-        error_messages = []
-        for field, errors in e.message_dict.items():
-            for error in errors:
-                error_messages.append(f"{field}: {error}")
-        error_detail = "; ".join(error_messages)
-        raise HttpError(422, error_detail)
-    
-    lodgment.save()
-    
-    # 3. Crear la metadata del producto
-    content_type = ContentType.objects.get_for_model(Lodgment)
-    
-    metadata = ProductsMetadata.objects.create(
-        supplier=supplier,
-        content_type_id=content_type,
-        object_id=lodgment.id,
-        precio_unitario=data.precio_unitario
-    )
-    
-    # 4. Crear las habitaciones y sus disponibilidades
-    created_rooms = []
-    for room_data in data.rooms:
-        # Extraer las disponibilidades antes de crear la habitación
-        room_availabilities = room_data.availabilities
-        room_data_dict = room_data.dict(exclude={'availabilities'})
-        
-        # Crear la habitación
-        room = lodgment.rooms.create(**room_data_dict)
-        created_rooms.append(room)
-        
-        # Crear las disponibilidades de la habitación
-        for availability_data in room_availabilities:
-            room.availabilities.create(
-                start_date=availability_data.start_date,
-                end_date=availability_data.end_date,
-                available_quantity=availability_data.available_quantity,
-                price_override=availability_data.price_override,
-                currency=availability_data.currency,
-                is_blocked=availability_data.is_blocked,
-                minimum_stay=availability_data.minimum_stay
-            )
-    
-    return serialize_product_metadata(metadata)
-
-
-@products_router.post("/productos/transporte-completo/", response=ProductsMetadataOut)
-@transaction.atomic
-def crear_transporte_completo(request, data: TransportationFullCreate):
-    """
-    Crea un transporte completo con sus disponibilidades en una sola operación.
-    """
-    # 1. Verificar que el proveedor existe
-    supplier = get_object_or_404(Suppliers, id=data.supplier_id)
-    
-    # 2. Crear el transporte
-    transportation_data = {
-        "origin_id": data.origin_id,
-        "destination_id": data.destination_id,
-        "type": data.type,
-        "description": data.description,
-        "notes": data.notes,
-        "capacity": data.capacity,
-    }
-    
-    transportation = Transportation(**transportation_data)
-    
-    try:
-        transportation.full_clean()
-    except ValidationError as e:
-        error_messages = []
-        for field, errors in e.message_dict.items():
-            for error in errors:
-                error_messages.append(f"{field}: {error}")
-        error_detail = "; ".join(error_messages)
-        raise HttpError(422, error_detail)
-    
-    transportation.save()
-    
-    # 3. Crear la metadata del producto
-    content_type = ContentType.objects.get_for_model(Transportation)
-    
-    metadata = ProductsMetadata.objects.create(
-        supplier=supplier,
-        content_type_id=content_type,
-        object_id=transportation.id,
-        precio_unitario=data.precio_unitario
-    )
-    
-    # 4. Crear las disponibilidades si se proporcionan
-    created_availabilities = []
-    for availability_data in data.availabilities:
-        availability = transportation.availabilities.create(
-            departure_date=availability_data.departure_date,
-            departure_time=availability_data.departure_time,
-            arrival_date=availability_data.arrival_date,
-            arrival_time=availability_data.arrival_time,
-            total_seats=availability_data.total_seats,
-            reserved_seats=availability_data.reserved_seats,
-            price=availability_data.price,
-            currency=availability_data.currency,
-            state=availability_data.state
-        )
-        created_availabilities.append(availability)
-    
-    return serialize_product_metadata(metadata)
-
-
-@products_router.post("/productos/{id}/transportation-availability/", response=TransportationAvailabilityOut)
-@transaction.atomic
-def create_transportation_availability(request, id: int, data: TransportationAvailabilityCreate):
-    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type_id"), id=id)
-
-    if metadata.tipo_producto != "transportation":
-        raise HttpError(400, "This product is not a transportation.")
-
-    transportation = metadata.content
-
-    if not transportation.is_active:
-        raise HttpError(400, "The transportation is inactive.")
-
-    if data.reserved_seats > data.total_seats:
-        raise HttpError(422, "Reserved seats cannot exceed total seats.")
-
-    availability = transportation.availabilities.create(
-        departure_date=data.departure_date,
-        departure_time=data.departure_time,
-        arrival_date=data.arrival_date,
-        arrival_time=data.arrival_time,
-        total_seats=data.total_seats,
-        reserved_seats=data.reserved_seats,
-        price=data.price,
-        currency=data.currency,
-        state=data.state,
-    )
-
-    return serialize_transportation_availability(availability)
-
-
-@products_router.get("/productos/{id}/transportation-availability/", response=List[TransportationAvailabilityOut])
-def list_transportation_availabilities(request, id: int):
-    # 1. Buscar el producto
-    metadata = get_object_or_404(
-        ProductsMetadata.active.select_related("content_type_id"), id=id
-    )
-
-    # 2. Validar tipo
-    if metadata.tipo_producto != "transportation":
-        raise HttpError(400, "This product is not a transportation.")
-
-    # 3. Obtener transporte concreto
-    transportation = metadata.content
-
-    # 4. Retornar todas las disponibilidades (ordenadas por fecha y hora)
-    availabilities = transportation.availabilities.order_by("departure_date", "departure_time").all()
-    return [serialize_transportation_availability(av) for av in availabilities]
-
-
-@products_router.delete("/productos/transportation-availability/{id}/", response={204: None})
-@transaction.atomic
-def delete_transportation_availability(request, id: int):
-    # 1. Buscar la disponibilidad
-    availability = get_object_or_404(TransportationAvailability, id=id)
-
-    # 2. Eliminar directamente (hard-delete)
-    availability.delete()
-
-    # 3. Retornar vacío con status 204 (sin contenido)
-    return 204, None
-
-
-@products_router.patch("/productos/transportation-availability/{id}/", response=TransportationAvailabilityOut)
-@transaction.atomic
-def update_transportation_availability(request, id: int, data: TransportationAvailabilityUpdate):
-    availability = get_object_or_404(TransportationAvailability, id=id)
-
-    # Validaciones cruzadas
-    if data.reserved_seats is not None:
-        total = data.total_seats if data.total_seats is not None else availability.total_seats
-        if data.reserved_seats > total:
-            raise HttpError(422, "Reserved seats cannot exceed total seats.")
-
-    if data.departure_date is not None and data.departure_date < datetime.now().date():
-        raise HttpError(422, "Departure date cannot be in the past.")
-
-    # Aplicar cambios
-    for attr, value in data.dict(exclude_unset=True).items():
-        setattr(availability, attr, value)
-
-    availability.full_clean()
-    availability.save()
-
-    return serialize_transportation_availability(availability)
-
-
-@products_router.post("/productos/{id}/availability/", response=ActivityAvailabilityOut)
-@transaction.atomic
-def create_availability(request, id: int, data: ActivityAvailabilityCreate):
-    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type_id"), id=id)
-
-    if metadata.tipo_producto != "activity":
-        raise HttpError(400, "This product is not an activity.")
-
-    activity = metadata.content
-
-    if not activity.is_active:
-        raise HttpError(400, "The activity is inactive.")
-
-    if data.reserved_seats > data.total_seats:
-        raise HttpError(422, "Reserved seats cannot exceed total seats.")
-
-    availability = activity.availabilities.create(
-        event_date=data.event_date,
-        start_time=data.start_time,
-        total_seats=data.total_seats,
-        reserved_seats=data.reserved_seats,
-        price=data.price,
-        currency=data.currency,
-        state=data.state,
-    )
-
-    return serialize_activity_availability(availability)
-
-@products_router.get("/productos/{id}/availability/", response=List[ActivityAvailabilityOut])
-def list_availabilities(request, id: int):
-    # 1. Buscar el producto
-    metadata = get_object_or_404(
-        ProductsMetadata.active.select_related("content_type_id"), id=id
-    )
-
-    # 2. Validar tipo
-    if metadata.tipo_producto != "activity":
-        raise HttpError(400, "This product is not an activity.")
-
-    # 3. Obtener actividad concreta
-    activity = metadata.content
-
-    # 4. Retornar todas las disponibilidades (ordenadas por fecha y hora)
-    availabilities = activity.availabilities.order_by("event_date", "start_time").all()
-    return [serialize_activity_availability(av) for av in availabilities]
-
-@products_router.delete("/productos/availability/{id}/", response={204: None})
-@transaction.atomic
-def delete_availability(request, id: int):
-    # 1. Buscar la disponibilidad
-    availability = get_object_or_404(ActivityAvailability, id=id)
-
-    # 2. Eliminar directamente (hard-delete)
-    availability.delete()
-
-    # 3. Retornar vacío con status 204 (sin contenido)
-    return 204, None
-
-@products_router.patch("/productos/availability/{id}/", response=ActivityAvailabilityOut)
-@transaction.atomic
-def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
-    availability = get_object_or_404(ActivityAvailability, id=id)
-
-    # Validaciones cruzadas
-    if data.reserved_seats is not None:
-        total = data.total_seats if data.total_seats is not None else availability.total_seats
-        if data.reserved_seats > total:
-            raise HttpError(422, "Reserved seats cannot exceed total seats.")
-
-    if data.event_date is not None and data.event_date < datetime.now().date():
-        raise HttpError(422, "Event date cannot be in the past.")
-
-    # Aplicar cambios
-    for attr, value in data.dict(exclude_unset=True).items():
-        setattr(availability, attr, value)
-
-    availability.full_clean()
-    availability.save()
-
-    return serialize_activity_availability(availability)
-
-
-@products_router.get("/productos/", response=list[ProductsMetadataOut])
+@products_router.get("/", response=list[ProductsMetadataOut])
 @paginate(DefaultPagination)
-def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
+def list_products(request, filtros: ProductosFiltro = ProductosFiltro()):
+    """
+    List active products metadata with optional filters.
+
+    Available filters:
+    - tipo: filter by product type (actividad, vuelo, alojamiento, transporte)
+    - precio_min, precio_max: filter by unit price range
+    - supplier_id: filter by supplier
+    - destino_id, origen_id: filter by destination or origin ID across related models
+    - fecha_min, fecha_max: filter by date range on activities, flights, transportation, or lodging
+    - search: full-text search on name/description fields
+    - ordering: order by price or date (e.g., 'precio', '-fecha')
+
+    Returns a paginated list of serialized product metadata.
+    """
     qs = (
         ProductsMetadata.active
         .select_related("content_type_id")
@@ -614,18 +278,18 @@ def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
     # ──────────────────────────────────────────────────────────────
     if filtros.ordering:
         order_map = {
-            "precio": "precio_unitario",
-            "-precio": "-precio_unitario",
+            "precio": "unit_price",
+            "-precio": "-unit_price",
             "fecha": "activity__date",
             "-fecha": "-activity__date",
             "nombre": "activity__name",
             "-nombre": "-activity__name",
-            "rating": "precio_unitario",  # Placeholder - implementar rating cuando esté disponible
-            "-rating": "-precio_unitario",
-            "popularidad": "precio_unitario",  # Placeholder - implementar popularidad cuando esté disponible
-            "-popularidad": "-precio_unitario",
+            "rating": "unit_price",  # Placeholder - implementar rating cuando esté disponible
+            "-rating": "-unit_price",
+            "popularidad": "unit_price",  # Placeholder - implementar popularidad cuando esté disponible
+            "-popularidad": "-unit_price",
         }
-        qs = qs.order_by(order_map.get(filtros.ordering, "precio_unitario"))
+        qs = qs.order_by(order_map.get(filtros.ordering, "unit_price"))
 
     # ──────────────────────────────────────────────────────────────
     # FILTROS AVANZADOS
@@ -650,17 +314,34 @@ def listar_productos(request, filtros: ProductosFiltro = ProductosFiltro()):
     return [serialize_product_metadata(p) for p in qs]
 
 
-@products_router.get("/productos/{id}/", response=ProductsMetadataOut)
-def obtener_producto(request, id: int):
-    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type_id"), id=id)
+@products_router.get("/{id}", response=ProductsMetadataOut)
+def get_product(request, id: int):
+    """
+    Retrieve a single product metadata by its ID.
+
+    Returns serialized metadata for the product if found.
+    Raises HTTP 404 if no active record exists with the given ID.
+    """
+    metadata = get_object_or_404(
+        ProductsMetadata.active.select_related("content_type_id"),
+        id=id
+    )
     return serialize_product_metadata(metadata)
 
 
-@products_router.patch("/productos/{id}/", response=ProductsMetadataOut)
+@products_router.patch("/update/{id}", response=ProductsMetadataOut)
 @transaction.atomic
-def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
+def update_product(request, id: int, data: ProductsMetadataUpdate):
+    """
+    Update product metadata and optionally its underlying product object.
+
+    - Validates that the provided sub-schema matches the existing `product_type`.
+    - Allows updating `unit_price` and `supplier_id`.
+    - Applies partial updates to the real product (Activities, Flights, etc.) if included.
+    - Raises HTTP 422 if attempting to change the product type or mismatched schema.
+    """
     metadata = get_object_or_404(
-        ProductsMetadata.objects.select_related("content_type_id"), id=id
+        ProductsMetadata.objects.select_related("content_type"), id=id
     )
 
     # Actualizar campos de metadata si se proporcionan
@@ -675,39 +356,39 @@ def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
     # Actualizar el producto si se proporciona
     if data.producto is not None:
         producto = metadata.content
-        
+
         # Validar que los campos del producto son válidos para el tipo de producto
         producto_fields = data.producto.dict(exclude_unset=True)
-        
+
         # Verificar que no se estén actualizando campos que no corresponden al tipo de producto
         valid_fields = {
-            "activity": ["name", "description", "location_id", "date", "start_time", 
-                        "duration_hours", "include_guide", "maximum_spaces", 
+            "activity": ["name", "description", "location_id", "date", "start_time",
+                        "duration_hours", "include_guide", "maximum_spaces",
                         "difficulty_level", "language", "available_slots"],
-            "flight": ["airline", "flight_number", "origin_id", "destination_id", 
-                      "departure_date", "departure_time", "arrival_date", "arrival_time", 
-                      "duration_hours", "class_flight", "available_seats", "luggage_info", 
+            "flight": ["airline", "flight_number", "origin_id", "destination_id",
+                      "departure_date", "departure_time", "arrival_date", "arrival_time",
+                      "duration_hours", "class_flight", "available_seats", "luggage_info",
                       "aircraft_type", "terminal", "gate", "notes"],
-            "lodgment": ["name", "description", "location_id", "type", "max_guests", 
-                        "contact_phone", "contact_email", "amenities", "date_checkin", 
+            "lodgment": ["name", "description", "location_id", "type", "max_guests",
+                        "contact_phone", "contact_email", "amenities", "date_checkin",
                         "date_checkout"],
-            "transportation": ["origin_id", "destination_id", "type", "description", 
+            "transportation": ["origin_id", "destination_id", "type", "description",
                              "notes", "capacity"]
         }
-        
+
         valid_fields_for_type = valid_fields.get(metadata.tipo_producto, [])
         invalid_fields = [field for field in producto_fields.keys() if field not in valid_fields_for_type]
-        
+
         if invalid_fields:
             raise HttpError(
                 422,
                 f"Los campos {invalid_fields} no son válidos para productos de tipo {metadata.tipo_producto}"
             )
-        
+
         # Aplicar los cambios al producto
         for attr, value in producto_fields.items():
             setattr(producto, attr, value)
-        
+
         try:
             producto.full_clean()
         except ValidationError as e:
@@ -717,7 +398,7 @@ def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
                     error_messages.append(f"{field}: {error}")
             error_detail = "; ".join(error_messages)
             raise HttpError(422, error_detail)
-        
+
         producto.save(update_fields=list(producto_fields.keys()))
 
     metadata.save(update_fields=["precio_unitario", "supplier_id"])
@@ -725,16 +406,35 @@ def actualizar_producto(request, id: int, data: ProductsMetadataUpdate):
     return serialize_product_metadata(metadata)
 
 
-@products_router.delete("/productos/{id}/", response={204: None})
+@products_router.patch("/deactivate/{id}", response={204: None})
 @transaction.atomic
-def inactivar_producto(request, id: int):
+def deactivate_product(request, id: int):
+    """
+    Soft-deactivate a product metadata (and its underlying product) by ID.
+
+    - Marks `is_active=False` and sets `deleted_at` timestamp.
+    - Also deactivates the related domain object (Activities, Flights, etc.).
+    - In the future, will check for confirmed sales before inactivation.
+    """
     metadata = get_object_or_404(ProductsMetadata, id=id)
 
+    # ───── TODO: reactivar esta lógica cuando el modelo Order exista ─────
+    # tiene_ventas_confirmadas = metadata.orders.filter(status="confirmed").exists()
+    # if tiene_ventas_confirmadas:
+    #     # Solo inactivamos metadata; no tocamos el objeto real para preservar trazabilidad
+    #     metadata.is_active = False
+    #     metadata.deleted_at = timezone.now()
+    #     metadata.save(update_fields=["is_active", "deleted_at"])
+    #     return 204, None
+    # ─────────────────────────────────────────────────────────────────────
+
+    # Versión temporal: siempre inactivamos tanto metadata como el objeto real
     metadata.is_active = False
     metadata.deleted_at = timezone.now()
     metadata.save(update_fields=["is_active", "deleted_at"])
 
+    # Also deactivate the real product instance
     metadata.content.is_active = False
     metadata.content.save(update_fields=["is_active"])
 
-    return 204, None
+    return None
