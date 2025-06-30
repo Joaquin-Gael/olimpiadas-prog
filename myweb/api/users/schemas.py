@@ -26,6 +26,9 @@ class UserResponseSchema(Schema):
     created_at: datetime
     is_staff: bool
 
+    class Config:
+        from_attributes = True
+
 
 class UserUpdateSchema(Schema):
     """Schema para actualizar usuarios"""

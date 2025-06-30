@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
     ProductsMetadata, Suppliers,
-    Activities, Flights, Lodgment, Transportation, ActivityAvailability, TransportationAvailability
+    Activities, Flights, Lodgments, Transportation, ActivityAvailability, TransportationAvailability
 )
 from django.db.models import Q
 from ninja.pagination import paginate
@@ -34,11 +34,12 @@ products_router = Router(tags=["Products"])
 def create_product(request, data: ProductsMetadataCreate):
     supplier = get_object_or_404(Suppliers, id=data.supplier_id)
 
+    # Map product_type to model class
     model_map = {
-        "activity": Activities,
-        "flight": Flights,
-        "lodgment": Lodgment,
-        "transportation": Transportation,
+        "actividad": Activities,
+        "vuelo": Flights,
+        "alojamiento": Lodgments,
+        "transporte": Transportation,
     }
     Model = model_map.get(data.product_type)
     if not Model:
@@ -46,6 +47,7 @@ def create_product(request, data: ProductsMetadataCreate):
 
     product = Model(**data.product.dict())
 
+    # 2️⃣ Perform full_clean() to enforce model validators and custom clean()
     try:
         product.full_clean()
     except ValidationError as e:
@@ -59,8 +61,8 @@ def create_product(request, data: ProductsMetadataCreate):
     product.save()
 
     # Obtener el ContentType para el modelo
-    content_type = ContentType.objects.get_for_model(Model)
-    
+    content_type = ContentType.objects.get_for_model(_model)
+
     metadata = ProductsMetadata.objects.create(
         supplier=supplier,
         content_type_id=content_type,

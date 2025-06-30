@@ -23,7 +23,7 @@ from .schemas import (
 console = Console()
 
 user_router = Router(
-    tags=["users"],
+    tags=["Users"],
     auth=JWTBearer(),
 )
 
@@ -162,17 +162,21 @@ def list_users(request):
             for user in users
         ]
     except Exception as e:
-        raise HttpError(500, {"detail": f"Error al obtener usuarios: {str(e)}"})
+        raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
-@user_router.get("/me", response=UserResponseSchema)
-def me(request):
+@user_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema})
+def me_user(request):
     """
     Retorna un usuario en el sistema.
-    :param request:
-    :return: UserResponseSchema
+
+    - Param request: Metodo por el cual se obtiene info del cliente/browser
+    - Return: UserResponseSchema
     """
 
     try:
+        if request.user is None:
+            return Response(ErrorResponseSchema(message="We cannot find user in this session", detail="Request-User = None"), status=401)
+
         return UserResponseSchema(
             id=request.user.id,
             first_name=request.user.first_name,

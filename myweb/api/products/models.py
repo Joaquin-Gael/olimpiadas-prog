@@ -94,7 +94,7 @@ class Activities(models.Model):
         ]
     )
     difficulty_level = models.CharField(
-        max_length=16,
+        max_length=16,                       # ❶ añadido
         choices=DifficultyLevel.choices(),
     )
     language = models.CharField(max_length=32)
@@ -118,12 +118,12 @@ class Activities(models.Model):
     )
 
     def __str__(self):
-        return self.name
+        return f"*{self.__dict__}"
 
 class ActivityAvailability(models.Model):
     activity = models.ForeignKey(
-        "Activities", 
-        on_delete=models.CASCADE, 
+        "Activities",
+        on_delete=models.CASCADE,
         related_name="availabilities"
     )
     event_date = models.DateField()
@@ -137,7 +137,7 @@ class ActivityAvailability(models.Model):
         help_text="Number of seats already reserved"
     )
     price = models.DecimalField(
-        max_digits=10, 
+        max_digits=10,
         decimal_places=2,
         help_text="Price per person for this date"
     )
@@ -146,14 +146,14 @@ class ActivityAvailability(models.Model):
         help_text="Currency code (e.g., USD, ARS)"
     )
     state = models.CharField(
-        max_length=32, 
+        max_length=32,
         default="active",
         help_text="Current availability status (e.g., active, canceled)"
     )
 
     def __str__(self):
         return f"{self.activity.name} - {self.event_date} @ {self.start_time}"
-    
+
     def clean(self):
         if self.reserved_seats > self.total_seats:
             raise ValidationError("Reserved seats cannot exceed total seats.")
@@ -182,16 +182,13 @@ class Flights(models.Model):
     flight_number = models.CharField(max_length=16)
     origin = models.ForeignKey(Location, related_name="flights_departing", on_delete=models.PROTECT)
     destination = models.ForeignKey(Location, related_name="flights_arriving", on_delete=models.PROTECT)
-    
     departure_date = models.DateField()
-    departure_time = models.TimeField()
     arrival_date = models.DateField()
-    arrival_time = models.TimeField()
     duration_hours = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(192)])
-    
+
     class_flight = models.CharField(max_length=32, choices=ClassFlight.choices())
     available_seats = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(500)])
-    
+
     luggage_info = models.CharField(max_length=128)
     aircraft_type = models.CharField(max_length=32)
     terminal = models.CharField(max_length=32, null=True, blank=True)
@@ -243,10 +240,10 @@ class Lodgment(models.Model):
     name = models.CharField(max_length=128, db_index=True)
     description = models.TextField(blank=True)
     location = models.ForeignKey(Location, on_delete=models.PROTECT, db_index=True)
-    
+
     # Datos clave para experiencia cliente
     type = models.CharField(
-        max_length=32, 
+        max_length=32,
         choices=LodgmentType.choices(),
         help_text="Type of accommodation"
     )
@@ -254,16 +251,16 @@ class Lodgment(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(50)],
         help_text="Maximum number of guests the property can accommodate"
     )
-    
+
     # Información de contacto y servicios
     contact_phone = models.CharField(max_length=20, blank=True)
     contact_email = models.EmailField(blank=True)
     amenities = models.JSONField(default=list, blank=True, help_text="List of available amenities")
-    
+
     # Disponibilidad general del alojamiento
     date_checkin = models.DateField(db_index=True)
     date_checkout = models.DateField(db_index=True)
-    
+
     # Timestamps y estado
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -341,8 +338,8 @@ class RoomType(Enum):
 class Room(models.Model):
     id = models.AutoField("room_id", primary_key=True)
     lodgment = models.ForeignKey(
-        Lodgment, 
-        related_name="rooms", 
+        Lodgment,
+        related_name="rooms",
         on_delete=models.CASCADE,
         db_index=True
     )
@@ -353,7 +350,7 @@ class Room(models.Model):
     )
     name = models.CharField(max_length=64, blank=True, help_text="Optional room name/number")
     description = models.TextField(blank=True)
-    
+
     # Capacidad y características
     capacity = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(20)],
@@ -363,7 +360,7 @@ class Room(models.Model):
     has_balcony = models.BooleanField(default=False)
     has_air_conditioning = models.BooleanField(default=True)
     has_wifi = models.BooleanField(default=True)
-    
+
     # Precio base
     base_price_per_night = models.DecimalField(
         max_digits=10,
@@ -372,7 +369,7 @@ class Room(models.Model):
         help_text="Base price per night for this room type"
     )
     currency = models.CharField(max_length=3, default="USD")
-    
+
     # Estado
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -415,16 +412,16 @@ class Room(models.Model):
 class RoomAvailability(models.Model):
     id = models.AutoField("room_availability_id", primary_key=True)
     room = models.ForeignKey(
-        Room, 
-        related_name="availabilities", 
+        Room,
+        related_name="availabilities",
         on_delete=models.CASCADE,
         db_index=True
     )
-    
+
     # Período de disponibilidad
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
-    
+
     # Cantidad disponible y precio
     available_quantity = models.IntegerField(
         validators=[MinValueValidator(0)],
@@ -439,7 +436,7 @@ class RoomAvailability(models.Model):
         help_text="Override price for this period (if different from base price)"
     )
     currency = models.CharField(max_length=3, default="USD")
-    
+
     # Estado y restricciones
     is_blocked = models.BooleanField(
         default=False,
@@ -450,7 +447,7 @@ class RoomAvailability(models.Model):
         default=1,
         help_text="Minimum number of nights required for booking"
     )
-    
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -487,7 +484,7 @@ class RoomAvailability(models.Model):
     def is_available_for_booking(self):
         """Verifica si la habitación está disponible para reserva"""
         return (
-            not self.is_blocked and 
+            not self.is_blocked and
             self.available_quantity > 0 and
             self.start_date >= timezone.localdate()
         )
@@ -564,15 +561,17 @@ class TransportationAvailability(models.Model):
 
 
 class ProductType(models.TextChoices):
-    ACTIVITY = "activity", "Activity"
-    FLIGHT = "flight", "Flight" 
-    LODGMENT = "lodgment", "Lodgment"
-    TRANSPORTATION = "transportation", "Transportation"
+    ACTIVITY       = "ACTIVITY", "Activity"
+    FLIGHT         = "FLIGHT", "Flight"
+    LODGMENT       = "LODGMENT", "Lodgment"
+    TRANSPORTATION = "TRANSPORTATION", "Transportation"
 
 
 class ProductsMetadata(models.Model):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, on_delete=models.PROTECT)
+    start_date = models.DateField(default=timezone.now)
+    end_date = models.DateField(default=timezone.now)
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
@@ -605,7 +604,7 @@ class ProductsMetadata(models.Model):
     def clean(self):
         if self.unit_price < 0:
             raise ValidationError("El precio no puede ser negativo")
-        
+
         if not self.content:
             raise ValidationError("El producto referenciado no existe")
 
