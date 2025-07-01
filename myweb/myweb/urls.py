@@ -20,6 +20,7 @@ api = NinjaAPI(
     title=settings.API_TITLE,
     description=settings.API_DESCRIPTION,
     version=settings.API_VERSION,
+    docs_url=None
 )
 
 # Agregar las rutas de usuarios
