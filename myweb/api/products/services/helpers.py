@@ -1,11 +1,11 @@
-from .schemas import (
+from ..schemas import (
     ProductsMetadataOut,
     ActivityOut,
     FlightOut,
     LodgmentOut,
     TransportationOut
 )
-from .models import ProductsMetadata
+from ..models import ProductsMetadata
 from typing import Dict, Any
 from api.products.models import Activities, Flights, Lodgment, Transportation
 from api.products.models import Location
@@ -15,6 +15,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
     base_data = {
         "id": metadata.id,
         "unit_price": metadata.unit_price,
+        "currency": metadata.currency,
         "product_type": metadata.product_type,
     }
     

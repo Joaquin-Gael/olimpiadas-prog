@@ -616,6 +616,7 @@ class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""
     id: int
     unit_price: float
+    currency: str
     product_type: Literal["activity", "flight", "lodgment", "transportation"]
     product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
 
@@ -624,6 +625,7 @@ class ProductsMetadataOutLodgmentDetail(BaseSchema):
     """Output schema for product metadata with lodging detail (includes rooms)"""
     id: int
     unit_price: float
+    currency: str
     product_type: Literal["lodgment"]
     product: LodgmentDetailOut
 
@@ -633,6 +635,7 @@ class ProductsMetadataCreate(BaseSchema):
     """Schema to create product metadata"""
     product_type: Literal["activity", "flight", "lodgment", "transportation"]
     unit_price: float
+    currency: str = Field(default="USD", max_length=3)
     supplier_id: int
     product: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
@@ -641,6 +644,7 @@ class ProductsMetadataCreate(BaseSchema):
 class ProductsMetadataUpdate(BaseSchema):
     """Base schema to update product metadata"""
     unit_price: Optional[float] = None
+    currency: Optional[str] = None
     supplier_id: Optional[int] = None
     product: Optional[Union[ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate]] = None
 
@@ -1148,3 +1152,22 @@ class CategoryOut(BaseSchema):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class RoomQuoteOut(BaseSchema):
+    unit_price: float
+    nights: int
+    rooms: int
+    subtotal: float
+    taxes: float
+    total_price: float
+    currency: str
+    availability_id: int
+
+
+class CheckAvailabilityOut(BaseSchema):
+    remaining: int
+    enough: bool
+    unit_price: float
+    currency: str
+    availability_id: int

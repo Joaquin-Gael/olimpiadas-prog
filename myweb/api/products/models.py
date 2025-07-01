@@ -12,7 +12,7 @@ from api.clients.models import Clients
 
 class ProductsMetadataManager(models.Manager):
     def with_related_data(self):
-        return self.select_related('supplier', 'content_type_id').prefetch_related(
+        return self.select_related('supplier', 'content_type').prefetch_related(
             'activity', 'flights', 'lodgment', 'transportation'
         )
 
@@ -190,6 +190,7 @@ class Flights(models.Model):
     
     class_flight = models.CharField(max_length=32, choices=ClassFlight.choices())
     available_seats = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(500)])
+    capacity = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(500)], help_text="Maximum number of seats for this flight")
 
     luggage_info = models.CharField(max_length=128)
     aircraft_type = models.CharField(max_length=32)
@@ -429,6 +430,11 @@ class RoomAvailability(models.Model):
         validators=[MinValueValidator(0)],
         help_text="Number of rooms of this type available for the period"
     )
+    max_quantity = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="Maximum number of rooms of this type for the period",
+        default=1
+    )
     price_override = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -583,6 +589,7 @@ class ProductsMetadata(models.Model):
         validators=[MinValueValidator(0)],
         help_text="Unit price of the product"
     )
+    currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     

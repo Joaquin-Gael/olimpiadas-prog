@@ -7,9 +7,10 @@ from .schemas import (
     LodgmentCompleteCreate, LodgmentMetadataCreate, RoomCreateNested, RoomAvailabilityCreateNested,
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
-    ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate
+    ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
+    RoomQuoteOut, CheckAvailabilityOut
 )
-from .helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
+from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
@@ -23,10 +24,11 @@ from .filters import ProductosFiltro
 from .pagination import DefaultPagination
 from django.db import transaction
 from django.utils import timezone
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from typing import List
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
+from decimal import Decimal
 
 products_router = Router(tags=["Products"])
 
@@ -68,7 +70,8 @@ def create_product(request, data: ProductsMetadataCreate):
         supplier=supplier,
         content_type_id=content_type,
         object_id=product.id,
-        unit_price=data.unit_price
+        unit_price=data.unit_price,
+        currency=getattr(data, 'currency', 'USD')
     )
 
     return serialize_product_metadata(metadata)
@@ -119,7 +122,8 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
         supplier=supplier,
         content_type_id=content_type,
         object_id=activity.id,
-        unit_price=metadata.unit_price
+        unit_price=metadata.unit_price,
+        currency=getattr(metadata, 'currency', 'USD')
     )
     
     # 4. Create availabilities if provided
@@ -183,7 +187,8 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
         supplier=supplier,
         content_type_id=content_type,
         object_id=lodgment.id,
-        unit_price=metadata.unit_price
+        unit_price=metadata.unit_price,
+        currency=getattr(metadata, 'currency', 'USD')
     )
     
     # 4. Create rooms and their availabilities
@@ -252,7 +257,8 @@ def create_complete_transport(request, data: TransportationCompleteCreate, metad
         supplier=supplier,
         content_type_id=content_type,
         object_id=transportation.id,
-        unit_price=metadata.unit_price
+        unit_price=metadata.unit_price,
+        currency=getattr(metadata, 'currency', 'USD')
     )
     
     # 4. Create availabilities if provided
@@ -1214,3 +1220,143 @@ def list_lodgment_room_availabilities(request, lodgment_id: int, start_date: dat
         result.append(room_data)
     
     return result
+
+
+@products_router.get("/products/room/{room_id}/quote/", response=RoomQuoteOut)
+def quote_room(request, room_id: int, start_date: date, end_date: date, qty: int = 1):
+    if start_date >= end_date:
+        raise HttpError(422, "start_date debe ser < end_date")
+    if qty <= 0:
+        raise HttpError(422, "qty debe ser positivo")
+
+    try:
+        av = RoomAvailability.objects.select_for_update().get(
+            room_id=room_id,
+            start_date__lte=start_date,
+            end_date__gte=end_date,
+            is_blocked=False,
+        )
+    except RoomAvailability.DoesNotExist:
+        raise HttpError(404, "No hay disponibilidad para ese rango")
+
+    nights = (end_date - start_date).days
+    if nights < av.minimum_stay:
+        raise HttpError(422, f"Mínimo {av.minimum_stay} noche(s)")
+
+    if av.available_quantity < qty:
+        return 409, {"remaining": av.available_quantity}
+
+    unit = av.effective_price
+    subtotal = unit * nights * qty
+    taxes = subtotal * Decimal("0.21")  # Cambia si tienes otro IVA
+    total = subtotal + taxes
+
+    return RoomQuoteOut(
+        unit_price=float(unit),
+        nights=nights,
+        rooms=qty,
+        subtotal=float(subtotal),
+        taxes=float(taxes),
+        total_price=float(total),
+        currency=av.currency,
+        availability_id=av.id
+    )
+
+@products_router.get("/products/{metadata_id}/check/", response=CheckAvailabilityOut)
+def check_activity(request, metadata_id: int, qty: int, date: date, start_time: time):
+    if qty <= 0:
+        raise HttpError(422, "qty debe ser positivo")
+    from .models import ActivityAvailability
+    try:
+        av = ActivityAvailability.objects.get(
+            activity__product_metadata_id=metadata_id,
+            event_date=date,
+            start_time=start_time,
+            state="active",
+        )
+    except ActivityAvailability.DoesNotExist:
+        raise HttpError(404, "no_existe_disponibilidad")
+    remaining = av.total_seats - av.reserved_seats
+    enough = remaining >= qty
+    status = 200 if enough else 409
+    return status, CheckAvailabilityOut(
+        remaining=remaining,
+        enough=enough,
+        unit_price=float(av.price),
+        currency=av.currency,
+        availability_id=av.id,
+    )
+
+@products_router.get("/products/{metadata_id}/transport/check/", response=CheckAvailabilityOut)
+def check_transport(request, metadata_id: int, qty: int, date: date, time: time):
+    if qty <= 0:
+        raise HttpError(422, "qty debe ser positivo")
+    from .models import TransportationAvailability
+    try:
+        av = TransportationAvailability.objects.get(
+            transportation__product_metadata_id=metadata_id,
+            departure_date=date,
+            departure_time=time,
+        )
+    except TransportationAvailability.DoesNotExist:
+        raise HttpError(404, "no_existe_disponibilidad")
+    remaining = av.total_seats - av.reserved_seats
+    enough = remaining >= qty
+    status = 200 if enough else 409
+    return status, CheckAvailabilityOut(
+        remaining=remaining,
+        enough=enough,
+        unit_price=float(av.price),
+        currency=av.currency,
+        availability_id=av.id,
+    )
+
+@products_router.get("/products/{metadata_id}/flight/check/", response=CheckAvailabilityOut)
+def check_flight(request, metadata_id: int, qty: int):
+    if qty <= 0:
+        raise HttpError(422, "qty debe ser positivo")
+    from .models import Flights, ProductsMetadata
+    try:
+        flight = Flights.objects.get(product_metadata_id=metadata_id)
+        meta = ProductsMetadata.objects.get(id=metadata_id)
+    except Flights.DoesNotExist:
+        raise HttpError(404, "no_existe_disponibilidad")
+    except ProductsMetadata.DoesNotExist:
+        raise HttpError(404, "no_existe_metadata")
+    remaining = flight.available_seats
+    enough = remaining >= qty
+    status = 200 if enough else 409
+    return status, CheckAvailabilityOut(
+        remaining=remaining,
+        enough=enough,
+        unit_price=float(meta.unit_price),
+        currency=meta.currency,
+        availability_id=flight.id,
+    )
+
+@products_router.get("/products/room/{room_id}/check/", response=CheckAvailabilityOut)
+def check_room(request, room_id: int, qty: int, start_date: date, end_date: date):
+    if qty <= 0:
+        raise HttpError(422, "qty debe ser positivo")
+    if start_date >= end_date:
+        raise HttpError(422, "start_date debe ser < end_date")
+    from .models import RoomAvailability
+    try:
+        av = RoomAvailability.objects.get(
+            room_id=room_id,
+            start_date__lte=start_date,
+            end_date__gte=end_date,
+            is_blocked=False,
+        )
+    except RoomAvailability.DoesNotExist:
+        raise HttpError(404, "no_existe_disponibilidad")
+    remaining = av.available_quantity
+    enough = remaining >= qty
+    status = 200 if enough else 409
+    return status, CheckAvailabilityOut(
+        remaining=remaining,
+        enough=enough,
+        unit_price=float(av.effective_price),
+        currency=av.currency,
+        availability_id=av.id,
+    )
