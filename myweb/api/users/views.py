@@ -6,6 +6,8 @@ from ninja.responses import Response
 from ninja.errors import HttpError
 from typing import List
 
+from asgiref.sync import sync_to_async
+
 from rich.console import Console
 
 from api.core.auth import JWTBearer, gen_token
@@ -127,14 +129,14 @@ def login_user(request, payload: UserLoginSchema):
         }
 
         token = gen_token(payload=payload)
-        refresh_token = gen_token(payload=payload, refresh=True)
+        _refresh_token = gen_token(payload=payload, refresh=True)
         
         return Response(
             {
                 "message":"Login exitoso",
                 "data":{
                     "access_token": token,
-                    "refresh_token": refresh_token,
+                    "_refresh_token": _refresh_token,
                 }
             },
             status=200
@@ -146,9 +148,8 @@ def login_user(request, payload: UserLoginSchema):
             status=400
         )
 
-
 @user_private_router.get("/", response=List[UserResponseSchema])
-def list_users(request):
+async def list_users(request):
     """
     Retorna una lista con todos los usuarios registrados en el sistema.
 
@@ -156,7 +157,10 @@ def list_users(request):
     - En caso de error al acceder a la base de datos, devuelve un error 500 con el detalle.
     """
     try:
-        users = Users.objects.all().order_by('-created_at')
+        users = await sync_to_async(
+            lambda: list(Users.objects.all().order_by("-created_at")),
+            thread_sensitive=True
+        )()
         return [
             {
                 "id": user.id,
@@ -174,8 +178,47 @@ def list_users(request):
     except Exception as e:
         raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
+@user_private_router.get("/refresh")
+async def refresh_token(request):
+    try:
+        user = request.user
+
+        if user is None:
+            return Response(
+                {"message": "Credenciales inválidas", "detail": "Email o contraseña incorrectos"},
+                status=401
+            )
+
+        if not user.is_active:
+            return Response(
+                {"message": "Usuario inactivo", "detail": "El usuario está deshabilitado"},
+                status=401
+            )
+
+        payload={
+            "sub":str(user.id),
+            "scopes": list(user.get_all_permissions())
+        }
+
+        token = gen_token(payload=payload)
+        _refresh_token = gen_token(payload=payload, refresh=True)
+
+        return Response(
+            {
+                "message":"Login exitoso",
+                "data":{
+                    "access_token": token,
+                    "_refresh_token": _refresh_token,
+                }
+            },
+            status=200
+        )
+
+    except Exception as e:
+        raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
+
 @user_private_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema})
-def me_user(request):
+async def me_user(request):
     """
     Retorna un usuario en el sistema.
 
@@ -202,8 +245,9 @@ def me_user(request):
         console.print_exception(show_locals=True)
         return HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
+
 @user_private_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
-def get_user(request, user_id: int):
+async def get_user(request, user_id: int):
     """
     Obtiene los datos de un usuario específico mediante su ID.
 
@@ -211,7 +255,7 @@ def get_user(request, user_id: int):
     - Si no se encuentra el usuario, retorna un mensaje de error con código 404.
     """
     try:
-        user = Users.objects.get(id=user_id)
+        user = await sync_to_async(Users.objects.get)(id=user_id)
         return {
             "id": user.id,
             "first_name": user.first_name,
@@ -233,7 +277,6 @@ def get_user(request, user_id: int):
             {"message": "Error interno del servidor", "detail": str(e)},
             status=400
         )
-
 
 
 @user_private_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
