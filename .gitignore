@@ -7,3 +7,5 @@
 .env
 
 *.sqlite3
+
+uv.lock

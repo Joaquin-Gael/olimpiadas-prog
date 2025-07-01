@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from ninja import Schema
-from api.users.schemas import UserResponseSchema  # adjust import to wherever your User schemas live
+from api.users.schemas import UserResponseSchema
 
 
 class AuditSchema(Schema):
@@ -53,5 +53,4 @@ class EmployeeResponseSchema(EmployeeBaseSchema):
     audits: List[AuditSchema] = []     # list of related audits
 
     class Config:
-        orm_mode = True
         from_attributes = True

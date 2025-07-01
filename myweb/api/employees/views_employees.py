@@ -1,11 +1,11 @@
 from typing import List, Optional
 
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, get_list_or_404
+from django.http.response import Http404
 
 from ninja import Router
 from ninja.responses import Response
-from ninja.errors import HttpError, Http404
+from ninja.errors import HttpError
 
 from rich.console import Console
 
@@ -18,7 +18,7 @@ from .models import Employees
 from .schemas import (
     EmployeeCreateSchema,
     EmployeeResponseSchema,
-    EmployeeUpdateSchema,
+    EmployeeUpdateSchema, AuditSchema,
 )
 
 console = Console()
@@ -102,6 +102,25 @@ def get_employee(request, employee_id: int):
         console.print_exception(show_locals=True)
         return HttpError(status_code=500, message=str(e))
 
+@router.get(
+    "/{employee_id}/audits",
+    response={200: List[AuditSchema], 404: ErrorResponseSchema, 400: ErrorResponseSchema},
+    summary="Retrieve employee audits"
+)
+async def get_employee_audits(request, employee_id: int, limit: Optional[int] = 10):
+    try:
+        emp = get_object_or_404(Employees, id=employee_id)
+
+        audits = emp.audits.all().order_by('-date')[:limit]
+        serialized_audits = [AuditSchema.from_orm(i) for i in audits]
+
+        return serialized_audits
+
+    except Http404 as e:
+        return Response(ErrorResponseSchema(message="Error al obtener el empleado", detail=str(e)), status=404)
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return HttpError(status_code=500, message=str(e))
 
 @router.put(
     "/update/{employee_id}",
