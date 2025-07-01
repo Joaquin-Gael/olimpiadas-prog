@@ -54,3 +54,7 @@ class EmployeeResponseSchema(EmployeeBaseSchema):
 
     class Config:
         from_attributes = True
+
+class EmployeeDeleteSchema(Schema):
+    message: str
+    id: int
