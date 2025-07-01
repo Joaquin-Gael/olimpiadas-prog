@@ -72,7 +72,7 @@ myweb/
 │   │   ├── 🔗 views_sufix.py    # API de la tienda
 │   │   └── ⚡ services.py       # Lógica de negocio
 │   │
-│   ├── 📦 employees/            # Gestión de empleados
+│   ├── 👨‍💻 employees/            # Gestión de empleados
 │   │   ├── 📄 models.py         # Modelos de empleados, etc
 │   │   ├── 🔗 views.py          # API de empleados
 │   │   └── 📊 utils.py          # Utilidades (Opcional)
@@ -82,7 +82,7 @@ myweb/
 │       ├── 🔗 api.py            # API de pagos
 │       └── 🏦 gateways.py       # Pasarelas de pago
 │
-├── 📂 static/                   # Archivos estáticos
+├── 📂 assets/                   # Archivos estáticos
 ├── 📂 media/                    # Archivos multimedia
 │
 ├── 🐳 Dockerfile               # Configuración Docker
