@@ -7,8 +7,9 @@ from django.conf import settings
 import json
 from enum import Enum
 from typing_extensions import Annotated, Doc
+from uuid import uuid4
 
-from ninja import NinjaAPI
+from ninja import NinjaAPI, Router
 
 from api.users.urls import user_router
 from api.products.views_products import products_router
@@ -16,22 +17,20 @@ from api.products.views_package import package_router
 from api.products.views_supliers import suppliers_router
 from api.employees.views_employees import router as employees_router
 
-api = NinjaAPI(
-    title=settings.API_TITLE,
-    description=settings.API_DESCRIPTION,
-    version=settings.API_VERSION,
-)
+id_prefix = uuid4()
+
+main_router = Router()
 
 # Agregar las rutas de usuarios
-api.add_router("/users/", user_router)
+main_router.add_router("/users/", user_router)
 # Agregar las rutas de products
-api.add_router("/products/", products_router)
+main_router.add_router("/products/", products_router)
 # Agregar las rutas de package
-api.add_router("/package/", package_router)
+main_router.add_router("/package/", package_router)
 # Agregar las rutas de suppliers
-api.add_router("/suppliers/", suppliers_router)
+main_router.add_router("/suppliers/", suppliers_router)
 # Agregar las rutas de employees
-api.add_router("/employees/", employees_router)
+main_router.add_router("/employees/", employees_router)
 
 class Layout(Enum):
     MODERN = "modern"
@@ -351,7 +350,7 @@ def get_scalar_api_reference(
     """
     return HttpResponse(html)
 
-@api.get("/scalar", include_in_schema=False)
+@main_router.get("/scalar", include_in_schema=False)
 async def scalar_html(request):
     return get_scalar_api_reference(
         openapi_url=api.openapi_url,
@@ -361,6 +360,18 @@ async def scalar_html(request):
         dark_mode=True,
         scalar_favicon_url="/assets/img/logo-rest-doc.png"
     )
+
+@main_router.get("/id_prefix_api_secret/", include_in_schema=False)
+async def get_secret(request):
+    return {"id_prefix_api_secret": str(id_prefix)}
+
+api = NinjaAPI(
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION,
+)
+
+api.add_router(f"/{str(id_prefix)}/", main_router)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

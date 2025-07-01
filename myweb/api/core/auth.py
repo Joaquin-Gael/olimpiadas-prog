@@ -1,4 +1,5 @@
 import jwt
+from asgiref.sync import sync_to_async
 from jwt import PyJWTError
 
 from datetime import datetime, timedelta
@@ -38,7 +39,7 @@ def decode_token(token: str):
         raise ValueError("Value Not Found") from e
 
 class JWTBearer(HttpBearer):
-    def authenticate(self, request: HttpRequest, token: str) -> Users:
+    async def authenticate(self, request: HttpRequest, token: str) -> Users:
         console.rule("Token")
         console.print(token)
         console.rule("Token arriba")
@@ -65,7 +66,7 @@ class JWTBearer(HttpBearer):
         # Buscar usuario
         try:
 
-            user = get_object_or_404(Users, id=user_id)
+            user = await sync_to_async(get_object_or_404)(Users, id=user_id)
 
             request.user = user
             request.scopes = payload.get("scopes", [])
