@@ -108,11 +108,13 @@ class Companions(models.Model):
     first_name = models.CharField(max_length=64)
     last_name = models.CharField(max_length=64)
     identity_document_type = models.CharField(
+        max_length=64,
         choices=IdentityDocumentType.choices(),
     )
     identity_document = models.CharField(max_length=255)
     born_date = models.DateField()
     sex = models.CharField(
+        max_length=8,
         choices=SexType.choices(),
     )
     observations = models.TextField()
@@ -122,6 +124,7 @@ class Orders(models.Model):
     client = models.ForeignKey(Clients, on_delete=models.CASCADE)
     date = models.DateTimeField()
     state = models.CharField(
+        max_length=32,
         choices=OrderTravelPackageStatus.choices(),
     )
     total = models.FloatField(
@@ -136,13 +139,17 @@ class Notifications(models.Model):
     id = models.AutoField("notification_id", primary_key=True)
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
     email_destination = models.EmailField()
-    subject = models.CharField()
+    subject = models.CharField(
+        max_length=255  
+    )
     body = models.TextField()
     date = models.DateTimeField()
     notification_type = models.CharField(
+        max_length=32,
         choices=NotificationType.choices(),
     )
     shipping_state = models.CharField(
+        max_length=32,
         choices=OrderTravelPackageStatus.choices(),
     )
 
@@ -204,12 +211,14 @@ class Vouchers(models.Model):
     emission_date = models.DateTimeField()
     voucher_code = models.CharField(max_length=128)
     passenger_type = models.CharField(
+        max_length=32,
         choices=PassengerType.choices,
         default=PassengerType.Cl,
     )
     passenger = models.ForeignKey(Companions, on_delete=models.CASCADE, null=True)
     client = models.ForeignKey(Clients, on_delete=models.CASCADE, null=True)
     state = models.CharField(
+        max_length=32,
         choices=VoucherState.choices,
         default=VoucherState.AVAILABLE,
     )
@@ -222,6 +231,7 @@ class VoucherDetails(models.Model):
     package = models.ForeignKey(Packages, on_delete=models.CASCADE)
     service_name = models.CharField(max_length=32)
     product_type = models.CharField(
+        max_length=32,
         choices=VoucherState.choices,
     )
     quantity = models.IntegerField(
