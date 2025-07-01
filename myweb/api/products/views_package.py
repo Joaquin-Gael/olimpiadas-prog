@@ -14,10 +14,10 @@ from .schemas import (
 )
 from .pagination import PaginationParams, paginate_response
 
-package_router = Router(tags=["Paquetes"])
-category_router = Router(tags=["Categorías"])
+package_router = Router(tags=["Packages"])
+category_router = Router(tags=["Categories"])
 # ──────────────────────────────────────────────────────────────
-# ENDPOINTS PRINCIPALES DE PAQUETES
+# MAIN PACKAGE ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
 @package_router.get("/", response=List[PackageOut])
@@ -27,11 +27,11 @@ def list_packages(
     search: PackageSearchParams = Query(...)
 ):
     """
-    Lista todos los paquetes con filtros y paginación
+    Lists all packages with filters and pagination
     """
     queryset = Packages.active.all()
     
-    # Aplicar filtros de búsqueda
+    # Apply search filters
     if search.name:
         queryset = queryset.filter(name__icontains=search.name)
     
@@ -51,15 +51,15 @@ def list_packages(
         queryset = queryset.filter(is_active=search.is_active)
     
     if search.product_type:
-        # Filtrar por tipo de producto en los componentes
+        # Filter by product type in components
         queryset = queryset.filter(
             componentpackages__product_metadata__product_type=search.product_type
         ).distinct()
     
-    # Ordenar por nombre
+    # Order by name
     queryset = queryset.order_by('name')
     
-    # Convertir a lista de schemas antes de paginar
+    # Convert to schema list before paginating
     packages = [PackageOut.from_orm(pkg) for pkg in queryset]
     
     return paginate_response(packages, pagination)
@@ -68,14 +68,14 @@ def list_packages(
 @package_router.get("/{package_id}", response=PackageDetailOut)
 def get_package(request, package_id: int):
     """
-    Obtiene un paquete específico con todos sus componentes
+    Gets a specific package with all its components
     """
     package = get_object_or_404(Packages.active, id=package_id)
     
-    # Obtener componentes ordenados
+    # Get ordered components
     components = package.componentpackages.all().order_by('order')
     
-    # Preparar datos de componentes para la respuesta
+    # Prepare component data for the response
     component_data = []
     for comp in components:
         component_data.append({
@@ -90,7 +90,7 @@ def get_package(request, package_id: int):
             "product_name": str(comp.product_metadata.content)
         })
     
-    # Preparar datos de la categoría
+    # Prepare category data
     category_data = None
     if package.category:
         category_data = {
@@ -113,43 +113,43 @@ def get_package(request, package_id: int):
 @package_router.post("/", response=PackageDetailOut)
 def create_package(request, data: PackageCompleteCreate):
     """
-    Crea un nuevo paquete con sus componentes
+    Creates a new package with its components
     """
     try:
-        # Crear el paquete
+        # Create the package
         package_data = data.dict(exclude={'components'})
         
-        # Manejar el campo cover_image si es None
+        # Handle cover_image field if None
         if package_data.get('cover_image') is None:
             package_data['cover_image'] = ""  # Establecer string vacío en lugar de None
         
         package = Packages.objects.create(**package_data)
         
-        # Crear los componentes
+        # Create the components
         for comp_data in data.components:
             ComponentPackages.objects.create(
                 package=package,
                 **comp_data.dict()
             )
         
-        # Retornar el paquete creado con sus componentes
+        # Return the created package with its components
         return get_package(request, package.id)
         
     except ValidationError as e:
-        raise ValidationError(f"Error de validación: {e}")
+        raise ValidationError(f"Validation error: {e}")
     except Exception as e:
-        raise ValidationError(f"Error al crear el paquete: {e}")
+        raise ValidationError(f"Error creating the package: {e}")
 
 
 @package_router.put("/{package_id}", response=PackageDetailOut)
 def update_package(request, package_id: int, data: PackageUpdate):
     """
-    Actualiza un paquete existente
+    Updates an existing package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     
     try:
-        # Actualizar campos del paquete
+        # Update package fields
         for field, value in data.dict(exclude_unset=True).items():
             setattr(package, field, value)
         
@@ -159,15 +159,15 @@ def update_package(request, package_id: int, data: PackageUpdate):
         return get_package(request, package.id)
         
     except ValidationError as e:
-        raise ValidationError(f"Error de validación: {e}")
+        raise ValidationError(f"Validation error: {e}")
     except Exception as e:
-        raise ValidationError(f"Error al actualizar el paquete: {e}")
+        raise ValidationError(f"Error updating the package: {e}")
 
 
 @package_router.delete("/{package_id}")
 def delete_package(request, package_id: int):
     """
-    Elimina (soft delete) un paquete
+    Deletes (soft delete) a package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     
@@ -176,20 +176,20 @@ def delete_package(request, package_id: int):
         package.deleted_at = timezone.now()
         package.save()
         
-        return {"message": "Paquete eliminado correctamente"}
+        return {"message": "Package deleted successfully"}
         
     except Exception as e:
-        raise ValidationError(f"Error al eliminar el paquete: {e}")
+        raise ValidationError(f"Error deleting the package: {e}")
 
 
 # ──────────────────────────────────────────────────────────────
-# ENDPOINTS DE COMPONENTES DE PAQUETES
+# PACKAGE COMPONENTS ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
 @package_router.get("/{package_id}/components", response=List[ComponentPackageOut])
 def list_package_components(request, package_id: int):
     """
-    Lista todos los componentes de un paquete específico
+    Lists all components of a specific package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     components = package.componentpackages.all().order_by('order')
@@ -214,15 +214,15 @@ def list_package_components(request, package_id: int):
 @package_router.post("/{package_id}/components", response=ComponentPackageOut)
 def add_package_component(request, package_id: int, data: ComponentPackageCreate):
     """
-    Agrega un nuevo componente a un paquete
+    Adds a new component to a package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     
     try:
-        # Verificar que el product_metadata existe
+        # Check that the product_metadata exists
         product_metadata = get_object_or_404(ProductsMetadata, id=data.product_metadata_id)
         
-        # Crear el componente
+        # Create the component
         component = ComponentPackages.objects.create(
             package=package,
             **data.dict()
@@ -241,9 +241,9 @@ def add_package_component(request, package_id: int, data: ComponentPackageCreate
         }
         
     except ValidationError as e:
-        raise ValidationError(f"Error de validación: {e}")
+        raise ValidationError(f"Validation error: {e}")
     except Exception as e:
-        raise ValidationError(f"Error al agregar el componente: {e}")
+        raise ValidationError(f"Error adding the component: {e}")
 
 
 @package_router.put("/{package_id}/components/{component_id}", response=ComponentPackageOut)
@@ -254,13 +254,13 @@ def update_package_component(
     data: ComponentPackageUpdate
 ):
     """
-    Actualiza un componente específico de un paquete
+    Updates a specific component of a package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     component = get_object_or_404(ComponentPackages, id=component_id, package=package)
     
     try:
-        # Actualizar campos del componente
+        # Update component fields
         for field, value in data.dict(exclude_unset=True).items():
             setattr(component, field, value)
         
@@ -280,35 +280,35 @@ def update_package_component(
         }
         
     except ValidationError as e:
-        raise ValidationError(f"Error de validación: {e}")
+        raise ValidationError(f"Validation error: {e}")
     except Exception as e:
-        raise ValidationError(f"Error al actualizar el componente: {e}")
+        raise ValidationError(f"Error updating the component: {e}")
 
 
 @package_router.delete("/{package_id}/components/{component_id}")
 def remove_package_component(request, package_id: int, component_id: int):
     """
-    Elimina un componente específico de un paquete
+    Deletes a specific component from a package
     """
     package = get_object_or_404(Packages.active, id=package_id)
     component = get_object_or_404(ComponentPackages, id=component_id, package=package)
     
     try:
         component.delete()
-        return {"message": "Componente eliminado correctamente"}
+        return {"message": "Component deleted successfully"}
         
     except Exception as e:
-        raise ValidationError(f"Error al eliminar el componente: {e}")
+        raise ValidationError(f"Error deleting the component: {e}")
 
 
 # ──────────────────────────────────────────────────────────────
-# ENDPOINTS DE BÚSQUEDA Y FILTROS ESPECIALES
+# SPECIAL SEARCH AND FILTER ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
 @package_router.get("/search/featured", response=List[PackageOut])
 def get_featured_packages(request, limit: int = 10):
     """
-    Obtiene los paquetes destacados (con mejor rating)
+    Gets featured packages (with best rating)
     """
     packages = Packages.active.filter(
         rating_average__gt=0,
@@ -326,7 +326,7 @@ def get_packages_by_price_range(
     pagination: PaginationParams = Query(...)
 ):
     """
-    Busca paquetes por rango de precio
+    Search packages by price range
     """
     queryset = Packages.active.filter(
         final_price__gte=min_price,
@@ -344,10 +344,10 @@ def get_packages_by_duration(
     pagination: PaginationParams = Query(...)
 ):
     """
-    Busca paquetes por duración (calculada automáticamente)
+    Search packages by duration (calculated automatically)
     """
-    # Nota: Esta implementación es básica, podrías optimizarla
-    # calculando la duración en la base de datos
+    # Note: This implementation is basic, you could optimize it
+    # by calculating the duration in the database
     packages = Packages.active.all()
     
     filtered_packages = []
@@ -356,7 +356,7 @@ def get_packages_by_duration(
         if duration and min_days <= duration <= max_days:
             filtered_packages.append(package)
     
-    # Aplicar paginación manual
+    # Apply manual pagination
     start = (pagination.page - 1) * pagination.page_size
     end = start + pagination.page_size
     paginated_packages = filtered_packages[start:end]
@@ -365,25 +365,25 @@ def get_packages_by_duration(
 
 
 # ──────────────────────────────────────────────────────────────
-# ENDPOINTS DE ESTADÍSTICAS
+# STATISTICS ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
 @package_router.get("/stats/overview")
 def get_packages_stats(request):
     """
-    Obtiene estadísticas generales de los paquetes
+    Gets general statistics of packages
     """
     total_packages = Packages.active.count()
     active_packages = Packages.active.filter(is_active=True).count()
     
-    # Estadísticas de precios
+    # Price statistics
     price_stats = Packages.active.aggregate(
         avg_price=Avg('final_price'),
         min_price=Min('final_price'),
         max_price=Max('final_price')
     )
     
-    # Estadísticas de rating
+    # Rating statistics
     rating_stats = Packages.active.filter(rating_average__gt=0).aggregate(
         avg_rating=Avg('rating_average'),
         total_reviews=Count('total_reviews')
@@ -397,13 +397,13 @@ def get_packages_stats(request):
     }
 
 # ──────────────────────────────────────────────────────────────
-# ENDPOINTS DE CATEGORÍAS
+# CATEGORY ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
 @category_router.get("/", response=List[CategoryOut])
 def list_categories(request):
     """
-    Lista todas las categorías activas
+    Lists all active categories
     """
     categories = Category.active.all().order_by('name')
     return [CategoryOut.from_orm(cat) for cat in categories]
@@ -412,7 +412,7 @@ def list_categories(request):
 @category_router.get("/{category_id}", response=CategoryOut)
 def get_category(request, category_id: int):
     """
-    Obtiene una categoría específica
+    Gets a specific category
     """
     category = get_object_or_404(Category.active, id=category_id)
     return CategoryOut.from_orm(category)
@@ -421,19 +421,19 @@ def get_category(request, category_id: int):
 @category_router.post("/", response=CategoryOut)
 def create_category(request, data: CategoryCreate):
     """
-    Crea una nueva categoría
+    Creates a new category
     """
     try:
         category = Category.objects.create(**data.dict())
         return CategoryOut.from_orm(category)
     except Exception as e:
-        raise ValidationError(f"Error al crear la categoría: {e}")
+        raise ValidationError(f"Error creating the category: {e}")
 
 
 @category_router.put("/{category_id}", response=CategoryOut)
 def update_category(request, category_id: int, data: CategoryUpdate):
     """
-    Actualiza una categoría existente
+    Updates an existing category
     """
     category = get_object_or_404(Category.active, id=category_id)
     
@@ -446,7 +446,7 @@ def update_category(request, category_id: int, data: CategoryUpdate):
         
         return CategoryOut.from_orm(category)
     except Exception as e:
-        raise ValidationError(f"Error al actualizar la categoría: {e}")
+        raise ValidationError(f"Error updating the category: {e}")
 
 
 @category_router.delete("/{category_id}")

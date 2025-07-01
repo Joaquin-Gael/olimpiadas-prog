@@ -27,12 +27,11 @@ api.add_router("/users/", user_router)
 # Agregar las rutas de products
 api.add_router("/products/", products_router)
 # Agregar las rutas de package
-api.add_router("/package/", package_router)
+api.add_router("/packages/", package_router)
 # Agregar las rutas de categorías
 api.add_router("/categories/", category_router)
 # Agregar las rutas de suppliers
 api.add_router("/suppliers/", suppliers_router)
-api.add_router("/packages/", package_router)
 # Agregar las rutas de employees
 api.add_router("/employees/", employees_router)
 

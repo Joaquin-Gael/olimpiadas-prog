@@ -13,15 +13,15 @@ class PaginationParams(BaseModel):
 
 def paginate_response(data: List[Any], pagination: PaginationParams):
     """
-    Implementa paginación simple para listas de datos
+    Implements simple pagination for data lists
     """
     limit = pagination.limit or 20
     offset = pagination.offset or 0
     
-    # Aplicar paginación
+    # Apply pagination
     paginated_data = data[offset:offset + limit]
     
-    # Calcular información de paginación
+    # Calculate pagination info
     total_count = len(data)
     total_pages = (total_count + limit - 1) // limit
     current_page = (offset // limit) + 1

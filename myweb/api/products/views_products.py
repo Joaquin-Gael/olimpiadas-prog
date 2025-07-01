@@ -7,22 +7,23 @@ from .schemas import (
     LodgmentCompleteCreate, LodgmentMetadataCreate, RoomCreateNested, RoomAvailabilityCreateNested,
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
-    ProductsMetadataOutLodgmentDetail
+    ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate
 )
 from .helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
     ProductsMetadata, Suppliers,
-    Activities, Flights, Lodgments, Transportation, ActivityAvailability, TransportationAvailability
+    Activities, Flights, Lodgment, Transportation, ActivityAvailability, TransportationAvailability,
+    RoomAvailability, Room, Location
 )
-from django.db.models import Q
+from django.db.models import Q, F
 from ninja.pagination import paginate
 from .filters import ProductosFiltro
 from .pagination import DefaultPagination
 from django.db import transaction
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
@@ -36,10 +37,10 @@ def create_product(request, data: ProductsMetadataCreate):
 
     # Map product_type to model class
     model_map = {
-        "actividad": Activities,
-        "vuelo": Flights,
-        "alojamiento": Lodgments,
-        "transporte": Transportation,
+        "activity": Activities,
+        "flight": Flights,
+        "lodgment": Lodgment,
+        "transportation": Transportation,
     }
     Model = model_map.get(data.product_type)
     if not Model:
@@ -60,8 +61,8 @@ def create_product(request, data: ProductsMetadataCreate):
 
     product.save()
 
-    # Obtener el ContentType para el modelo
-    content_type = ContentType.objects.get_for_model(_model)
+    # Get ContentType for the model
+    content_type = ContentType.objects.get_for_model(Model)
 
     metadata = ProductsMetadata.objects.create(
         supplier=supplier,
@@ -77,12 +78,12 @@ def create_product(request, data: ProductsMetadataCreate):
 @transaction.atomic
 def create_complete_activity(request, data: ActivityCompleteCreate, metadata: ActivityMetadataCreate):
     """
-    Crea una actividad completa con sus disponibilidades en una sola operación.
+    Creates a complete activity with its availabilities in a single operation.
     """
-    # 1. Verificar que el proveedor existe
+    # 1. Verify that the supplier exists
     supplier = get_object_or_404(Suppliers, id=metadata.supplier_id)
     
-    # 2. Crear la actividad
+    # 2. Create the activity
     activity_data = {
         "name": data.name,
         "description": data.description,
@@ -111,7 +112,7 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
     
     activity.save()
     
-    # 3. Crear la metadata del producto
+    # 3. Create product metadata
     content_type = ContentType.objects.get_for_model(Activities)
     
     metadata_obj = ProductsMetadata.objects.create(
@@ -121,7 +122,7 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
         unit_price=metadata.unit_price
     )
     
-    # 4. Crear las disponibilidades si se proporcionan
+    # 4. Create availabilities if provided
     created_availabilities = []
     for availability_data in data.availabilities:
         availability = activity.availabilities.create(
@@ -142,12 +143,12 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
 @transaction.atomic
 def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: LodgmentMetadataCreate):
     """
-    Crea un alojamiento completo con habitaciones y disponibilidades en una sola operación.
+    Creates a complete lodgment with rooms and availabilities in a single operation.
     """
-    # 1. Verificar que el proveedor existe
+    # 1. Verify that the supplier exists
     supplier = get_object_or_404(Suppliers, id=metadata.supplier_id)
     
-    # 2. Crear el alojamiento
+    # 2. Create the lodgment
     lodgment_data = {
         "name": data.name,
         "description": data.description,
@@ -175,7 +176,7 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
     
     lodgment.save()
     
-    # 3. Crear la metadata del producto
+    # 3. Create product metadata
     content_type = ContentType.objects.get_for_model(Lodgment)
     
     metadata_obj = ProductsMetadata.objects.create(
@@ -185,18 +186,18 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
         unit_price=metadata.unit_price
     )
     
-    # 4. Crear las habitaciones y sus disponibilidades
+    # 4. Create rooms and their availabilities
     created_rooms = []
     for room_data in data.rooms:
-        # Extraer las disponibilidades antes de crear la habitación
+        # Extract availabilities before creating the room
         room_availabilities = room_data.availabilities
         room_data_dict = room_data.dict(exclude={'availabilities'})
         
-        # Crear la habitación
+        # Create the room
         room = lodgment.rooms.create(**room_data_dict)
         created_rooms.append(room)
         
-        # Crear las disponibilidades de la habitación
+        # Create room availabilities
         for availability_data in room_availabilities:
             room.availabilities.create(
                 start_date=availability_data.start_date,
@@ -215,12 +216,12 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
 @transaction.atomic
 def create_complete_transport(request, data: TransportationCompleteCreate, metadata: TransportationMetadataCreate):
     """
-    Crea un transporte completo con sus disponibilidades en una sola operación.
+    Creates a complete transportation with its availabilities in a single operation.
     """
-    # 1. Verificar que el proveedor existe
+    # 1. Verify that the supplier exists
     supplier = get_object_or_404(Suppliers, id=metadata.supplier_id)
     
-    # 2. Crear el transporte
+    # 2. Create the transportation
     transportation_data = {
         "origin_id": data.origin_id,
         "destination_id": data.destination_id,
@@ -244,7 +245,7 @@ def create_complete_transport(request, data: TransportationCompleteCreate, metad
     
     transportation.save()
     
-    # 3. Crear la metadata del producto
+    # 3. Create product metadata
     content_type = ContentType.objects.get_for_model(Transportation)
     
     metadata_obj = ProductsMetadata.objects.create(
@@ -254,7 +255,7 @@ def create_complete_transport(request, data: TransportationCompleteCreate, metad
         unit_price=metadata.unit_price
     )
     
-    # 4. Crear las disponibilidades si se proporcionan
+    # 4. Create availabilities if provided
     created_availabilities = []
     for availability_data in data.availabilities:
         availability = transportation.availabilities.create(
@@ -306,19 +307,19 @@ def create_transportation_availability(request, id: int, data: TransportationAva
 
 @products_router.get("/products/{id}/transportation-availability/", response=List[TransportationAvailabilityOut])
 def list_transportation_availabilities(request, id: int):
-    # 1. Buscar el producto
+    # 1. Find the product
     metadata = get_object_or_404(
         ProductsMetadata.active.select_related("content_type_id"), id=id
     )
 
-    # 2. Validar tipo
+    # 2. Validate type
     if metadata.product_type != "transportation":
         raise HttpError(400, "This product is not a transportation.")
 
-    # 3. Obtener transporte concreto
+    # 3. Get specific transportation
     transportation = metadata.content
 
-    # 4. Retornar todas las disponibilidades (ordenadas por fecha y hora)
+    # 4. Return all availabilities (ordered by date and time)
     availabilities = transportation.availabilities.order_by("departure_date", "departure_time").all()
     return [serialize_transportation_availability(av) for av in availabilities]
 
@@ -326,13 +327,13 @@ def list_transportation_availabilities(request, id: int):
 @products_router.delete("/products/transportation-availability/{id}/", response={204: None})
 @transaction.atomic
 def delete_transportation_availability(request, id: int):
-    # 1. Buscar la disponibilidad
+    # 1. Find the availability
     availability = get_object_or_404(TransportationAvailability, id=id)
 
-    # 2. Eliminar directamente (hard-delete)
+    # 2. Delete directly (hard-delete)
     availability.delete()
 
-    # 3. Retornar vacío con status 204 (sin contenido)
+    # 3. Return empty with status 204 (no content)
     return 204, None
 
 
@@ -341,7 +342,7 @@ def delete_transportation_availability(request, id: int):
 def update_transportation_availability(request, id: int, data: TransportationAvailabilityUpdate):
     availability = get_object_or_404(TransportationAvailability, id=id)
 
-    # Validaciones cruzadas
+    # Cross validations
     if data.reserved_seats is not None:
         total = data.total_seats if data.total_seats is not None else availability.total_seats
         if data.reserved_seats > total:
@@ -350,7 +351,7 @@ def update_transportation_availability(request, id: int, data: TransportationAva
     if data.departure_date is not None and data.departure_date < datetime.now().date():
         raise HttpError(422, "Departure date cannot be in the past.")
 
-    # Aplicar cambios
+    # Apply changes
     for attr, value in data.dict(exclude_unset=True).items():
         setattr(availability, attr, value)
 
@@ -390,32 +391,32 @@ def create_availability(request, id: int, data: ActivityAvailabilityCreate):
 
 @products_router.get("/products/{id}/availability/", response=List[ActivityAvailabilityOut])
 def list_availabilities(request, id: int):
-    # 1. Buscar el producto
+    # 1. Find the product
     metadata = get_object_or_404(
         ProductsMetadata.active.select_related("content_type_id"), id=id
     )
 
-    # 2. Validar tipo
+    # 2. Validate type
     if metadata.product_type != "activity":
         raise HttpError(400, "This product is not an activity.")
 
-    # 3. Obtener actividad concreta
+    # 3. Get specific activity
     activity = metadata.content
 
-    # 4. Retornar todas las disponibilidades (ordenadas por fecha y hora)
+    # 4. Return all availabilities (ordered by date and time)
     availabilities = activity.availabilities.order_by("event_date", "start_time").all()
     return [serialize_activity_availability(av) for av in availabilities]
 
 @products_router.delete("/products/availability/{id}/", response={204: None})
 @transaction.atomic
 def delete_availability(request, id: int):
-    # 1. Buscar la disponibilidad
+    # 1. Find the availability
     availability = get_object_or_404(ActivityAvailability, id=id)
 
-    # 2. Eliminar directamente (hard-delete)
+    # 2. Delete directly (hard-delete)
     availability.delete()
 
-    # 3. Retornar vacío con status 204 (sin contenido)
+    # 3. Return empty with status 204 (no content)
     return 204, None
 
 @products_router.patch("/products/availability/{id}/", response=ActivityAvailabilityOut)
@@ -423,7 +424,7 @@ def delete_availability(request, id: int):
 def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     availability = get_object_or_404(ActivityAvailability, id=id)
 
-    # Validaciones cruzadas
+    # Cross validations
     if data.reserved_seats is not None:
         total = data.total_seats if data.total_seats is not None else availability.total_seats
         if data.reserved_seats > total:
@@ -432,7 +433,7 @@ def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     if data.event_date is not None and data.event_date < datetime.now().date():
         raise HttpError(422, "Event date cannot be in the past.")
 
-    # Aplicar cambios
+    # Apply changes
     for attr, value in data.dict(exclude_unset=True).items():
         setattr(availability, attr, value)
 
@@ -446,7 +447,7 @@ def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
 @paginate(DefaultPagination)
 def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
     """
-    Lista todos los productos con filtros avanzados y paginación
+    Lists all products with advanced filters and pagination
     """
     qs = ProductsMetadata.active.select_related(
         "supplier", "content_type_id"
@@ -455,7 +456,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
     )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS BÁSICOS
+    # BASIC FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.product_type:
         qs = qs.filter(product_type=filters.product_type)
@@ -467,14 +468,14 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         qs = qs.filter(supplier_id=filters.supplier_id)
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS DE PRECIO
+    # PRICE FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.unit_price_min is not None:
         qs = qs.filter(unit_price__gte=filters.unit_price_min)
     if filters.unit_price_max is not None:
         qs = qs.filter(unit_price__lte=filters.unit_price_max)
     
-    # Filtros de precio por noche para alojamientos
+    # Price per night filters for lodgments
     if filters.price_per_night_min is not None:
         qs = qs.filter(lodgment__rooms__base_price_per_night__gte=filters.price_per_night_min)
     if filters.price_per_night_max is not None:
@@ -484,7 +485,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         qs = qs.filter(supplier_id=filters.supplier_id)
 
     # ──────────────────────────────────────────────────────────────
-    # FILTRO DE BÚSQUEDA POR TEXTO
+    # TEXT SEARCH FILTER
     # ──────────────────────────────────────────────────────────────
     if filters.search:
         qs = qs.filter(
@@ -499,7 +500,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS DE UBICACIÓN
+    # LOCATION FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.destination_id:
         qs = qs.filter(
@@ -520,7 +521,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS DE FECHAS
+    # DATE FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.date_min:
         qs = qs.filter(
@@ -552,7 +553,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS DE DISPONIBILIDAD
+    # AVAILABILITY FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.available_only:
         qs = qs.filter(is_active=True)
@@ -569,7 +570,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
             Q(transportation__capacity__lte=filters.capacity_max)
         )
     
-    # Filtros de asientos disponibles
+    # Available seats filters
     if filters.available_seats_min is not None:
         qs = qs.filter(
             Q(activity__availabilities__total_seats__gte=filters.available_seats_min) |
@@ -584,7 +585,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS ESPECÍFICOS PARA ACTIVIDADES
+    # SPECIFIC FILTERS FOR ACTIVITIES
     # ──────────────────────────────────────────────────────────────
     if filters.difficulty_level:
         qs = qs.filter(activity__difficulty_level=filters.difficulty_level)
@@ -598,7 +599,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         qs = qs.filter(activity__duration_hours__lte=filters.duration_max)
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS ESPECÍFICOS PARA VUELOS
+    # SPECIFIC FILTERS FOR FLIGHTS
     # ──────────────────────────────────────────────────────────────
     if filters.airline:
         qs = qs.filter(flights__airline__icontains=filters.airline)
@@ -609,14 +610,14 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
     if filters.duration_flight_max is not None:
         qs = qs.filter(flights__duration_hours__lte=filters.duration_flight_max)
     if filters.direct_flight is not None:
-        # Para vuelos directos, verificamos que origen y destino sean diferentes
+        # For direct flights, verify that origin and destination are different
         if filters.direct_flight:
             qs = qs.filter(
                 ~Q(flights__origin_id=F('flights__destination_id'))
             )
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS ESPECÍFICOS PARA ALOJAMIENTOS
+    # SPECIFIC FILTERS FOR LODGMENTS
     # ──────────────────────────────────────────────────────────────
     if filters.lodgment_type:
         qs = qs.filter(lodgment__type=filters.lodgment_type)
@@ -627,23 +628,23 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
     if filters.guests_max is not None:
         qs = qs.filter(lodgment__max_guests__lte=filters.guests_max)
     if filters.nights_min is not None:
-        # Calcular la diferencia entre checkin y checkout
+        # Calculate the difference between checkin and checkout
         from django.db.models import F
         qs = qs.filter(
             lodgment__date_checkout__gte=F('lodgment__date_checkin') + timedelta(days=filters.nights_min)
         )
     if filters.nights_max is not None:
-        # Calcular la diferencia entre checkin y checkout
+        # Calculate the difference between checkin and checkout
         from django.db.models import F
         qs = qs.filter(
             lodgment__date_checkout__lte=F('lodgment__date_checkin') + timedelta(days=filters.nights_max)
         )
     if filters.amenities:
-        for amenidad in filters.amenities:
-            qs = qs.filter(lodgment__amenities__contains=amenidad)
+        for amenity in filters.amenities:
+            qs = qs.filter(lodgment__amenities__contains=amenity)
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS DE CARACTERÍSTICAS DE HABITACIÓN
+    # ROOM CHARACTERISTICS FILTERS
     # ──────────────────────────────────────────────────────────────
     if filters.private_bathroom is not None:
         qs = qs.filter(lodgment__rooms__has_private_bathroom=filters.private_bathroom)
@@ -655,13 +656,13 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
         qs = qs.filter(lodgment__rooms__has_wifi=filters.wifi)
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS ESPECÍFICOS PARA TRANSPORTE
+    # SPECIFIC FILTERS FOR TRANSPORTATION
     # ──────────────────────────────────────────────────────────────
     if filters.transport_type:
         qs = qs.filter(transportation__type=filters.transport_type)
 
     # ──────────────────────────────────────────────────────────────
-    # ORDENAMIENTO
+    # ORDERING
     # ──────────────────────────────────────────────────────────────
     if filters.ordering:
         order_map = {
@@ -671,39 +672,39 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
             "-date": "-activity__date",
             "name": "activity__name",
             "-name": "-activity__name",
-            "rating": "unit_price",  # Placeholder - implementar rating cuando esté disponible
+            "rating": "unit_price",  # Placeholder - implement rating when available
             "-rating": "-unit_price",
-            "popularity": "unit_price",  # Placeholder - implementar popularidad cuando esté disponible
+            "popularity": "unit_price",  # Placeholder - implement popularity when available
             "-popularity": "-unit_price",
         }
         qs = qs.order_by(order_map.get(filters.ordering, "unit_price"))
 
     # ──────────────────────────────────────────────────────────────
-    # FILTROS AVANZADOS (PLACEHOLDERS)
+    # ADVANCED FILTERS (PLACEHOLDERS)
     # ──────────────────────────────────────────────────────────────
     if filters.rating_min is not None:
-        # Placeholder - implementar cuando el modelo de ratings esté disponible
+        # Placeholder - implement when rating model is available
         # qs = qs.filter(average_rating__gte=filters.rating_min)
         pass
     if filters.rating_max is not None:
-        # Placeholder - implementar cuando el modelo de ratings esté disponible
+        # Placeholder - implement when rating model is available
         # qs = qs.filter(average_rating__lte=filters.rating_max)
         pass
     if filters.promotions_only:
-        # Placeholder - implementar cuando el modelo de promociones esté disponible
+        # Placeholder - implement when promotions model is available
         # qs = qs.filter(promotions__is_active=True)
         pass
     if filters.last_minute:
-        # Placeholder - implementar lógica de ofertas de última hora
+        # Placeholder - implement last minute offers logic
         # qs = qs.filter(is_last_minute=True)
         pass
     if filters.featured_only:
-        # Placeholder - implementar lógica de productos destacados
+        # Placeholder - implement featured products logic
         # qs = qs.filter(is_featured=True)
         pass
 
     # ──────────────────────────────────────────────────────────────
-    # DISTINCT PARA EVITAR DUPLICADOS
+    # DISTINCT TO AVOID DUPLICATES
     # ──────────────────────────────────────────────────────────────
     qs = qs.distinct()
 
@@ -817,7 +818,7 @@ def deactivate_product(request, id: int):
 @paginate(DefaultPagination)
 def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
     """
-    Búsqueda avanzada con filtros combinados y lógica más sofisticada
+    Advanced search with combined filters and more sophisticated logic
     """
     qs = ProductsMetadata.active.select_related(
         "supplier", "content_type_id"
@@ -826,12 +827,12 @@ def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
         "activity__availabilities", "transportation__availabilities"
     )
 
-    # Aplicar todos los filtros de la función principal
+    # Apply all filters from the main function
     qs = list_products(request, filters)
     
-    # Lógica adicional para búsqueda avanzada
+    # Additional logic for advanced search
     if filters.search:
-        # Búsqueda más sofisticada con ponderación
+        # More sophisticated search with weighting
         search_terms = filters.search.split()
         search_queries = Q()
         
@@ -850,7 +851,7 @@ def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
         
         qs = qs.filter(search_queries)
     
-    # Filtros de disponibilidad en tiempo real
+    # Real-time availability filters
     if filters.available_only:
         today = timezone.now().date()
         qs = qs.filter(
@@ -860,9 +861,9 @@ def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
             Q(lodgment__rooms__availabilities__available_quantity__gt=0)
         )
     
-    # Ordenamiento por relevancia si no se especifica otro
+    # Order by relevance if no other ordering is specified
     if not filters.ordering:
-        qs = qs.order_by('-unit_price')  # Por defecto, ordenar por precio descendente
+        qs = qs.order_by('-unit_price')  # By default, order by descending price
     
     return qs
 
@@ -870,7 +871,7 @@ def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
 @products_router.get("/products/search/quick/", response=list[ProductsMetadataOut])
 def quick_search(request, q: str, limit: int = 10):
     """
-    Búsqueda rápida por texto con límite de resultados
+    Quick text search with result limit
     """
     qs = ProductsMetadata.active.select_related(
         "supplier", "content_type_id"
@@ -878,7 +879,7 @@ def quick_search(request, q: str, limit: int = 10):
         "activity", "flight", "lodgment", "transportation"
     )
     
-    # Búsqueda simple por texto
+    # Simple text search
     qs = qs.filter(
         Q(activity__name__icontains=q) |
         Q(activity__description__icontains=q) |
@@ -896,7 +897,7 @@ def quick_search(request, q: str, limit: int = 10):
 @products_router.get("/products/stats/filters/")
 def get_filter_stats(request):
     """
-    Obtiene estadísticas para ayudar con los filtros
+    Gets statistics to help with filters
     """
     from django.db.models import Count, Min, Max, Avg
     
@@ -921,3 +922,295 @@ def get_filter_stats(request):
     }
     
     return stats
+
+
+# ──────────────────────────────────────────────────────────────
+# ENDPOINTS TO MANAGE FLIGHT AVAILABILITY
+# ──────────────────────────────────────────────────────────────
+
+@products_router.patch("/products/{id}/flight-availability/", response=ProductsMetadataOut)
+@transaction.atomic
+def update_flight_availability(request, id: int, available_seats: int):
+    """
+    Updates the seat availability of a flight
+    """
+    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type_id"), id=id)
+
+    if metadata.product_type != "flight":
+        raise HttpError(400, "This product is not a flight.")
+
+    flight = metadata.content
+
+    if not flight.is_active:
+        raise HttpError(400, "The flight is inactive.")
+
+    if available_seats < 0:
+        raise HttpError(422, "Available seats cannot be negative.")
+
+    if available_seats > 500:
+        raise HttpError(422, "Available seats cannot exceed 500.")
+
+    # Update availability
+    flight.available_seats = available_seats
+    
+    try:
+        flight.full_clean()
+        flight.save()
+    except ValidationError as e:
+        error_messages = []
+        for field, errors in e.message_dict.items():
+            for error in errors:
+                error_messages.append(f"{field}: {error}")
+        error_detail = "; ".join(error_messages)
+        raise HttpError(422, error_detail)
+
+    return serialize_product_metadata(metadata)
+
+
+@products_router.get("/products/{id}/flight-availability/")
+def get_flight_availability(request, id: int):
+    """
+    Gets the current availability of a flight
+    """
+    metadata = get_object_or_404(ProductsMetadata.active.select_related("content_type_id"), id=id)
+
+    if metadata.product_type != "flight":
+        raise HttpError(400, "This product is not a flight.")
+
+    flight = metadata.content
+
+    return {
+        "flight_id": flight.id,
+        "airline": flight.airline,
+        "flight_number": flight.flight_number,
+        "available_seats": flight.available_seats,
+        "departure_date": flight.departure_date,
+        "arrival_date": flight.arrival_date,
+        "is_active": flight.is_active
+    }
+
+
+# ──────────────────────────────────────────────────────────────
+# ENDPOINTS TO MANAGE ROOM AVAILABILITY
+# ──────────────────────────────────────────────────────────────
+
+@products_router.post("/products/room-availability/", response=RoomAvailabilityOut)
+@transaction.atomic
+def create_room_availability(request, data: RoomAvailabilityCreate):
+    """
+    Creates a new availability for a room
+    """
+    # Verify that the room exists and is active
+    room = get_object_or_404(Room, id=data.room_id, is_active=True)
+    
+    # Verify that the lodgment is active
+    if not room.lodgment.is_active:
+        raise HttpError(400, "The lodgment is inactive.")
+
+    # Validate that there is no date overlap
+    existing_availability = room.availabilities.filter(
+        start_date__lt=data.end_date,
+        end_date__gt=data.start_date
+    ).first()
+    
+    if existing_availability:
+        raise HttpError(422, f"Date range overlaps with existing availability: {existing_availability.start_date} to {existing_availability.end_date}")
+
+    # Create the availability
+    availability = room.availabilities.create(
+        start_date=data.start_date,
+        end_date=data.end_date,
+        available_quantity=data.available_quantity,
+        price_override=data.price_override,
+        currency=data.currency,
+        is_blocked=data.is_blocked,
+        minimum_stay=data.minimum_stay
+    )
+
+    return {
+        "id": availability.id,
+        "room_id": availability.room_id,
+        "start_date": availability.start_date,
+        "end_date": availability.end_date,
+        "available_quantity": availability.available_quantity,
+        "price_override": float(availability.price_override) if availability.price_override else None,
+        "currency": availability.currency,
+        "is_blocked": availability.is_blocked,
+        "minimum_stay": availability.minimum_stay,
+        "created_at": availability.created_at,
+        "updated_at": availability.updated_at
+    }
+
+
+@products_router.get("/products/room-availability/{id}/", response=RoomAvailabilityOut)
+def get_room_availability(request, id: int):
+    """
+    Gets a specific room availability
+    """
+    availability = get_object_or_404(RoomAvailability, id=id)
+    
+    return {
+        "id": availability.id,
+        "room_id": availability.room_id,
+        "start_date": availability.start_date,
+        "end_date": availability.end_date,
+        "available_quantity": availability.available_quantity,
+        "price_override": float(availability.price_override) if availability.price_override else None,
+        "currency": availability.currency,
+        "is_blocked": availability.is_blocked,
+        "minimum_stay": availability.minimum_stay,
+        "created_at": availability.created_at,
+        "updated_at": availability.updated_at
+    }
+
+
+@products_router.get("/products/room/{room_id}/availabilities/", response=List[RoomAvailabilityOut])
+def list_room_availabilities(request, room_id: int):
+    """
+    Lists all availabilities of a specific room
+    """
+    room = get_object_or_404(Room, id=room_id, is_active=True)
+    
+    availabilities = room.availabilities.order_by("start_date").all()
+    
+    return [
+        {
+            "id": av.id,
+            "room_id": av.room_id,
+            "start_date": av.start_date,
+            "end_date": av.end_date,
+            "available_quantity": av.available_quantity,
+            "price_override": float(av.price_override) if av.price_override else None,
+            "currency": av.currency,
+            "is_blocked": av.is_blocked,
+            "minimum_stay": av.minimum_stay,
+            "created_at": av.created_at,
+            "updated_at": av.updated_at
+        }
+        for av in availabilities
+    ]
+
+
+@products_router.patch("/products/room-availability/{id}/", response=RoomAvailabilityOut)
+@transaction.atomic
+def update_room_availability(request, id: int, data: RoomAvailabilityUpdate):
+    """
+    Updates a room availability
+    """
+    availability = get_object_or_404(RoomAvailability, id=id)
+
+    # Date validations
+    if data.start_date is not None and data.start_date < datetime.now().date():
+        raise HttpError(422, "Start date cannot be in the past.")
+
+    if data.end_date is not None:
+        start_date = data.start_date if data.start_date is not None else availability.start_date
+        if data.end_date <= start_date:
+            raise HttpError(422, "End date must be after start date.")
+
+    # Check overlap if dates are changed
+    if data.start_date is not None or data.end_date is not None:
+        new_start = data.start_date if data.start_date is not None else availability.start_date
+        new_end = data.end_date if data.end_date is not None else availability.end_date
+        
+        existing_availability = availability.room.availabilities.filter(
+            ~Q(id=availability.id),  # Exclude current availability
+            start_date__lt=new_end,
+            end_date__gt=new_start
+        ).first()
+        
+        if existing_availability:
+            raise HttpError(422, f"Date range overlaps with existing availability: {existing_availability.start_date} to {existing_availability.end_date}")
+
+    # Apply changes
+    for attr, value in data.dict(exclude_unset=True).items():
+        setattr(availability, attr, value)
+
+    try:
+        availability.full_clean()
+        availability.save()
+    except ValidationError as e:
+        error_messages = []
+        for field, errors in e.message_dict.items():
+            for error in errors:
+                error_messages.append(f"{field}: {error}")
+        error_detail = "; ".join(error_messages)
+        raise HttpError(422, error_detail)
+
+    return {
+        "id": availability.id,
+        "room_id": availability.room_id,
+        "start_date": availability.start_date,
+        "end_date": availability.end_date,
+        "available_quantity": availability.available_quantity,
+        "price_override": float(availability.price_override) if availability.price_override else None,
+        "currency": availability.currency,
+        "is_blocked": availability.is_blocked,
+        "minimum_stay": availability.minimum_stay,
+        "created_at": availability.created_at,
+        "updated_at": availability.updated_at
+    }
+
+
+@products_router.delete("/products/room-availability/{id}/", response={204: None})
+@transaction.atomic
+def delete_room_availability(request, id: int):
+    """
+    Deletes a room availability
+    """
+    availability = get_object_or_404(RoomAvailability, id=id)
+    
+    # Verify that there are no active reservations (this would be implemented when the reservation system is available)
+    # For now, just delete directly
+    
+    availability.delete()
+    
+    return 204, None
+
+
+@products_router.get("/products/lodgment/{lodgment_id}/rooms/availabilities/", response=List[dict])
+def list_lodgment_room_availabilities(request, lodgment_id: int, start_date: date = None, end_date: date = None):
+    """
+    Lists all room availabilities of a lodgment
+    Optionally filters by date range
+    """
+    lodgment = get_object_or_404(Lodgment, id=lodgment_id, is_active=True)
+    
+    rooms = lodgment.rooms.filter(is_active=True)
+    
+    result = []
+    for room in rooms:
+        availabilities = room.availabilities.all()
+        
+        # Filter by dates if provided
+        if start_date:
+            availabilities = availabilities.filter(end_date__gte=start_date)
+        if end_date:
+            availabilities = availabilities.filter(start_date__lte=end_date)
+        
+        availabilities = availabilities.order_by("start_date")
+        
+        room_data = {
+            "room_id": room.id,
+            "room_type": room.room_type,
+            "name": room.name,
+            "capacity": room.capacity,
+            "base_price_per_night": float(room.base_price_per_night),
+            "currency": room.currency,
+            "availabilities": [
+                {
+                    "id": av.id,
+                    "start_date": av.start_date,
+                    "end_date": av.end_date,
+                    "available_quantity": av.available_quantity,
+                    "price_override": float(av.price_override) if av.price_override else None,
+                    "is_blocked": av.is_blocked,
+                    "minimum_stay": av.minimum_stay,
+                    "effective_price": float(av.effective_price)
+                }
+                for av in availabilities
+            ]
+        }
+        result.append(room_data)
+    
+    return result

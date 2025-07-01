@@ -7,21 +7,21 @@ from api.products.common.schemas import BaseSchema
 
 
 # ──────────────────────────────────────────────────────────────
-# 1. SCHEMAS BASE Y COMUNES
+# 1. BASE AND COMMON SCHEMAS
 # ──────────────────────────────────────────────────────────────
 
 class LocationOut(BaseSchema):
-    """Schema para ubicaciones geográficas"""
+    """Schema for geographic locations"""
     country: str
     state: str
     city: str
 
 
 # ──────────────────────────────────────────────────────────────
-# 2. ACTIVIDADES (ACTIVITIES)
+# 2. ACTIVITIES
 # ──────────────────────────────────────────────────────────────
 
-# Transporte
+# Transportation
 class TransportationOut(BaseSchema):
     id: int
     origin: LocationOut
@@ -50,12 +50,12 @@ class ActivityCreate(BaseSchema):
     @classmethod
     def validate_date(cls, v):
         if v < date.today():
-            raise ValueError("La fecha de la actividad no puede estar en el pasado.")
+            raise ValueError("Activity date cannot be in the past.")
         return v
 
 
 class ActivityAvailabilityCreate(BaseSchema):
-    """Schema para crear disponibilidad de actividad"""
+    """Schema to create activity availability"""
     event_date: date
     start_time: time
     total_seats: int = Field(..., ge=1, json_schema_extra={"description": "Total number of seats available"})
@@ -68,7 +68,7 @@ class ActivityAvailabilityCreate(BaseSchema):
     @classmethod
     def validate_event_date(cls, v):
         if v < date.today():
-            raise ValueError("Event date cannot be in el pasado.")
+            raise ValueError("Event date cannot be in the past.")
         return v
 
     @field_validator("reserved_seats")
@@ -82,7 +82,7 @@ class ActivityAvailabilityCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class ActivityUpdate(Schema):
-    """Schema para actualizar una actividad"""
+    """Schema to update an activity"""
     name: Optional[str] = None
     description: Optional[str] = None
     location_id: Optional[int] = None
@@ -99,7 +99,7 @@ class ActivityUpdate(Schema):
 
 
 class ActivityAvailabilityUpdate(BaseSchema):
-    """Schema para actualizar disponibilidad de actividad"""
+    """Schema to update activity availability"""
     event_date: Optional[date] = None
     start_time: Optional[time] = None
     total_seats: Optional[int] = Field(None, ge=1)
@@ -111,7 +111,7 @@ class ActivityAvailabilityUpdate(BaseSchema):
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class ActivityOut(BaseSchema):
-    """Schema de salida para actividades"""
+    """Output schema for activities"""
     id: int
     name: str
     description: str
@@ -127,18 +127,18 @@ class ActivityOut(BaseSchema):
 
 
 class ActivityAvailabilityOut(ActivityAvailabilityCreate):
-    """Schema de salida para disponibilidad de actividades"""
+    """Output schema for activity availability"""
     id: int
     activity_id: int
 
 
 # ──────────────────────────────────────────────────────────────
-# 3. VUELOS (FLIGHTS)
+# 3. FLIGHTS
 # ──────────────────────────────────────────────────────────────
 
 # ── CREATE ────────────────────────────────────────────────────
 class FlightCreate(BaseSchema):
-    """Schema para crear un vuelo"""
+    """Schema to create a flight"""
     airline: str
     flight_number: str
     origin_id: int
@@ -161,7 +161,7 @@ class FlightCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class FlightUpdate(Schema):
-    """Schema para actualizar un vuelo"""
+    """Schema to update a flight"""
     airline: Optional[str] = None
     flight_number: Optional[str] = None
     origin_id: Optional[int] = None
@@ -184,7 +184,7 @@ class FlightUpdate(Schema):
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class FlightOut(BaseSchema):
-    """Schema de salida para vuelos"""
+    """Output schema for flights"""
     id: int
     airline: str
     flight_number: str
@@ -210,7 +210,7 @@ class FlightOut(BaseSchema):
 
 # ── CREATE ────────────────────────────────────────────────────
 class LodgmentCreate(BaseSchema):
-    """Schema para crear un alojamiento"""
+    """Schema to create a lodging"""
     name: str = Field(..., max_length=128)
     description: Optional[str] = None
     location_id: int
@@ -242,7 +242,7 @@ class LodgmentCreate(BaseSchema):
 
 
 class RoomCreate(BaseSchema):
-    """Schema para crear una habitación"""
+    """Schema to create a room"""
     lodgment_id: int
     room_type: Literal[
         "single", "double", "triple", "quadruple",
@@ -260,7 +260,7 @@ class RoomCreate(BaseSchema):
 
 
 class RoomAvailabilityCreate(BaseSchema):
-    """Schema para crear disponibilidad de habitación"""
+    """Schema to create room availability"""
     room_id: int
     start_date: date
     end_date: date
@@ -288,7 +288,7 @@ class RoomAvailabilityCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class LodgmentUpdate(Schema):
-    """Schema para actualizar un alojamiento"""
+    """Schema to update a lodging"""
     name: Optional[str] = Field(None, max_length=128)
     description: Optional[str] = None
     location_id: Optional[int] = None
@@ -306,7 +306,7 @@ class LodgmentUpdate(Schema):
 
 
 class RoomUpdate(BaseSchema):
-    """Schema para actualizar una habitación"""
+    """Schema to update a room"""
     room_type: Optional[Literal[
         "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
@@ -324,7 +324,7 @@ class RoomUpdate(BaseSchema):
 
 
 class RoomAvailabilityUpdate(BaseSchema):
-    """Schema para actualizar disponibilidad de habitación"""
+    """Schema to update room availability"""
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     available_quantity: Optional[int] = Field(None, ge=0)
@@ -336,7 +336,7 @@ class RoomAvailabilityUpdate(BaseSchema):
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class LodgmentOut(BaseSchema):
-    """Schema de salida para alojamientos"""
+    """Output schema for lodgings"""
     id: int
     name: str
     description: Optional[str]
@@ -354,7 +354,7 @@ class LodgmentOut(BaseSchema):
 
 
 class RoomOut(BaseSchema):
-    """Schema de salida para habitaciones"""
+    """Output schema for rooms"""
     id: int
     lodgment_id: int
     room_type: str
@@ -373,7 +373,7 @@ class RoomOut(BaseSchema):
 
 
 class RoomAvailabilityOut(BaseSchema):
-    """Schema de salida para disponibilidad de habitaciones"""
+    """Output schema for room availability"""
     id: int
     room_id: int
     start_date: date
@@ -389,17 +389,17 @@ class RoomAvailabilityOut(BaseSchema):
 
 # ── DETAILED OUTPUT ───────────────────────────────────────────
 class LodgmentDetailOut(LodgmentOut):
-    """Schema de salida detallado para alojamientos con habitaciones"""
+    """Detailed output schema for lodgings with rooms"""
     rooms: List[RoomOut]
 
 
 class RoomDetailOut(RoomOut):
-    """Schema de salida detallado para habitaciones con disponibilidad"""
+    """Detailed output schema for rooms with availability"""
     availabilities: List[RoomAvailabilityOut]
 
 
 class RoomWithAvailabilityOut(RoomOut):
-    """Schema de salida para habitaciones con disponibilidad y precio efectivo"""
+    """Output schema for rooms with availability and effective price"""
     availabilities: List[RoomAvailabilityOut]
     effective_price: Optional[float] = None
     is_available_for_booking: bool = False
@@ -407,7 +407,7 @@ class RoomWithAvailabilityOut(RoomOut):
 
 # ── SEARCH PARAMS ─────────────────────────────────────────────
 class LodgmentSearchParams(BaseSchema):
-    """Parámetros de búsqueda para alojamientos"""
+    """Search parameters for lodgings"""
     location_id: Optional[int] = None
     type: Optional[str] = None
     checkin_date: Optional[date] = None
@@ -419,7 +419,7 @@ class LodgmentSearchParams(BaseSchema):
 
 
 class RoomSearchParams(BaseSchema):
-    """Parámetros de búsqueda para habitaciones"""
+    """Search parameters for rooms"""
     lodgment_id: Optional[int] = None
     room_type: Optional[str] = None
     capacity: Optional[int] = Field(None, ge=1)
@@ -439,7 +439,7 @@ class RoomSearchParams(BaseSchema):
 
 # ── ENUM ─────────────────────────────────────────────────────
 class TransportationType(str, Enum):
-    """Tipos de transporte disponibles"""
+    """Available transportation types"""
     bus = "bus"
     van = "van"
     car = "car"
@@ -449,7 +449,7 @@ class TransportationType(str, Enum):
 
 # ── CREATE ────────────────────────────────────────────────────
 class TransportationCreate(BaseSchema):
-    """Schema para crear transporte"""
+    """Schema to create transportation"""
     origin_id: int
     destination_id: int
     type: TransportationType = TransportationType.bus
@@ -466,7 +466,7 @@ class TransportationCreate(BaseSchema):
 
 
 class TransportationAvailabilityCreate(BaseSchema):
-    """Schema para crear disponibilidad de transporte"""
+    """Schema to create transportation availability"""
     departure_date: date
     departure_time: time
     arrival_date: date
@@ -514,7 +514,7 @@ class TransportationAvailabilityCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class TransportationUpdate(Schema):
-    """Schema para actualizar transporte"""
+    """Schema to update transportation"""
     origin_id: Optional[int] = None
     destination_id: Optional[int] = None
     type: Optional[TransportationType] = None
@@ -525,7 +525,7 @@ class TransportationUpdate(Schema):
 
 
 class TransportationAvailabilityUpdate(BaseSchema):
-    """Schema para actualizar disponibilidad de transporte"""
+    """Schema to update transportation availability"""
     departure_date: Optional[date] = None
     departure_time: Optional[time] = None
     arrival_date: Optional[date] = None
@@ -539,7 +539,7 @@ class TransportationAvailabilityUpdate(BaseSchema):
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class TransportationOut(Schema):
-    """Schema de salida para transporte"""
+    """Output schema for transportation"""
     id: int
     origin: LocationOut
     destination: LocationOut
@@ -551,18 +551,18 @@ class TransportationOut(Schema):
 
 
 class TransportationAvailabilityOut(TransportationAvailabilityCreate):
-    """Schema de salida para disponibilidad de transporte"""
+    """Output schema for transportation availability"""
     id: int
     transportation_id: int
 
 
 # ──────────────────────────────────────────────────────────────
-# 6. PROVEEDORES (SUPPLIERS)
+# 6. SUPPLIERS
 # ──────────────────────────────────────────────────────────────
 
 # ── CREATE ────────────────────────────────────────────────────
 class SupplierCreate(BaseSchema):
-    """Schema para crear un proveedor"""
+    """Schema to create a supplier"""
     first_name: str
     last_name: str
     organization_name: str
@@ -578,7 +578,7 @@ class SupplierCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class SupplierUpdate(BaseSchema):
-    """Schema para actualizar un proveedor"""
+    """Schema to update a supplier"""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     organization_name: Optional[str] = None
@@ -594,7 +594,7 @@ class SupplierUpdate(BaseSchema):
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class SupplierOut(BaseSchema):
-    """Schema de salida para proveedores"""
+    """Output schema for suppliers"""
     id: int
     name: str
     description: str
@@ -608,12 +608,12 @@ class SupplierOut(BaseSchema):
 
 
 # ──────────────────────────────────────────────────────────────
-# 7. METADATA DE PRODUCTOS
+# 7. PRODUCT METADATA
 # ──────────────────────────────────────────────────────────────
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class ProductsMetadataOut(BaseSchema):
-    """Schema de salida para metadata de productos"""
+    """Output schema for product metadata"""
     id: int
     unit_price: float
     product_type: Literal["activity", "flight", "lodgment", "transportation"]
@@ -621,7 +621,7 @@ class ProductsMetadataOut(BaseSchema):
 
 
 class ProductsMetadataOutLodgmentDetail(BaseSchema):
-    """Schema de salida para metadata de productos con detalle de alojamiento (incluye rooms)"""
+    """Output schema for product metadata with lodging detail (includes rooms)"""
     id: int
     unit_price: float
     product_type: Literal["lodgment"]
@@ -630,7 +630,7 @@ class ProductsMetadataOutLodgmentDetail(BaseSchema):
 
 # ── CREATE ────────────────────────────────────────────────────
 class ProductsMetadataCreate(BaseSchema):
-    """Schema para crear metadata de productos"""
+    """Schema to create product metadata"""
     product_type: Literal["activity", "flight", "lodgment", "transportation"]
     unit_price: float
     supplier_id: int
@@ -639,29 +639,29 @@ class ProductsMetadataCreate(BaseSchema):
 
 # ── UPDATE ────────────────────────────────────────────────────
 class ProductsMetadataUpdate(BaseSchema):
-    """Schema base para actualizar metadata de productos"""
+    """Base schema to update product metadata"""
     unit_price: Optional[float] = None
     supplier_id: Optional[int] = None
     product: Optional[Union[ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate]] = None
 
 
 class ProductsMetadataUpdateActivity(ProductsMetadataUpdate):
-    """Schema para actualizar metadata de actividades"""
+    """Schema to update activity metadata"""
     product: Optional[ActivityUpdate] = None
 
 
 class ProductsMetadataUpdateFlight(ProductsMetadataUpdate):
-    """Schema para actualizar metadata de vuelos"""
+    """Schema to update flight metadata"""
     product: Optional[FlightUpdate] = None
 
 
 class ProductsMetadataUpdateLodgment(ProductsMetadataUpdate):
-    """Schema para actualizar metadata de alojamientos"""
+    """Schema to update lodging metadata"""
     product: Optional[LodgmentUpdate] = None
 
 
 class ProductsMetadataUpdateTransportation(ProductsMetadataUpdate):
-    """Schema para actualizar metadata de transporte"""
+    """Schema to update transportation metadata"""
     product: Optional[TransportationUpdate] = None
 
 
@@ -670,7 +670,7 @@ class ProductsMetadataUpdateTransportation(ProductsMetadataUpdate):
 # ──────────────────────────────────────────────────────────────
 
 class ActivityAvailabilityCreateNested(BaseSchema):
-    """Schema para disponibilidad anidada en creación completa de actividad"""
+    """Schema for nested availability in complete activity creation"""
     event_date: date
     start_time: time
     total_seats: int = Field(..., ge=1)
@@ -682,7 +682,7 @@ class ActivityAvailabilityCreateNested(BaseSchema):
     @classmethod
     def check_event_date(cls, v):
         if v < date.today():
-            raise ValueError("La fecha no puede estar en el pasado.")
+            raise ValueError("Date cannot be in the past.")
         return v
 
     @field_validator("reserved_seats")
@@ -691,13 +691,13 @@ class ActivityAvailabilityCreateNested(BaseSchema):
         values = info.data
         total = values.get("total_seats", 0)
         if v > total:
-            raise ValueError("Los lugares reservados no pueden superar el total.")
+            raise ValueError("Reserved seats cannot exceed total.")
         return v
 
 
 class ActivityCompleteCreate(BaseSchema):
-    """Schema para crear una actividad completa con disponibilidades"""
-    # Datos de la actividad
+    """Schema to create a complete activity with availabilities"""
+    # Activity data
     name: str
     description: str
     location_id: int
@@ -712,30 +712,30 @@ class ActivityCompleteCreate(BaseSchema):
     language: str
     available_slots: int = Field(..., ge=0, le=100)
     
-    # Disponibilidades
+    # Availabilities
     availabilities: List[ActivityAvailabilityCreateNested] = []
 
     @field_validator("date")
     @classmethod
     def check_date(cls, v):
         if v < date.today():
-            raise ValueError("La fecha de la actividad no puede ser en el pasado.")
+            raise ValueError("Activity date cannot be in the past.")
         return v
 
 
 class ActivityMetadataCreate(BaseSchema):
-    """Schema para metadata de actividad"""
+    """Schema for activity metadata"""
     supplier_id: int
     unit_price: float = Field(..., gt=0)
     currency: str = Field(default="USD", max_length=8)
 
 
 # ──────────────────────────────────────────────────────────────
-# 7. SCHEMAS PARA CREACIÓN COMPLETA DE ALOJAMIENTOS
+# 7. SCHEMAS FOR COMPLETE LODGING CREATION
 # ──────────────────────────────────────────────────────────────
 
 class RoomAvailabilityCreateNested(BaseSchema):
-    """Schema para disponibilidad de habitación anidada en creación completa de alojamiento"""
+    """Schema for nested room availability in complete lodging creation"""
     start_date: date
     end_date: date
     available_quantity: int = Field(..., ge=0)
@@ -761,7 +761,7 @@ class RoomAvailabilityCreateNested(BaseSchema):
 
 
 class RoomCreateNested(BaseSchema):
-    """Schema para habitación anidada en creación completa de alojamiento"""
+    """Schema for nested room in complete lodging creation"""
     room_type: Literal[
         "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
@@ -780,8 +780,8 @@ class RoomCreateNested(BaseSchema):
 
 
 class LodgmentCompleteCreate(BaseSchema):
-    """Schema para crear un alojamiento completo con habitaciones y disponibilidades"""
-    # Datos del alojamiento
+    """Schema to create a complete lodging with rooms and availabilities"""
+    # Lodging data
     name: str = Field(..., max_length=128)
     description: Optional[str] = None
     location_id: int
@@ -796,7 +796,7 @@ class LodgmentCompleteCreate(BaseSchema):
     date_checkin: date
     date_checkout: date
 
-    # Habitaciones
+    # Rooms
     rooms: List[RoomCreateNested] = Field(..., min_length=1)
 
     @field_validator("date_checkin")
@@ -816,17 +816,17 @@ class LodgmentCompleteCreate(BaseSchema):
 
 
 class LodgmentMetadataCreate(BaseSchema):
-    """Schema para metadata de alojamiento"""
+    """Schema for lodging metadata"""
     supplier_id: int
     unit_price: float = Field(..., gt=0)
 
 
 # ──────────────────────────────────────────────────────────────
-# 8. SCHEMAS PARA CREACIÓN COMPLETA DE TRANSPORTE
+# 8. SCHEMAS FOR COMPLETE TRANSPORTATION CREATION
 # ──────────────────────────────────────────────────────────────
 
 class TransportationAvailabilityCreateNested(BaseSchema):
-    """Schema para disponibilidad de transporte anidada en creación completa"""
+    """Schema for nested transportation availability in complete creation"""
     departure_date: date
     departure_time: time
     arrival_date: date
@@ -841,7 +841,7 @@ class TransportationAvailabilityCreateNested(BaseSchema):
     @classmethod
     def check_departure_date(cls, v):
         if v < date.today():
-            raise ValueError("La fecha de salida no puede estar en el pasado.")
+            raise ValueError("Departure date cannot be in the past.")
         return v
 
     @field_validator("arrival_date")
@@ -850,7 +850,7 @@ class TransportationAvailabilityCreateNested(BaseSchema):
         values = info.data
         departure_date = values.get("departure_date")
         if departure_date and v < departure_date:
-            raise ValueError("La fecha de llegada no puede ser anterior a la de salida.")
+            raise ValueError("Arrival date cannot be before departure date.")
         return v
 
     @field_validator("arrival_time")
@@ -863,7 +863,7 @@ class TransportationAvailabilityCreateNested(BaseSchema):
 
         if departure_date and arrival_date and departure_time:
             if departure_date == arrival_date and v <= departure_time:
-                raise ValueError("La hora de llegada debe ser posterior a la de salida en el mismo día.")
+                raise ValueError("Arrival time must be after departure time on the same day.")
         return v
 
     @field_validator("reserved_seats")
@@ -872,48 +872,48 @@ class TransportationAvailabilityCreateNested(BaseSchema):
         values = info.data
         total = values.get("total_seats", 0)
         if v > total:
-            raise ValueError("Los asientos reservados no pueden superar el total.")
+            raise ValueError("Reserved seats cannot exceed total.")
         return v
 
 
 class TransportationCompleteCreate(BaseSchema):
-    """Schema para crear un transporte completo con disponibilidades"""
-    # Datos del transporte
+    """Schema to create a complete transportation with availabilities"""
+    # Transportation data
     origin_id: int
     destination_id: int
-    type: TransportationType  # Obligatorio, sin valor por defecto
+    type: TransportationType  # Required, no default value
     description: str
     notes: Optional[str] = ""
     capacity: int = Field(..., gt=0, le=100)
 
-    # Disponibilidades
+    # Availabilities
     availabilities: List[TransportationAvailabilityCreateNested] = Field(default_factory=list)
 
     @field_validator("description")
     @classmethod
     def validate_description(cls, v):
         if not v.strip():
-            raise ValueError("La descripción no puede estar vacía.")
+            raise ValueError("Description cannot be empty.")
         return v
 
 
 class TransportationMetadataCreate(BaseSchema):
-    """Schema para metadata de transporte"""
+    """Schema for transportation metadata"""
     supplier_id: int
     unit_price: float = Field(..., gt=0)
 
 
 # ──────────────────────────────────────────────────────────────
-# 9. PAQUETES (PACKAGES)
+# 9. PACKAGES
 # ──────────────────────────────────────────────────────────────
 
 # ── CREATE ────────────────────────────────────────────────────
 class ComponentPackageCreate(BaseSchema):
-    """Schema para crear un componente de paquete"""
+    """Schema to create a package component"""
     product_metadata_id: int
-    order: int = Field(..., ge=0, json_schema_extra={"help_text": "Orden de visualización dentro del paquete"})
-    quantity: Optional[int] = Field(None, ge=1, json_schema_extra={"help_text": "Cantidad de veces que se incluye este producto"})
-    title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Nombre visible del componente"})
+    order: int = Field(..., ge=0, json_schema_extra={"help_text": "Display order within the package"})
+    quantity: Optional[int] = Field(None, ge=1, json_schema_extra={"help_text": "Number of times this product is included"})
+    title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Visible name of the component"})
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -923,31 +923,31 @@ class ComponentPackageCreate(BaseSchema):
         values = info.data
         start = values.get("start_date")
         if v and not start:
-            raise ValueError("Debe establecer start_date si se incluye end_date.")
+            raise ValueError("Must set start_date if end_date is included.")
         if v and start and v < start:
-            raise ValueError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+            raise ValueError("End date cannot be earlier than start date.")
         return v
 
     @field_validator("quantity")
     @classmethod
     def validate_quantity_positive(cls, v):
         if v is not None and v < 1:
-            raise ValueError("La cantidad debe ser al menos 1.")
+            raise ValueError("Quantity must be at least 1.")
         return v
 
 
 class PackageCreate(BaseSchema):
-    """Schema para crear un paquete"""
+    """Schema to create a package"""
     name: str = Field(..., max_length=64)
     description: str
     cover_image: Optional[str] = Field(None, max_length=500)
     
-    # Precios
+    # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: float = Field(..., gt=0)
     
-    # Componentes del paquete
+    # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
 
     @field_validator("final_price")
@@ -960,13 +960,13 @@ class PackageCreate(BaseSchema):
         if base_price is not None and taxes is not None:
             total = round(base_price + taxes, 2)
             if round(v, 2) != total:
-                raise ValueError("El precio final no coincide con base + impuestos.")
+                raise ValueError("Final price does not match base + taxes.")
         return v
 
 
 # ── UPDATE ────────────────────────────────────────────────────
 class ComponentPackageUpdate(BaseSchema):
-    """Schema para actualizar un componente de paquete"""
+    """Schema to update a package component"""
     order: Optional[int] = Field(None, ge=0)
     quantity: Optional[int] = Field(None, ge=1)
     title: Optional[str] = Field(None, max_length=128)
@@ -979,26 +979,26 @@ class ComponentPackageUpdate(BaseSchema):
         values = info.data
         start = values.get("start_date")
         if v and not start:
-            raise ValueError("Debe establecer start_date si se incluye end_date.")
+            raise ValueError("Must set start_date if end_date is included.")
         if v and start and v < start:
-            raise ValueError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+            raise ValueError("End date cannot be earlier than start date.")
         return v
 
     @field_validator("quantity")
     @classmethod
     def validate_quantity_positive(cls, v):
         if v is not None and v < 1:
-            raise ValueError("La cantidad debe ser al menos 1.")
+            raise ValueError("Quantity must be at least 1.")
         return v
 
 
 class PackageUpdate(BaseSchema):
-    """Schema para actualizar un paquete"""
+    """Schema to update a package"""
     name: Optional[str] = Field(None, max_length=64)
     description: Optional[str] = None
     cover_image: Optional[str] = None
     
-    # Precios
+    # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: Optional[float] = Field(None, gt=0)
@@ -1016,13 +1016,13 @@ class PackageUpdate(BaseSchema):
             if base_price is not None and taxes is not None:
                 total = round(base_price + taxes, 2)
                 if round(v, 2) != total:
-                    raise ValueError("El precio final no coincide con base + impuestos.")
+                    raise ValueError("Final price does not match base + taxes.")
         return v
 
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class ComponentPackageOut(BaseSchema):
-    """Schema de salida para componentes de paquete"""
+    """Output schema for package components"""
     id: int
     product_metadata_id: int
     order: int
@@ -1031,46 +1031,46 @@ class ComponentPackageOut(BaseSchema):
     start_date: Optional[date]
     end_date: Optional[date]
     
-    # Información del producto relacionado
+    # Related product information
     product_type: str
     product_name: str
 
 
 class PackageOut(BaseSchema):
-    """Schema de salida para paquetes"""
+    """Output schema for packages"""
     id: int
     name: str
     description: str
     cover_image: Optional[str]
     
-    # Precios
+    # Prices
     base_price: Optional[float]
     taxes: Optional[float]
     final_price: float
     
-    # Reseñas
+    # Reviews
     rating_average: float
     total_reviews: int
     
-    # Estado
+    # Status
     is_active: bool
     
-    # Fechas
+    # Dates
     created_at: datetime
     updated_at: datetime
     
-    # Duración calculada
+    # Calculated duration
     duration_days: Optional[int]
 
 
 class PackageDetailOut(PackageOut):
-    """Schema de salida detallado para paquetes con componentes"""
+    """Detailed output schema for packages with components"""
     components: List[ComponentPackageOut]
 
 
 # ── SEARCH PARAMS ─────────────────────────────────────────────
 class PackageSearchParams(BaseSchema):
-    """Parámetros de búsqueda para paquetes"""
+    """Search parameters for packages"""
     name: Optional[str] = None
     min_price: Optional[float] = Field(None, ge=0)
     max_price: Optional[float] = Field(None, ge=0)
@@ -1083,22 +1083,22 @@ class PackageSearchParams(BaseSchema):
 
 
 # ──────────────────────────────────────────────────────────────
-# 10. SCHEMAS PARA CREACIÓN COMPLETA DE PAQUETES
+# 10. SCHEMAS FOR COMPLETE PACKAGE CREATION
 # ──────────────────────────────────────────────────────────────
 
 class PackageCompleteCreate(BaseSchema):
-    """Schema para crear un paquete completo con todos los datos"""
-    # Datos del paquete
+    """Schema to create a complete package with all data"""
+    # Package data
     name: str = Field(..., max_length=64)
     description: str
     cover_image: Optional[str] = Field(None, max_length=500)
     
-    # Precios
+    # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: float = Field(..., gt=0)
     
-    # Componentes del paquete
+    # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
 
     @field_validator("final_price")
@@ -1111,19 +1111,19 @@ class PackageCompleteCreate(BaseSchema):
         if base_price is not None and taxes is not None:
             total = round(base_price + taxes, 2)
             if round(v, 2) != total:
-                raise ValueError("El precio final no coincide con base + impuestos.")
+                raise ValueError("Final price does not match base + taxes.")
         return v
 
     @field_validator("components")
     @classmethod
     def validate_components(cls, v):
         if not v:
-            raise ValueError("El paquete debe tener al menos un componente.")
+            raise ValueError("Package must have at least one component.")
         
-        # Validar que no haya órdenes duplicados
+        # Validate that there are no duplicate orders
         orders = [comp.order for comp in v]
         if len(orders) != len(set(orders)):
-            raise ValueError("Los órdenes de los componentes deben ser únicos.")
+            raise ValueError("Component orders must be unique.")
         
         return v
 

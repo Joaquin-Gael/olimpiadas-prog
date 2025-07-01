@@ -8,12 +8,12 @@ import uuid
 
 @pytest.fixture
 def ninja_client():
-    """Cliente de Ninja para testing con todos los routers"""
-    # Crear una nueva instancia del API para cada test con namespace único
+    """Ninja client for testing with all routers"""
+    # Create a new API instance for each test with unique namespace
     unique_id = str(uuid.uuid4())[:8]
     api = NinjaAPI(urls_namespace=f"test-{unique_id}")
     
-    # Importar las funciones de los routers para recrearlos
+    # Import router functions to recreate them
     from api.products.views_products import (
         create_product, create_complete_activity, create_complete_lodgment, 
         create_complete_transport, get_product, update_product, deactivate_product
@@ -27,12 +27,12 @@ def ninja_client():
         create_category, update_category, delete_category, get_packages_by_category
     )
     
-    # Crear routers únicos para cada test
+    # Create unique routers for each test
     products_router = Router(tags=["Products"])
-    package_router = Router(tags=["Paquetes"])
-    category_router = Router(tags=["Categorías"])
+    package_router = Router(tags=["Packages"])
+    category_router = Router(tags=["Categories"])
     
-    # Agregar solo los endpoints necesarios para los tests de paquetes
+    # Add only the endpoints needed for package tests
     products_router.add_api_operation("/create/", ["POST"], create_product)
     products_router.add_api_operation("/activity-complete/", ["POST"], create_complete_activity)
     products_router.add_api_operation("/lodgment-complete/", ["POST"], create_complete_lodgment)
@@ -41,7 +41,7 @@ def ninja_client():
     products_router.add_api_operation("/{id}/", ["PATCH"], update_product)
     products_router.add_api_operation("/{id}/", ["DELETE"], deactivate_product)
     
-    # Agregar endpoints de paquetes
+    # Add package endpoints
     package_router.add_api_operation("/", ["GET"], list_packages)
     package_router.add_api_operation("/{package_id}", ["GET"], get_package)
     package_router.add_api_operation("/", ["POST"], create_package)
@@ -56,7 +56,7 @@ def ninja_client():
     package_router.add_api_operation("/search/by-duration", ["GET"], get_packages_by_duration)
     package_router.add_api_operation("/stats/overview", ["GET"], get_packages_stats)
     
-    # Agregar endpoints de categorías
+    # Add category endpoints
     category_router.add_api_operation("/", ["GET"], list_categories)
     category_router.add_api_operation("/{category_id}", ["GET"], get_category)
     category_router.add_api_operation("/", ["POST"], create_category)
@@ -72,24 +72,24 @@ def ninja_client():
 
 @pytest.fixture
 def supplier():
-    """Crear un proveedor de prueba"""
+    """Create a test supplier"""
     return Suppliers.objects.create(
-        first_name="Juan",
-        last_name="Pérez",
-        organization_name="Aventuras del Sur",
-        description="Empresa de turismo aventura",
-        street="Av. San Martín",
+        first_name="John",
+        last_name="Smith",
+        organization_name="Adventure Tours",
+        description="Adventure tourism company",
+        street="Main St",
         street_number=123,
         city="Bariloche",
         country="Argentina",
-        email="juan@aventurasdelsur.com",
+        email="john@adventuretours.com",
         telephone="+54 294 1234567",
-        website="https://aventurasdelsur.com"
+        website="https://adventuretours.com"
     )
 
 @pytest.fixture
 def location():
-    """Crear una ubicación de prueba"""
+    """Create a test location"""
     return Location.objects.create(
         country="Argentina",
         state="Río Negro",
@@ -104,8 +104,8 @@ from django.contrib.contenttypes.models import ContentType
 @pytest.fixture
 def lodgment_metadata(supplier, location):
     lodgment = Lodgment.objects.create(
-        name="Hotel Test",
-        description="Desc",
+        name="Test Hotel",
+        description="Description",
         location=location,
         type="hotel",
         max_guests=2,
@@ -126,8 +126,8 @@ def lodgment_metadata(supplier, location):
 @pytest.fixture
 def activity_metadata(supplier, location):
     activity = Activities.objects.create(
-        name="Actividad Test",
-        description="Desc",
+        name="Test Activity",
+        description="Description",
         location=location,
         date=date.today() + timedelta(days=1),
         start_time="10:00:00",
@@ -135,7 +135,7 @@ def activity_metadata(supplier, location):
         include_guide=True,
         maximum_spaces=10,
         difficulty_level="Easy",
-        language="es",
+        language="en",
         available_slots=10,
     )
     metadata = ProductsMetadata.objects.create(
@@ -160,7 +160,7 @@ def flight_metadata(supplier, location):
         duration_hours=2,
         class_flight="Economy",
         available_seats=100,
-        luggage_info="1 valija",
+        luggage_info="1 suitcase",
         aircraft_type="Boeing 737",
     )
     metadata = ProductsMetadata.objects.create(
@@ -177,7 +177,7 @@ def transportation_metadata(supplier, location):
         origin=location,
         destination=location,
         type="bus",
-        description="Transporte test",
+        description="Test transportation",
         notes="",
         capacity=40,
     )

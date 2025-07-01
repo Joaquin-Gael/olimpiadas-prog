@@ -5,13 +5,13 @@ pytestmark = pytest.mark.django_db
 
 
 class TestPackageCreation:
-    """Tests para la creación de paquetes"""
+    """Tests for package creation"""
 
     def test_create_package_simple(self, ninja_client):
-        """Test crear un paquete simple sin componentes"""
+        """Test creating a simple package without components"""
         payload = {
-            "name": "Paquete Test Simple",
-            "description": "Un paquete de prueba sin componentes",
+            "name": "Simple Test Package",
+            "description": "A test package without components",
             "final_price": 500.0
         }
         response = ninja_client.post("/package/", json=payload)
@@ -19,20 +19,20 @@ class TestPackageCreation:
         print(f"[DEBUG] Response content: {response.content}")
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Paquete Test Simple"
+        assert data["name"] == "Simple Test Package"
         assert data["final_price"] == 500.0
         assert data["components"] == []
 
     def test_create_package_with_components(self, ninja_client, supplier, location):
-        """Test crear un paquete con componentes"""
-        # Primero crear productos para usar como componentes
+        """Test creating a package with components"""
+        # First create products to use as components
         activity_payload = {
             "product_type": "activity",
             "unit_price": 100.0,
             "supplier_id": supplier.id,
             "product": {
-                "name": "Actividad para Paquete",
-                "description": "Actividad de prueba",
+                "name": "Package Activity",
+                "description": "Test activity",
                 "location_id": location.id,
                 "date": str(date.today() + timedelta(days=5)),
                 "start_time": "09:00:00",
@@ -40,7 +40,7 @@ class TestPackageCreation:
                 "include_guide": True,
                 "maximum_spaces": 10,
                 "difficulty_level": "Easy",
-                "language": "Español",
+                "language": "English",
                 "available_slots": 10
             }
         }
@@ -48,10 +48,10 @@ class TestPackageCreation:
         assert activity_resp.status_code == 200
         activity_metadata_id = activity_resp.json()["id"]
 
-        # Crear paquete con componente
+        # Create package with component
         package_payload = {
-            "name": "Paquete Completo",
-            "description": "Paquete con actividad incluida",
+            "name": "Complete Package",
+            "description": "Package with included activity",
             "base_price": 400.0,
             "taxes": 50.0,
             "final_price": 450.0,
@@ -60,7 +60,7 @@ class TestPackageCreation:
                     "product_metadata_id": activity_metadata_id,
                     "order": 1,
                     "quantity": 1,
-                    "title": "Actividad Incluida",
+                    "title": "Included Activity",
                     "start_date": str(date.today() + timedelta(days=5))
                 }
             ]
@@ -70,29 +70,30 @@ class TestPackageCreation:
         print(f"[DEBUG] Package response content: {response.content}")
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Paquete Completo"
+        assert data["name"] == "Complete Package"
         assert data["final_price"] == 450.0
         assert len(data["components"]) == 1
-        assert data["components"][0]["title"] == "Actividad Incluida"
+        assert data["components"][0]["title"] == "Included Activity"
 
     def test_create_package_invalid_price(self, ninja_client):
-        """Test error: precio final no coincide con base + impuestos"""
+        """Test error: final price doesn't match base + taxes"""
         payload = {
-            "name": "Paquete Error",
-            "description": "Paquete con precios incorrectos",
+            "name": "Error Package",
+            "description": "Package with incorrect prices",
             "base_price": 100.0,
             "taxes": 20.0,
-            "final_price": 150.0  # Debería ser 120.0
+            "final_price": 150.0  # Should be 120.0
         }
         response = ninja_client.post("/package/", json=payload)
         assert response.status_code == 422
-        assert "precio final no coincide" in response.content.decode()
+        # Check for the relevant error message in a robust way
+        assert "final price does not match" in response.content.decode().lower()
 
     def test_create_package_negative_price(self, ninja_client):
-        """Test error: precio negativo"""
+        """Test error: negative price"""
         payload = {
-            "name": "Paquete Error",
-            "description": "Paquete con precio negativo",
+            "name": "Error Package",
+            "description": "Package with negative price",
             "final_price": -50.0
         }
         response = ninja_client.post("/package/", json=payload)
@@ -101,133 +102,133 @@ class TestPackageCreation:
 
 
 class TestPackageCRUD:
-    """Tests para CRUD de paquetes"""
+    """Tests for package CRUD operations"""
 
     def test_get_package(self, ninja_client):
-        """Test obtener un paquete específico"""
-        # Crear paquete
+        """Test getting a specific package"""
+        # Create package
         create_payload = {
-            "name": "Paquete para Obtener",
-            "description": "Paquete para test de obtención",
+            "name": "Package to Get",
+            "description": "Package for retrieval test",
             "final_price": 300.0
         }
         create_resp = ninja_client.post("/package/", json=create_payload)
         assert create_resp.status_code == 200
         package_id = create_resp.json()["id"]
 
-        # Obtener paquete
+        # Get package
         response = ninja_client.get(f"/package/{package_id}")
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Paquete para Obtener"
+        assert data["name"] == "Package to Get"
         assert data["final_price"] == 300.0
 
     def test_update_package(self, ninja_client):
-        """Test actualizar un paquete"""
-        # Crear paquete
+        """Test updating a package"""
+        # Create package
         create_payload = {
-            "name": "Paquete Original",
-            "description": "Descripción original",
+            "name": "Original Package",
+            "description": "Original description",
             "final_price": 250.0
         }
         create_resp = ninja_client.post("/package/", json=create_payload)
         assert create_resp.status_code == 200
         package_id = create_resp.json()["id"]
 
-        # Actualizar paquete
+        # Update package
         update_payload = {
-            "name": "Paquete Actualizado",
-            "description": "Descripción actualizada",
+            "name": "Updated Package",
+            "description": "Updated description",
             "final_price": 350.0
         }
         response = ninja_client.put(f"/package/{package_id}", json=update_payload)
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Paquete Actualizado"
-        assert data["description"] == "Descripción actualizada"
+        assert data["name"] == "Updated Package"
+        assert data["description"] == "Updated description"
         assert data["final_price"] == 350.0
 
     def test_delete_package(self, ninja_client):
-        """Test eliminar un paquete (soft delete)"""
-        # Crear paquete
+        """Test deleting a package (soft delete)"""
+        # Create package
         create_payload = {
-            "name": "Paquete a Eliminar",
-            "description": "Paquete que será eliminado",
+            "name": "Package to Delete",
+            "description": "Package that will be deleted",
             "final_price": 200.0
         }
         create_resp = ninja_client.post("/package/", json=create_payload)
         assert create_resp.status_code == 200
         package_id = create_resp.json()["id"]
 
-        # Eliminar paquete
+        # Delete package
         response = ninja_client.delete(f"/package/{package_id}")
         assert response.status_code == 200
-        assert "eliminado correctamente" in response.json()["message"]
+        assert "deleted successfully" in response.json()["message"]
 
-        # Verificar que no se puede obtener el paquete eliminado
+        # Verify that deleted package cannot be retrieved
         get_response = ninja_client.get(f"/package/{package_id}")
         assert get_response.status_code == 404
 
 
 class TestPackageList:
-    """Tests para listado de paquetes"""
+    """Tests for package listing"""
 
     def test_list_packages(self, ninja_client):
-        """Test listar todos los paquetes"""
-        # Crear algunos paquetes
+        """Test listing all packages"""
+        # Create some packages
         packages = [
-            {"name": "Paquete 1", "description": "Desc 1", "final_price": 100.0},
-            {"name": "Paquete 2", "description": "Desc 2", "final_price": 200.0},
-            {"name": "Paquete 3", "description": "Desc 3", "final_price": 300.0}
+            {"name": "Package 1", "description": "Desc 1", "final_price": 100.0},
+            {"name": "Package 2", "description": "Desc 2", "final_price": 200.0},
+            {"name": "Package 3", "description": "Desc 3", "final_price": 300.0}
         ]
         for pkg in packages:
             ninja_client.post("/package/", json=pkg)
 
-        # Listar paquetes
+        # List packages
         response = ninja_client.get("/package/")
         assert response.status_code == 200
         data = response.json()
-        # Verificar que la respuesta tiene la estructura paginada
+        # Verify that response has paginated structure
         assert "results" in data
         assert "count" in data
         assert len(data["results"]) >= 3
 
     def test_search_packages_by_name(self, ninja_client):
-        """Test búsqueda de paquetes por nombre"""
-        # Crear paquetes con nombres específicos
+        """Test searching packages by name"""
+        # Create packages with specific names
         packages = [
-            {"name": "Paquete Aventura", "description": "Desc", "final_price": 300.0},
-            {"name": "Paquete Relax", "description": "Desc", "final_price": 400.0},
-            {"name": "Paquete Cultural", "description": "Desc", "final_price": 250.0}
+            {"name": "Adventure Package", "description": "Desc", "final_price": 300.0},
+            {"name": "Relax Package", "description": "Desc", "final_price": 400.0},
+            {"name": "Cultural Package", "description": "Desc", "final_price": 250.0}
         ]
         for pkg in packages:
             ninja_client.post("/package/", json=pkg)
 
-        # Buscar por nombre
-        response = ninja_client.get("/package/?name=aventura")
+        # Search by name
+        response = ninja_client.get("/package/?name=adventure")
         assert response.status_code == 200
         data = response.json()
-        # Verificar que la respuesta tiene la estructura paginada
+        # Verify that response has paginated structure
         assert "results" in data
         assert len(data["results"]) >= 1
-        assert "Aventura" in data["results"][0]["name"]
+        assert "Adventure" in data["results"][0]["name"]
 
     def test_search_packages_by_price_range(self, ninja_client):
-        """Test búsqueda de paquetes por rango de precio"""
-        # Crear paquetes con precios específicos
+        """Test searching packages by price range"""
+        # Create packages with specific prices
         packages = [
-            {"name": "Paquete Económico", "description": "Desc", "final_price": 100.0},
-            {"name": "Paquete Medio", "description": "Desc", "final_price": 500.0},
-            {"name": "Paquete Premium", "description": "Desc", "final_price": 1000.0}
+            {"name": "Economy Package", "description": "Desc", "final_price": 100.0},
+            {"name": "Mid-range Package", "description": "Desc", "final_price": 500.0},
+            {"name": "Premium Package", "description": "Desc", "final_price": 1000.0}
         ]
         for pkg in packages:
             ninja_client.post("/package/", json=pkg)
 
-        # Buscar por rango de precio
+        # Search by price range
         response = ninja_client.get("/package/?min_price=200&max_price=600")
         assert response.status_code == 200
         data = response.json()
-        # Verificar que la respuesta tiene la estructura paginada
+        # Verify that response has paginated structure
         assert "results" in data
         assert len(data["results"]) >= 1
         for pkg in data["results"]:

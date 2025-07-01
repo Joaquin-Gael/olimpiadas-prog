@@ -124,10 +124,13 @@ class Orders(models.Model):
     state = models.CharField(
         choices=OrderTravelPackageStatus.choices(),
     )
-    total = models.FloatField(
+    total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Total de la orden"
     )
     address = models.ForeignKey(Addresses, on_delete=models.CASCADE)
     notes = models.TextField()
@@ -151,10 +154,13 @@ class Sales(models.Model):
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
     transaction_number = models.IntegerField()
     sale_date = models.DateTimeField()
-    total = models.FloatField(
+    total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Total de la venta"
     )
     payment_status = models.CharField(
         max_length=20,
@@ -182,20 +188,29 @@ class OrderDetails(models.Model):
             MinValueValidator(0),
         ]
     )
-    unit_price = models.FloatField(
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Precio unitario del producto"
     )
-    subtotal = models.FloatField(
+    subtotal = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Subtotal del detalle"
     )
-    discount_applied = models.FloatField(
+    discount_applied = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Descuento aplicado"
     )
 
 class Vouchers(models.Model):
@@ -238,10 +253,13 @@ class Bills(models.Model):
     emission_date = models.DateTimeField()
     client = models.ForeignKey(Clients, on_delete=models.CASCADE, null=True)
     items_details = models.TextField()
-    total = models.FloatField(
+    total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
-        ]
+        ],
+        help_text="Total de la factura"
     )
     state = models.CharField(
         max_length=20,

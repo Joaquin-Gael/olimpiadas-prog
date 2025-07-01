@@ -28,7 +28,7 @@ class Suppliers(models.Model):
             MinValueValidator(-2),
             MaxValueValidator(200_000)
         ],
-        help_text="House/street number (puede ser negativo hasta -2 y positivo hasta 200 000)"
+        help_text="House/street number (can be negative up to -2 and positive up to 200,000)"
     )
     city = models.CharField(max_length=64)
     country = models.CharField(max_length=64)
@@ -58,8 +58,8 @@ class Location(models.Model):
 
 class DifficultyLevel(Enum):
     """
-    Enumeración de los niveles de dificultad para actividades.
-    Cada miembro representa un grado de reto, desde muy fácil hasta extremadamente difícil.
+    Enumeration of difficulty levels for activities.
+    Each member represents a degree of challenge, from very easy to extremely difficult.
     """
     VERY_EASY = "Very Easy"
     EASY = "Easy"
@@ -84,7 +84,7 @@ class Activities(models.Model):
             MinValueValidator(0),
             MaxValueValidator(24)
         ],
-        help_text="duration (tiene que ser positivo y menor o igual a 24)"
+        help_text="duration (must be positive and less than or equal to 24)"
     )
     include_guide = models.BooleanField()
     maximum_spaces = models.IntegerField(
@@ -103,7 +103,7 @@ class Activities(models.Model):
             MinValueValidator(0),
             MaxValueValidator(100)
         ],
-        help_text="Cantidad de lugares disponibles para esta actividad"
+        help_text="Number of available spots for this activity"
     )
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -185,7 +185,9 @@ class Flights(models.Model):
     departure_date = models.DateField()
     arrival_date = models.DateField()
     duration_hours = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(192)])
-
+    departure_time = models.TimeField()
+    arrival_time = models.TimeField()
+    
     class_flight = models.CharField(max_length=32, choices=ClassFlight.choices())
     available_seats = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(500)])
 
@@ -241,7 +243,7 @@ class Lodgment(models.Model):
     description = models.TextField(blank=True)
     location = models.ForeignKey(Location, on_delete=models.PROTECT, db_index=True)
 
-    # Datos clave para experiencia cliente
+    # Key data for customer experience
     type = models.CharField(
         max_length=32,
         choices=LodgmentType.choices(),
@@ -252,16 +254,16 @@ class Lodgment(models.Model):
         help_text="Maximum number of guests the property can accommodate"
     )
 
-    # Información de contacto y servicios
+    # Contact and service information
     contact_phone = models.CharField(max_length=20, blank=True)
     contact_email = models.EmailField(blank=True)
     amenities = models.JSONField(default=list, blank=True, help_text="List of available amenities")
 
-    # Disponibilidad general del alojamiento
+    # General lodging availability
     date_checkin = models.DateField(db_index=True)
     date_checkout = models.DateField(db_index=True)
 
-    # Timestamps y estado
+    # Timestamps and status
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -271,7 +273,7 @@ class Lodgment(models.Model):
     objects = models.Manager()
     active = ActiveManager()
 
-    # Relaciones
+    # Relations
     metadata = GenericRelation(
         "ProductsMetadata",
         content_type_field="content_type_id",
@@ -301,11 +303,11 @@ class Lodgment(models.Model):
 
     @property
     def is_available(self):
-        """Verifica si el alojamiento está disponible"""
+        """Checks if the lodging is available"""
         return self.is_active and not self.deleted_at
 
     def get_available_rooms(self, start_date=None, end_date=None):
-        """Obtiene las habitaciones disponibles para un rango de fechas"""
+        """Gets available rooms for a date range"""
         rooms = self.rooms.filter(is_active=True)
         if start_date and end_date:
             rooms = rooms.filter(
@@ -351,7 +353,7 @@ class Room(models.Model):
     name = models.CharField(max_length=64, blank=True, help_text="Optional room name/number")
     description = models.TextField(blank=True)
 
-    # Capacidad y características
+    # Capacity and characteristics
     capacity = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(20)],
         help_text="Maximum number of people this room can accommodate"
@@ -361,7 +363,7 @@ class Room(models.Model):
     has_air_conditioning = models.BooleanField(default=True)
     has_wifi = models.BooleanField(default=True)
 
-    # Precio base
+    # Base price
     base_price_per_night = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -370,7 +372,7 @@ class Room(models.Model):
     )
     currency = models.CharField(max_length=3, default="USD")
 
-    # Estado
+    # Status
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -397,11 +399,11 @@ class Room(models.Model):
 
     @property
     def is_available(self):
-        """Verifica si la habitación está activa"""
+        """Checks if the room is active"""
         return self.is_active
 
     def get_current_availability(self, start_date, end_date):
-        """Obtiene la disponibilidad actual para un rango de fechas"""
+        """Gets current availability for a date range"""
         return self.availabilities.filter(
             start_date__lte=start_date,
             end_date__gte=end_date,
@@ -418,11 +420,11 @@ class RoomAvailability(models.Model):
         db_index=True
     )
 
-    # Período de disponibilidad
+    # Availability period
     start_date = models.DateField(db_index=True)
     end_date = models.DateField(db_index=True)
 
-    # Cantidad disponible y precio
+    # Available quantity and price
     available_quantity = models.IntegerField(
         validators=[MinValueValidator(0)],
         help_text="Number of rooms of this type available for the period"
@@ -437,7 +439,7 @@ class RoomAvailability(models.Model):
     )
     currency = models.CharField(max_length=3, default="USD")
 
-    # Estado y restricciones
+    # Status and restrictions
     is_blocked = models.BooleanField(
         default=False,
         help_text="If true, room is blocked and not available for booking"
@@ -477,12 +479,12 @@ class RoomAvailability(models.Model):
 
     @property
     def effective_price(self):
-        """Retorna el precio efectivo (override o base)"""
+        """Returns the effective price (override or base)"""
         return self.price_override if self.price_override else self.room.base_price_per_night
 
     @property
     def is_available_for_booking(self):
-        """Verifica si la habitación está disponible para reserva"""
+        """Checks if the room is available for booking"""
         return (
             not self.is_blocked and
             self.available_quantity > 0 and
@@ -490,7 +492,7 @@ class RoomAvailability(models.Model):
         )
 
     def get_total_price(self, nights):
-        """Calcula el precio total para una cantidad de noches"""
+        """Calculates the total price for a number of nights"""
         if nights < self.minimum_stay:
             raise ValidationError(f"Minimum stay required: {self.minimum_stay} nights")
         return self.effective_price * nights
@@ -498,10 +500,10 @@ class RoomAvailability(models.Model):
 class TransportationType(models.TextChoices):
     BUS = "bus", "Bus"
     VAN = "van", "Van"
-    CAR = "car", "Auto privado"
+    CAR = "car", "Private Car"
     SHUTTLE = "shuttle", "Shuttle"
-    TRAIN = "train", "Tren"
-    OTHER = "other", "Otro"
+    TRAIN = "train", "Train"
+    OTHER = "other", "Other"
 
 class Transportation(models.Model):
     id = models.AutoField(primary_key=True)
@@ -575,15 +577,20 @@ class ProductsMetadata(models.Model):
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
-    unit_price = models.FloatField(validators=[MinValueValidator(0)])
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Unit price of the product"
+    )
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     
-    # Propiedad para obtener el tipo de producto
+    # Property to get the product type
     @property
     def product_type(self):
         model_name = self.content_type_id.model.lower()
-        # Mapeo de nombres de modelos a tipos de producto en inglés
+        # Mapping of model names to product types in English
         type_mapping = {
             'activities': 'activity',
             'flights': 'flight',
@@ -592,7 +599,7 @@ class ProductsMetadata(models.Model):
         }
         return type_mapping.get(model_name, model_name)
 
-    # Propiedad para acceder al objeto ContentType
+    # Property to access the ContentType object
     @property
     def content_type(self):
         return self.content_type_id
@@ -603,28 +610,28 @@ class ProductsMetadata(models.Model):
 
     def clean(self):
         if self.unit_price < 0:
-            raise ValidationError("El precio no puede ser negativo")
+            raise ValidationError("The price cannot be negative")
 
         if not self.content:
-            raise ValidationError("El producto referenciado no existe")
+            raise ValidationError("The referenced product does not exist")
 
     def __str__(self):
         return f"{self.product_type.title()} - {self.content} - ${self.unit_price}"
 
     @property
     def is_available(self):
-        """Verifica si el producto está disponible"""
+        """Checks if the product is available"""
         return self.is_active and not self.deleted_at
 
     def get_final_price(self, discount_percent=0):
-        """Calcula el precio final con descuento"""
+        """Calculates the final price with discount"""
         return self.unit_price * (1 - discount_percent / 100)
 
 
-#TODO: Terminar de hacer los enums, a quien mrd se le ocurrio hacer tantos enums sin dar la lista
+#TODO: Finish making the enums, who the hell thought of making so many enums without providing the list
 
 class Category(models.Model):
-    """Modelo para categorizar paquetes turísticos"""
+    """Model to categorize tour packages"""
     name = models.CharField(max_length=64, unique=True)
     description = models.TextField(blank=True)
     icon = models.CharField(max_length=64, blank=True)
@@ -639,8 +646,8 @@ class Category(models.Model):
         return self.name
 
     class Meta:
-        verbose_name = "Categoría"
-        verbose_name_plural = "Categorías"
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
         ordering = ['name']
 
 class Packages(models.Model):
@@ -648,32 +655,57 @@ class Packages(models.Model):
     name = models.CharField("package_name", max_length=64)
     description = models.TextField()
     
-    # Categoría del paquete
+    # Package category
     category = models.ForeignKey(
         Category, 
         on_delete=models.PROTECT, 
         null=True, 
         blank=True,
-        help_text="Categoría del paquete turístico"
+        help_text="Tour package category"
     )
 
-    # Imagen destacada para mostrar en la web
-    cover_image = models.URLField(blank=True, help_text="Imagen destacada del paquete")
+    # Featured image to display on the web
+    cover_image = models.URLField(blank=True, help_text="Featured image of the package")
 
-    # Precios
-    base_price = models.FloatField(null=True, blank=True, help_text="Precio base sin impuestos")
-    taxes = models.FloatField(null=True, blank=True, help_text="Impuestos o recargos")
-    final_price = models.FloatField(help_text="Precio final total del paquete")
+    # Prices
+    base_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True, 
+        blank=True, 
+        help_text="Base price without taxes"
+    )
+    taxes = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True, 
+        blank=True, 
+        help_text="Taxes or surcharges"
+    )
+    final_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Total final price of the package"
+    )
 
-    # Reseñas (promedio y total)
-    rating_average = models.FloatField(default=0)
+    # Reviews (average and total)
+    rating_average = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        default=0,
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(5)
+        ],
+        help_text="Average rating (0-5)"
+    )
     total_reviews = models.IntegerField(default=0)
 
-    # Estado
+    # Status
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
-    # Fechas de creación y actualización
+    # Creation and update dates
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -684,28 +716,28 @@ class Packages(models.Model):
         return f"{self.name} (${self.final_price})"
 
     def clean(self):
-        """Validaciones del modelo Packages"""
+        """Validations for the Packages model"""
         if self.final_price < 0:
-            raise ValidationError("El precio final no puede ser negativo.")
+            raise ValidationError("The final price cannot be negative.")
 
         if self.base_price is not None and self.taxes is not None:
             total = round(self.base_price + self.taxes, 2)
             if round(self.final_price, 2) != total:
-                raise ValidationError("El precio final no coincide con base + impuestos.")
+                raise ValidationError("The final price does not match base + taxes.")
 
         if self.rating_average < 0 or self.rating_average > 5:
-            raise ValidationError("El rating promedio debe estar entre 0 y 5.")
+            raise ValidationError("The average rating must be between 0 and 5.")
 
         if self.total_reviews < 0:
-            raise ValidationError("El total de reseñas no puede ser negativo.")
+            raise ValidationError("The total number of reviews cannot be negative.")
 
     @property
     def duration_days(self):
-        """Calcula la duración del paquete según las fechas de sus componentes"""
-        fechas_inicio = [cp.start_date for cp in self.componentpackages.all() if cp.start_date]
-        fechas_fin = [cp.end_date for cp in self.componentpackages.all() if cp.end_date]
-        if fechas_inicio and fechas_fin:
-            return (max(fechas_fin) - min(fechas_inicio)).days + 1
+        """Calculates the duration of the package based on the dates of its components"""
+        start_dates = [cp.start_date for cp in self.componentpackages.all() if cp.start_date]
+        end_dates = [cp.end_date for cp in self.componentpackages.all() if cp.end_date]
+        if start_dates and end_dates:
+            return (max(end_dates) - min(start_dates)).days + 1
         return None
 
 class ComponentPackages(models.Model):
@@ -723,53 +755,61 @@ class ComponentPackages(models.Model):
         on_delete=models.CASCADE
     )
 
-    # Campos extra de gestión
-    order = models.IntegerField(help_text="Orden de visualización dentro del paquete")
-    quantity = models.IntegerField(null=True, help_text="Cantidad de veces que se incluye este producto")
+    # Extra management fields
+    order = models.IntegerField(help_text="Display order within the package")
+    quantity = models.IntegerField(null=True, help_text="Number of times this product is included")
 
-    # Mejora visual y de trazabilidad
+    # Visual improvement and traceability
     title = models.CharField(
         max_length=128, 
         blank=True, 
-        help_text="Nombre visible del componente en la ficha del paquete"
+        help_text="Visible name of the component in the package details"
     )
 
-    # Fechas específicas del componente (opcional)
-    start_date = models.DateField(null=True, blank=True, help_text="Fecha de inicio de uso del componente")
-    end_date = models.DateField(null=True, blank=True, help_text="Fecha de fin de uso del componente")
+    # Specific dates for the component (optional)
+    start_date = models.DateField(null=True, blank=True, help_text="Start date of component usage")
+    end_date = models.DateField(null=True, blank=True, help_text="End date of component usage")
 
     def __str__(self):
         return f"{self.package.name} - {self.product_metadata.product_type.title()}"
 
     def clean(self):
-        """Validaciones del modelo ComponentPackages"""
+        """Validations for the ComponentPackages model"""
         if self.start_date and self.end_date:
             if self.end_date < self.start_date:
-                raise ValidationError("La fecha de fin no puede ser anterior a la fecha de inicio.")
+                raise ValidationError("The end date cannot be earlier than the start date.")
 
         if self.quantity is not None and self.quantity < 1:
-            raise ValidationError("La cantidad debe ser al menos 1 si está especificada.")
+            raise ValidationError("The quantity must be at least 1 if specified.")
 
         if self.order < 0:
-            raise ValidationError("El orden debe ser mayor o igual a 0.")
+            raise ValidationError("The order must be greater than or equal to 0.")
 
     def get_summary(self):
-        """Devuelve un resumen del componente con fecha, tipo y nombre"""
-        fecha_info = ""
+        """Returns a summary of the component with date, type and name"""
+        date_info = ""
         if self.start_date:
-            fecha_info = f" ({self.start_date}"
+            date_info = f" ({self.start_date}"
             if self.end_date:
-                fecha_info += f" - {self.end_date}"
-            fecha_info += ")"
+                date_info += f" - {self.end_date}"
+            date_info += ")"
         
-        return f"{self.product_metadata.product_type.title()}{fecha_info}: {self.title or self.product_metadata.content}"
+        return f"{self.product_metadata.product_type.title()}{date_info}: {self.title or self.product_metadata.content}"
 
 class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)
     product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.PROTECT)
     package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.CASCADE)
     client = models.ForeignKey(Clients, verbose_name="client_id", on_delete=models.CASCADE)
-    punctuation = models.FloatField()
+    punctuation = models.DecimalField(
+        max_digits=3,
+        decimal_places=2,
+        validators=[
+            MinValueValidator(0),
+            MaxValueValidator(5)
+        ],
+        help_text="Review rating (0-5)"
+    )
     comment = models.TextField()
     date = models.DateField()
 
@@ -778,11 +818,14 @@ class Promotions(models.Model):
     product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.PROTECT)
     package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.CASCADE)
     name = models.CharField(max_length=64)
-    discount = models.FloatField(
+    discount = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
         validators=[
             MinValueValidator(0),
             MaxValueValidator(100)
-        ]
+        ],
+        help_text="Discount percentage (0-100)"
     )
     start_date = models.DateField()
     end_date = models.DateField()
