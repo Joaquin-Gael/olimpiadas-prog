@@ -44,6 +44,7 @@ class Clients(models.Model):
     id = models.AutoField("client_id", primary_key=True)
     user = models.OneToOneField(Users, verbose_name="user_id", on_delete=models.CASCADE)
     identity_document_type = models.CharField(
+        max_length=64,
         choices=IdentityDocumentType.choices(),
     )
     identity_document = models.CharField(max_length=255)
@@ -66,5 +67,9 @@ class Addresses(models.Model):
     state = models.CharField(max_length=64, null=False)
     country = models.CharField(max_length=64, null=False)
     zip_code = models.CharField(max_length=64, null=False)
-    address_type = models.CharField(choices=AddressType.choices(), null=False)
+    address_type = models.CharField(
+       max_length=64,
+       choices=AddressType.choices(),
+       null=False
+    )
     is_default = models.BooleanField(default=False)

@@ -578,6 +578,7 @@ class ProductsMetadata(models.Model):
         help_text="Precio base por unidad o persona"
     )
     product_type = models.CharField(
+        max_length=32,
         choices=ProductType.choices,
         help_text="Tipo de product: actividad, vuelo, alojamiento, transporte"
     )
