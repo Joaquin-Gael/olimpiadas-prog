@@ -11,7 +11,7 @@ class UserRegistrationSchema(Schema):
     telephone: str
     password: str
     born_date: Optional[date] = None
-    state: str = "active"
+    state: str = "active" # TODO: Error de seguridad el hacer esto ya que expones un dato sensible
 
 
 class UserResponseSchema(Schema):

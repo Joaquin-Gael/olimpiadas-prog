@@ -6,6 +6,12 @@
 
 .env
 
+_pycache_/
+
+*.py[cod]
+
+*.pyo
+
 *.sqlite3
 
 uv.lock

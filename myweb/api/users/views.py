@@ -8,7 +8,7 @@ from typing import List
 
 from rich.console import Console
 
-from api.core.auth import JWTBearer
+from api.core.auth import JWTBearer, gen_token
 
 from .models import Users
 from .schemas import (
@@ -22,13 +22,16 @@ from .schemas import (
 
 console = Console()
 
-user_router = Router(
+user_private_router = Router(
     tags=["Users"],
     auth=JWTBearer(),
 )
 
+user_public_router = Router(
+    tags=["Users"],
+)
 
-@user_router.post("/register", response={201: UserResponseSchema, 400: ErrorResponseSchema})
+@user_public_router.post("/register", response={201: UserResponseSchema, 400: ErrorResponseSchema})
 def register_user(request, payload: UserRegistrationSchema):
     """
    Registra un nuevo usuario en el sistema.
@@ -63,7 +66,7 @@ def register_user(request, payload: UserRegistrationSchema):
             state=payload.state
         )
         
-        # Retornar el usuario creado (sin password)
+        # Retornar el usuario creado (sin password) y sin seguir el schema acordado
         return Response(
             {
                 "id": user.id,
@@ -91,7 +94,7 @@ def register_user(request, payload: UserRegistrationSchema):
         )
 
 
-@user_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
+@user_public_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
 def login_user(request, payload: UserLoginSchema):
     """
     Autentica un usuario utilizando email y contraseña.
@@ -115,16 +118,23 @@ def login_user(request, payload: UserLoginSchema):
                 {"message": "Usuario inactivo", "detail": "El usuario está deshabilitado"},
                 status=401
             )
+
+        console.print(user.get_all_permissions())
+
+        payload={
+            "sub":str(user.id),
+            "scopes": list(user.get_all_permissions())
+        }
+
+        token = gen_token(payload=payload)
+        refresh_token = gen_token(payload=payload, refresh=True)
         
         return Response(
             {
-                "message": "Login exitoso",
-                "data": {
-                    "id": user.id,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "email": user.email,
-                    "is_staff": user.is_staff
+                "message":"Login exitoso",
+                "data":{
+                    "access_token": token,
+                    "refresh_token": refresh_token,
                 }
             },
             status=200
@@ -137,7 +147,7 @@ def login_user(request, payload: UserLoginSchema):
         )
 
 
-@user_router.get("/", response=List[UserResponseSchema])
+@user_private_router.get("/", response=List[UserResponseSchema])
 def list_users(request):
     """
     Retorna una lista con todos los usuarios registrados en el sistema.
@@ -164,7 +174,7 @@ def list_users(request):
     except Exception as e:
         raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
-@user_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema})
+@user_private_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema})
 def me_user(request):
     """
     Retorna un usuario en el sistema.
@@ -192,7 +202,7 @@ def me_user(request):
         console.print_exception(show_locals=True)
         return HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
-@user_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
+@user_private_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
 def get_user(request, user_id: int):
     """
     Obtiene los datos de un usuario específico mediante su ID.
@@ -226,7 +236,7 @@ def get_user(request, user_id: int):
 
 
 
-@user_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
+@user_private_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
 def update_user(request, user_id: int, payload: UserUpdateSchema):
     """
     Actualiza los datos de un usuario específico.
@@ -287,7 +297,7 @@ def update_user(request, user_id: int, payload: UserUpdateSchema):
         )
 
 
-@user_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema})
+@user_private_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema})
 def delete_user(request, user_id: int):
     """
     Elimina completamente un usuario por su ID.

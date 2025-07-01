@@ -1,5 +1,7 @@
 from typing import List, Optional
 
+from asgiref.sync import sync_to_async
+
 from django.shortcuts import get_object_or_404, get_list_or_404
 from django.http.response import Http404
 
@@ -60,7 +62,7 @@ def create_employee(request, payload: EmployeeCreateSchema):
     response={200:List[EmployeeResponseSchema], 404:ErrorResponseSchema},
     summary="List all employees"
 )
-def list_employees(request):
+async def list_employees(request):
     """
     Retrieve a list of all employees.
 
@@ -68,10 +70,8 @@ def list_employees(request):
     - Data is returned as a list of EmployeeResponseSchema.
     """
     try:
-        _list_employees = get_list_or_404(Employees)
-        serialized_list_employees = []
-        for i in _list_employees:
-            serialized_list_employees.append(EmployeeResponseSchema.from_orm(i))
+        _list_employees = await sync_to_async(get_list_or_404)(Employees)
+        serialized_list_employees = [EmployeeResponseSchema.from_orm(i) for i in _list_employees]
 
         return serialized_list_employees
     except Http404 as e:
@@ -109,7 +109,7 @@ def get_employee(request, employee_id: int):
 )
 async def get_employee_audits(request, employee_id: int, limit: Optional[int] = 10):
     try:
-        emp = get_object_or_404(Employees, id=employee_id)
+        emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
 
         audits = emp.audits.all().order_by('-date')[:limit]
         serialized_audits = [AuditSchema.from_orm(i) for i in audits]
