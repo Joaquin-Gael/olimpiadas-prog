@@ -1,11 +1,13 @@
 from typing import List, Optional
 
-from django.http import HttpResponse
+from asgiref.sync import sync_to_async
+
 from django.shortcuts import get_object_or_404, get_list_or_404
+from django.http.response import Http404
 
 from ninja import Router
 from ninja.responses import Response
-from ninja.errors import HttpError, Http404
+from ninja.errors import HttpError
 
 from rich.console import Console
 
@@ -19,11 +21,15 @@ from .schemas import (
     EmployeeCreateSchema,
     EmployeeResponseSchema,
     EmployeeUpdateSchema,
+    EmployeeDeleteSchema,
+    AuditSchema,
 )
 
 console = Console()
 
-router = Router(tags=["Employees"])
+router = Router(
+    tags=["Employees"]
+)
 
 
 @router.post(
@@ -31,7 +37,7 @@ router = Router(tags=["Employees"])
     response={201: EmployeeResponseSchema, 400: ErrorResponseSchema, 404: ErrorResponseSchema},
     summary="Create a new employee"
 )
-def create_employee(request, payload: EmployeeCreateSchema):
+async def create_employee(request, payload: EmployeeCreateSchema):
     """
     Create a new employee record.
 
@@ -42,7 +48,7 @@ def create_employee(request, payload: EmployeeCreateSchema):
     """
 
     try:
-        _user = get_object_or_404(Users, id=payload.user_id)
+        _user = await sync_to_async(get_object_or_404)(Users, id=payload.user_id)
         emp = Employees.objects.create(
             user=_user,
             employee_file=payload.employee_file,
@@ -60,7 +66,7 @@ def create_employee(request, payload: EmployeeCreateSchema):
     response={200:List[EmployeeResponseSchema], 404:ErrorResponseSchema},
     summary="List all employees"
 )
-def list_employees(request):
+async def list_employees(request):
     """
     Retrieve a list of all employees.
 
@@ -68,10 +74,8 @@ def list_employees(request):
     - Data is returned as a list of EmployeeResponseSchema.
     """
     try:
-        _list_employees = get_list_or_404(Employees)
-        serialized_list_employees = []
-        for i in _list_employees:
-            serialized_list_employees.append(EmployeeResponseSchema.from_orm(i))
+        _list_employees = await sync_to_async(get_list_or_404)(Employees)
+        serialized_list_employees = [EmployeeResponseSchema.from_orm(i) for i in _list_employees]
 
         return serialized_list_employees
     except Http404 as e:
@@ -85,7 +89,7 @@ def list_employees(request):
     response={200: EmployeeResponseSchema, 404: ErrorResponseSchema},
     summary="Retrieve a single employee by ID"
 )
-def get_employee(request, employee_id: int):
+async def get_employee(request, employee_id: int):
     """
     Retrieve a specific employee by their ID.
 
@@ -94,7 +98,7 @@ def get_employee(request, employee_id: int):
     - Returns HTTP 404 with an error schema if no employee matches.
     """
     try:
-        emp = get_object_or_404(Employees, id=employee_id)
+        emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
         return EmployeeResponseSchema.from_orm(emp)
     except Http404 as e:
         return Response(ErrorResponseSchema(message="Error al obtener el empleado", detail=str(e)), status=404)
@@ -102,13 +106,32 @@ def get_employee(request, employee_id: int):
         console.print_exception(show_locals=True)
         return HttpError(status_code=500, message=str(e))
 
+@router.get(
+    "/{employee_id}/audits",
+    response={200: List[AuditSchema], 404: ErrorResponseSchema, 400: ErrorResponseSchema},
+    summary="Retrieve employee audits"
+)
+async def get_employee_audits(request, employee_id: int, limit: Optional[int] = 10):
+    try:
+        emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
+
+        audits = emp.audits.all().order_by('-date')[:limit]
+        serialized_audits = [AuditSchema.from_orm(i) for i in audits]
+
+        return serialized_audits
+
+    except Http404 as e:
+        return Response(ErrorResponseSchema(message="Error al obtener el empleado", detail=str(e)), status=404)
+    except Exception as e:
+        console.print_exception(show_locals=True)
+        return HttpError(status_code=500, message=str(e))
 
 @router.put(
     "/update/{employee_id}",
     response={200: EmployeeResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema},
     summary="Update an existing employee"
 )
-def update_employee(request, employee_id: int, payload: EmployeeUpdateSchema):
+async def update_employee(request, employee_id: int, payload: EmployeeUpdateSchema):
     """
     Update an existing employee's information.
 
@@ -119,14 +142,14 @@ def update_employee(request, employee_id: int, payload: EmployeeUpdateSchema):
     - Returns HTTP 400 if any validation or update error occurs.
     """
     try:
-        emp = get_object_or_404(Employees, id=employee_id)
+        emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
         if payload.user_id is not None:
             emp.user_id = payload.user_id
         if payload.employee_file is not None:
             emp.employee_file = payload.employee_file
         if payload.state is not None:
             emp.state = payload.state
-        emp.save()
+        await sync_to_async(emp.save)()
         return EmployeeResponseSchema.from_orm(emp)
     except Http404 as e:
         return Response(
@@ -139,21 +162,24 @@ def update_employee(request, employee_id: int, payload: EmployeeUpdateSchema):
 
 @router.delete(
     "/delete/{employee_id}",
-    response={200: None, 404: ErrorResponseSchema},
+    response={204: EmployeeDeleteSchema, 404: ErrorResponseSchema},
     summary="Delete an employee"
 )
-def delete_employee(request, employee_id: int):
+async def delete_employee(request, employee_id: int):
     """
     Delete an employee record by their ID.
 
     - Removes the Employees instance from the database.
-    - Returns HTTP 204 on successful deletion with no content.
+    - Returns HTTP 204 on successful deletion with EmployeeDeleteSchema content.
     - Returns HTTP 404 with an error schema if the employee does not exist.
     """
     try:
-        emp = get_object_or_404(Employees, id=employee_id)
-        emp.delete()
-        return None
+        emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
+        await sync_to_async(emp.delete)()
+        return EmployeeDeleteSchema(
+            message="Employee {} deleted".format(employee_id),
+            id=emp.id
+        )
     except Http404 as e:
         return Response(ErrorResponseSchema(message="Error al obtener el empleado para eliminación", detail=str(e)), status_code=404)
     except Exception as e:

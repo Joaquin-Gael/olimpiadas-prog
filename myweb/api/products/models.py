@@ -446,7 +446,7 @@ class LodgmentType(Enum):
         return [(tag.value, tag.name.replace('_', ' ').title()) for tag in cls]
 
 
-class Lodgment(models.Model):
+class Lodgments(models.Model):
     id = models.AutoField("lodgment_id", primary_key=True)
     name = models.CharField(max_length=128, db_index=True)
     description = models.TextField(blank=True)
@@ -549,7 +549,7 @@ class RoomType(Enum):
 class Room(models.Model):
     id = models.AutoField("room_id", primary_key=True)
     lodgment = models.ForeignKey(
-        Lodgment,
+        Lodgments,
         related_name="rooms",
         on_delete=models.CASCADE,
         db_index=True
@@ -790,7 +790,7 @@ class TransportationAvailability(models.Model):
 class ProductType(models.TextChoices):
     ACTIVITY       = "ACTIVITY", "Activity"
     FLIGHT         = "FLIGHT", "Flight"
-    LODGMENT       = "LODGMENT", "Lodgment"
+    LODGMENT       = "LODGMENT", "Lodgments"
     TRANSPORTATION = "TRANSPORTATION", "Transportation"
 
 
@@ -808,10 +808,22 @@ class ProductsMetadata(SoftDeleteModel):
         validators=[MinValueValidator(0)],
         help_text="Unit price of the product"
     )
+<<<<<<< HEAD
     currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
     
     # Property to get the product type
+=======
+    product_type = models.CharField(
+        max_length=32,
+        choices=ProductType.choices,
+        help_text="Tipo de product: actividad, vuelo, alojamiento, transporte"
+    )
+    is_active   = models.BooleanField(default=True)
+    deleted_at  = models.DateTimeField(null=True, blank=True)
+
+    # Propiedad para obtener el tipo de producto
+>>>>>>> 450537617f565c69e2d25e818a7bb444506448b4
     @property
     def product_type(self):
         model_name = self.content_type_id.model.lower()
