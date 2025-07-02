@@ -22,3 +22,8 @@ class Audits(models.Model):
     content_type_id = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     content = GenericForeignKey("content_type_id", "object_id")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['content_type_id', 'object_id']),
+        ]

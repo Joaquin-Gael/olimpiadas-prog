@@ -26,6 +26,7 @@ API_VERSION = "0.0.24"
 
 JWT_TOKEN_EXPIRES = timedelta(minutes=15)
 JWT_REFRESH_TOKEN_EXPIRES = timedelta(minutes=30)
+JWT_HASH_ALGORITHM = "HS256"
 
 LOCAL_APPS = [
     'api.users',

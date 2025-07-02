@@ -1,4 +1,5 @@
 import jwt
+from asgiref.sync import sync_to_async
 from jwt import PyJWTError
 
 from datetime import datetime, timedelta
@@ -19,7 +20,7 @@ from api.users.models import Users
 
 console = Console()
 
-def gen_token(payload: dict, refresh: bool = False):
+def gen_token(payload: dict, refresh: bool = False) -> str:
     payload.setdefault("iat", datetime.now())
     payload.setdefault("iss", f"{settings.API_TITLE}/{settings.API_VERSION}")
     if refresh:
@@ -27,18 +28,21 @@ def gen_token(payload: dict, refresh: bool = False):
         payload.setdefault("type", "refresh_token")
     else:
         payload.setdefault("exp", int((datetime.now() + timedelta(minutes=15)).timestamp()))
-    return jwt.encode(payload, key=settings.SECRET_KEY, algorithm="HS256")
+    return jwt.encode(payload, key=settings.SECRET_KEY, algorithm=settings.JWT_HASH_ALGORITHM)
 
 def decode_token(token: str):
     try:
-        payload = jwt.decode(token, key=settings.SECRET_KEY, algorithms=["HS256"], leeway=20)
+        payload = jwt.decode(token, key=settings.SECRET_KEY, algorithms=[settings.JWT_HASH_ALGORITHM], leeway=20)
         return payload
     except PyJWTError as e:
-        console.print(e)
+        console.print("JWT Decode Error: ", e)
         raise ValueError("Value Not Found") from e
 
 class JWTBearer(HttpBearer):
-    def authenticate(self, request: HttpRequest, token: str) -> Users:
+    async def authenticate(self, request: HttpRequest, token: str) -> Users:
+        console.rule("Token")
+        console.print(token)
+        console.rule("Token arriba")
         if not token.startswith("Bearer "):
             raise HttpError(status_code=403, message="Invalid token format")
 
@@ -62,7 +66,7 @@ class JWTBearer(HttpBearer):
         # Buscar usuario
         try:
 
-            user = get_object_or_404(Users, id=user_id)
+            user = await sync_to_async(get_object_or_404)(Users, id=user_id)
 
             request.user = user
             request.scopes = payload.get("scopes", [])

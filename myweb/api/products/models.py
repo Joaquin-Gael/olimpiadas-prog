@@ -446,7 +446,7 @@ class LodgmentType(Enum):
         return [(tag.value, tag.name.replace('_', ' ').title()) for tag in cls]
 
 
-class Lodgment(models.Model):
+class Lodgments(models.Model):
     id = models.AutoField("lodgment_id", primary_key=True)
     name = models.CharField(max_length=128, db_index=True)
     description = models.TextField(blank=True)
@@ -549,7 +549,7 @@ class RoomType(Enum):
 class Room(models.Model):
     id = models.AutoField("room_id", primary_key=True)
     lodgment = models.ForeignKey(
-        Lodgment,
+        Lodgments,
         related_name="rooms",
         on_delete=models.CASCADE,
         db_index=True
@@ -790,7 +790,7 @@ class TransportationAvailability(models.Model):
 class ProductType(models.TextChoices):
     ACTIVITY       = "ACTIVITY", "Activity"
     FLIGHT         = "FLIGHT", "Flight"
-    LODGMENT       = "LODGMENT", "Lodgment"
+    LODGMENT       = "LODGMENT", "Lodgments"
     TRANSPORTATION = "TRANSPORTATION", "Transportation"
 
 
