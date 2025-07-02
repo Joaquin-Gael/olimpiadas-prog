@@ -45,6 +45,7 @@ class ActivityCreate(BaseSchema):
     ]
     language: str
     available_slots: int = Field(..., ge=0, le=100)
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("date")
     @classmethod
@@ -96,6 +97,7 @@ class ActivityUpdate(Schema):
     ]] = None
     language: Optional[str] = None
     available_slots: Optional[int] = Field(None, ge=0)
+    currency: Optional[str] = Field(None, max_length=3)
 
 
 class ActivityAvailabilityUpdate(BaseSchema):
@@ -124,12 +126,14 @@ class ActivityOut(BaseSchema):
     difficulty_level: str
     language: str
     available_slots: int
+    currency: str
 
 
 class ActivityAvailabilityOut(ActivityAvailabilityCreate):
     """Output schema for activity availability"""
     id: int
     activity_id: int
+    currency: str
 
 
 # ──────────────────────────────────────────────────────────────
@@ -157,6 +161,7 @@ class FlightCreate(BaseSchema):
     terminal: Optional[str] = None
     gate: Optional[str] = None
     notes: Optional[str] = None
+    currency: str = Field(default="USD", max_length=3)
 
 
 # ── UPDATE ────────────────────────────────────────────────────
@@ -180,6 +185,7 @@ class FlightUpdate(Schema):
     terminal: Optional[str] = None
     gate: Optional[str] = None
     notes: Optional[str] = None
+    currency: Optional[str] = Field(None, max_length=3)
 
 
 # ── OUTPUT ────────────────────────────────────────────────────
@@ -202,6 +208,7 @@ class FlightOut(BaseSchema):
     terminal: Optional[str]
     gate: Optional[str]
     notes: Optional[str]
+    currency: str
 
 
 # ──────────────────────────────────────────────────────────────
@@ -224,6 +231,7 @@ class LodgmentCreate(BaseSchema):
     amenities: List[str] = Field(default_factory=list)
     date_checkin: date
     date_checkout: date
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("date_checkin")
     @classmethod
@@ -287,22 +295,13 @@ class RoomAvailabilityCreate(BaseSchema):
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class LodgmentUpdate(Schema):
-    """Schema to update a lodging"""
-    name: Optional[str] = Field(None, max_length=128)
-    description: Optional[str] = None
-    location_id: Optional[int] = None
-    type: Optional[Literal[
-        "hotel", "hostel", "apartment", "house", "cabin",
-        "resort", "bed_and_breakfast", "villa", "camping"
-    ]] = None
-    max_guests: Optional[int] = Field(None, ge=1, le=50)
-    contact_phone: Optional[str] = Field(None, max_length=20)
-    contact_email: Optional[EmailStr] = None
-    amenities: Optional[List[str]] = None
-    date_checkin: Optional[date] = None
-    date_checkout: Optional[date] = None
-    is_active: Optional[bool] = None
+class ProductsMetadataUpdate(BaseSchema):
+    """Base schema to update product metadata"""
+    unit_price: Optional[float] = None
+    currency: Optional[str] = None
+    supplier_id: Optional[int] = None
+
+
 
 
 class RoomUpdate(BaseSchema):
@@ -351,6 +350,7 @@ class LodgmentOut(BaseSchema):
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    currency: str
 
 
 class RoomOut(BaseSchema):
@@ -433,6 +433,53 @@ class RoomSearchParams(BaseSchema):
     has_wifi: Optional[bool] = None
 
 
+# ── PARTIAL UPDATE SCHEMAS ────────────────────────────────────
+class RoomPartialUpdate(BaseSchema):
+    id: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    capacity: Optional[int] = None
+    has_private_bathroom: Optional[bool] = None
+    has_balcony: Optional[bool] = None
+    has_air_conditioning: Optional[bool] = None
+    has_wifi: Optional[bool] = None
+    base_price_per_night: Optional[float] = None
+    currency: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class RoomAvailabilityPartialUpdate(BaseSchema):
+    id: int
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    available_quantity: Optional[int] = None
+    price_override: Optional[float] = None
+    currency: Optional[str] = None
+    is_blocked: Optional[bool] = None
+    minimum_stay: Optional[int] = None
+
+
+# ── LEGACY UPDATE SCHEMAS (for backward compatibility) ──────────────────
+class LodgmentUpdate(ProductsMetadataUpdate):
+    """Schema to update a lodging"""
+    name: Optional[str] = Field(None, max_length=128)
+    description: Optional[str] = None
+    location_id: Optional[int] = None
+    type: Optional[Literal[
+        "hotel", "hostel", "apartment", "house", "cabin",
+        "resort", "bed_and_breakfast", "villa", "camping"
+    ]] = None
+    max_guests: Optional[int] = Field(None, ge=1, le=50)
+    contact_phone: Optional[str] = Field(None, max_length=20)
+    contact_email: Optional[EmailStr] = None
+    amenities: Optional[List[str]] = None
+    date_checkin: Optional[date] = None
+    date_checkout: Optional[date] = None
+    is_active: Optional[bool] = None
+    rooms: Optional[List[RoomPartialUpdate]] = None
+    availabilities: Optional[List[RoomAvailabilityPartialUpdate]] = None
+
+
 # ──────────────────────────────────────────────────────────────
 # 5. TRANSPORTE (TRANSPORTATION)
 # ──────────────────────────────────────────────────────────────
@@ -456,6 +503,7 @@ class TransportationCreate(BaseSchema):
     description: str
     notes: Optional[str] = ""
     capacity: int = Field(..., gt=0, le=100)
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("description")
     @classmethod
@@ -522,6 +570,7 @@ class TransportationUpdate(Schema):
     notes: Optional[str] = None
     capacity: Optional[int] = Field(None, gt=0, le=100)
     is_active: Optional[bool] = None
+    currency: Optional[str] = Field(None, max_length=3)
 
 
 class TransportationAvailabilityUpdate(BaseSchema):
@@ -548,6 +597,7 @@ class TransportationOut(Schema):
     notes: Optional[str]
     capacity: int
     is_active: bool
+    currency: str
 
 
 class TransportationAvailabilityOut(TransportationAvailabilityCreate):
@@ -574,6 +624,7 @@ class SupplierCreate(BaseSchema):
     email: EmailStr
     telephone: str
     website: str
+    currency: str = Field(default="USD", max_length=3)
 
 
 # ── UPDATE ────────────────────────────────────────────────────
@@ -590,13 +641,14 @@ class SupplierUpdate(BaseSchema):
     email: Optional[EmailStr] = None
     telephone: Optional[str] = None
     website: Optional[AnyUrl] = None
+    currency: Optional[str] = Field(None, max_length=3)
 
 
 # ── OUTPUT ────────────────────────────────────────────────────
 class SupplierOut(BaseSchema):
     """Output schema for suppliers"""
     id: int
-    name: str
+    name: str = Field(..., description="Organization or full name")
     description: str
     street: str
     street_number: int
@@ -605,6 +657,11 @@ class SupplierOut(BaseSchema):
     email: str
     telephone: str
     website: str
+    currency: str
+
+    class Config:
+        orm_mode = True
+        allow_population_by_field_name = True
 
 
 # ──────────────────────────────────────────────────────────────
@@ -634,37 +691,37 @@ class ProductsMetadataOutLodgmentDetail(BaseSchema):
 class ProductsMetadataCreate(BaseSchema):
     """Schema to create product metadata"""
     product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    unit_price: float
+    unit_price: float = Field(..., ge=0)
     currency: str = Field(default="USD", max_length=3)
     supplier_id: int
     product: Union[ActivityCreate, FlightCreate, LodgmentCreate, TransportationCreate]
 
 
 # ── UPDATE ────────────────────────────────────────────────────
-class ProductsMetadataUpdate(BaseSchema):
-    """Base schema to update product metadata"""
+class ProductsMetadataUpdateWithProduct(BaseSchema):
+    """Base schema to update product metadata with product reference"""
     unit_price: Optional[float] = None
     currency: Optional[str] = None
     supplier_id: Optional[int] = None
     product: Optional[Union[ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate]] = None
 
 
-class ProductsMetadataUpdateActivity(ProductsMetadataUpdate):
+class ProductsMetadataUpdateActivity(ProductsMetadataUpdateWithProduct):
     """Schema to update activity metadata"""
     product: Optional[ActivityUpdate] = None
 
 
-class ProductsMetadataUpdateFlight(ProductsMetadataUpdate):
+class ProductsMetadataUpdateFlight(ProductsMetadataUpdateWithProduct):
     """Schema to update flight metadata"""
     product: Optional[FlightUpdate] = None
 
 
-class ProductsMetadataUpdateLodgment(ProductsMetadataUpdate):
+class ProductsMetadataUpdateLodgment(ProductsMetadataUpdateWithProduct):
     """Schema to update lodging metadata"""
     product: Optional[LodgmentUpdate] = None
 
 
-class ProductsMetadataUpdateTransportation(ProductsMetadataUpdate):
+class ProductsMetadataUpdateTransportation(ProductsMetadataUpdateWithProduct):
     """Schema to update transportation metadata"""
     product: Optional[TransportationUpdate] = None
 
@@ -718,6 +775,7 @@ class ActivityCompleteCreate(BaseSchema):
     
     # Availabilities
     availabilities: List[ActivityAvailabilityCreateNested] = []
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("date")
     @classmethod
@@ -799,6 +857,7 @@ class LodgmentCompleteCreate(BaseSchema):
     amenities: List[str] = Field(default_factory=list)
     date_checkin: date
     date_checkout: date
+    currency: str = Field(default="USD", max_length=3)
 
     # Rooms
     rooms: List[RoomCreateNested] = Field(..., min_length=1)
@@ -823,6 +882,7 @@ class LodgmentMetadataCreate(BaseSchema):
     """Schema for lodging metadata"""
     supplier_id: int
     unit_price: float = Field(..., gt=0)
+    currency: str = Field(default="USD", max_length=3)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -889,6 +949,7 @@ class TransportationCompleteCreate(BaseSchema):
     description: str
     notes: Optional[str] = ""
     capacity: int = Field(..., gt=0, le=100)
+    currency: str = Field(default="USD", max_length=3)
 
     # Availabilities
     availabilities: List[TransportationAvailabilityCreateNested] = Field(default_factory=list)
@@ -905,6 +966,7 @@ class TransportationMetadataCreate(BaseSchema):
     """Schema for transportation metadata"""
     supplier_id: int
     unit_price: float = Field(..., gt=0)
+    currency: str = Field(default="USD", max_length=3)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -920,6 +982,7 @@ class ComponentPackageCreate(BaseSchema):
     title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Visible name of the component"})
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("end_date")
     @classmethod
@@ -953,6 +1016,7 @@ class PackageCreate(BaseSchema):
     
     # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("final_price")
     @classmethod
@@ -976,6 +1040,7 @@ class ComponentPackageUpdate(BaseSchema):
     title: Optional[str] = Field(None, max_length=128)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    currency: Optional[str] = Field(None, max_length=3)
 
     @field_validator("end_date")
     @classmethod
@@ -1008,6 +1073,7 @@ class PackageUpdate(BaseSchema):
     final_price: Optional[float] = Field(None, gt=0)
     
     is_active: Optional[bool] = None
+    currency: Optional[str] = Field(None, max_length=3)
 
     @field_validator("final_price")
     @classmethod
@@ -1038,6 +1104,7 @@ class ComponentPackageOut(BaseSchema):
     # Related product information
     product_type: str
     product_name: str
+    currency: str
 
 
 class PackageOut(BaseSchema):
@@ -1065,6 +1132,7 @@ class PackageOut(BaseSchema):
     
     # Calculated duration
     duration_days: Optional[int]
+    currency: str
 
 
 class PackageDetailOut(PackageOut):
@@ -1104,6 +1172,7 @@ class PackageCompleteCreate(BaseSchema):
     
     # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
+    currency: str = Field(default="USD", max_length=3)
 
     @field_validator("final_price")
     @classmethod
@@ -1171,3 +1240,220 @@ class CheckAvailabilityOut(BaseSchema):
     unit_price: float
     currency: str
     availability_id: int
+
+
+class ActivityAvailabilityPartialUpdate(BaseSchema):
+    id: int
+    event_date: Optional[date] = None
+    start_time: Optional[time] = None
+    total_seats: Optional[int] = None
+    reserved_seats: Optional[int] = None
+    price: Optional[float] = None
+    currency: Optional[str] = None
+    state: Optional[str] = None
+
+
+class FlightPartialUpdate(BaseSchema):
+    id: int
+    airline: Optional[str] = None
+    flight_number: Optional[str] = None
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    departure_date: Optional[date] = None
+    departure_time: Optional[time] = None
+    arrival_date: Optional[date] = None
+    arrival_time: Optional[time] = None
+    duration_hours: Optional[int] = None
+    class_flight: Optional[str] = None
+    available_seats: Optional[int] = None
+    luggage_info: Optional[str] = None
+    aircraft_type: Optional[str] = None
+    terminal: Optional[str] = None
+    gate: Optional[str] = None
+    notes: Optional[str] = None
+    currency: Optional[str] = None
+
+
+class TransportationPartialUpdate(BaseSchema):
+    id: int
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    type: Optional[str] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    capacity: Optional[int] = None
+    is_active: Optional[bool] = None
+    currency: Optional[str] = None
+
+
+class TransportationUpdate(ProductsMetadataUpdate):
+    """Schema to update transportation"""
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    type: Optional[TransportationType] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    capacity: Optional[int] = Field(None, gt=0, le=100)
+    is_active: Optional[bool] = None
+    transportations: Optional[List[TransportationPartialUpdate]] = None
+
+
+# ── UNIFIED PATCH SCHEMA FOR ENDPOINT PATCH /products/{id}/ ──────────────
+class ProductPatch(BaseSchema):
+    """Unified schema for PATCH /products/{id}/ - Supports all product types with nested structures"""
+    # Campos planos de metadata (heredados de ProductsMetadataUpdate)
+    unit_price: Optional[float] = None
+    currency: Optional[str] = None
+    supplier_id: Optional[int] = None
+    
+    # Campos planos específicos de cada tipo de producto
+    # Alojamiento
+    name: Optional[str] = Field(None, max_length=128)
+    description: Optional[str] = None
+    location_id: Optional[int] = None
+    type: Optional[Literal[
+        "hotel", "hostel", "apartment", "house", "cabin",
+        "resort", "bed_and_breakfast", "villa", "camping"
+    ]] = None
+    max_guests: Optional[int] = Field(None, ge=1, le=50)
+    contact_phone: Optional[str] = Field(None, max_length=20)
+    contact_email: Optional[EmailStr] = None
+    amenities: Optional[List[str]] = None
+    date_checkin: Optional[date] = None
+    date_checkout: Optional[date] = None
+    
+    # Actividad
+    date: Optional[date] = None
+    start_time: Optional[time] = None
+    duration_hours: Optional[int] = Field(None, ge=0, le=24)
+    include_guide: Optional[bool] = None
+    maximum_spaces: Optional[int] = Field(None, ge=0, le=100)
+    difficulty_level: Optional[Literal[
+        "Very Easy", "Easy", "Medium", "Hard", "Very Hard", "Extreme"
+    ]] = None
+    language: Optional[str] = None
+    available_slots: Optional[int] = Field(None, ge=0, le=100)
+    
+    # Vuelo
+    airline: Optional[str] = None
+    flight_number: Optional[str] = None
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    departure_date: Optional[date] = None
+    departure_time: Optional[time] = None
+    arrival_date: Optional[date] = None
+    arrival_time: Optional[time] = None
+    flight_duration_hours: Optional[int] = Field(None, ge=0, le=192)
+    class_flight: Optional[Literal[
+        "Basic Economy", "Economy", "Premium Economy", "Business Class", "First Class"
+    ]] = None
+    available_seats: Optional[int] = Field(None, ge=0, le=500)
+    luggage_info: Optional[str] = None
+    aircraft_type: Optional[str] = None
+    terminal: Optional[str] = None
+    gate: Optional[str] = None
+    notes: Optional[str] = None
+    
+    # Transporte
+    transport_type: Optional[TransportationType] = None
+    transport_description: Optional[str] = None
+    transport_notes: Optional[str] = None
+    capacity: Optional[int] = Field(None, gt=0, le=100)
+    
+    # Campo común
+    is_active: Optional[bool] = None
+    
+    # Sub-estructuras anidadas
+    rooms: Optional[List[RoomPartialUpdate]] = None
+    availabilities: Optional[List[RoomAvailabilityPartialUpdate]] = None
+    activity_availabilities: Optional[List[ActivityAvailabilityPartialUpdate]] = None
+    flights: Optional[List[FlightPartialUpdate]] = None
+    transportations: Optional[List[TransportationPartialUpdate]] = None
+
+
+# ── MAIN PATCH SCHEMAS FOR ENDPOINT PATCH /products/{id}/ ────────────────
+class ProductPatchLodgment(ProductsMetadataUpdate):
+    """Schema for PATCH /products/{id}/ - Lodgment updates with nested structures"""
+    # Campos planos del alojamiento
+    name: Optional[str] = Field(None, max_length=128)
+    description: Optional[str] = None
+    location_id: Optional[int] = None
+    type: Optional[Literal[
+        "hotel", "hostel", "apartment", "house", "cabin",
+        "resort", "bed_and_breakfast", "villa", "camping"
+    ]] = None
+    max_guests: Optional[int] = Field(None, ge=1, le=50)
+    contact_phone: Optional[str] = Field(None, max_length=20)
+    contact_email: Optional[EmailStr] = None
+    amenities: Optional[List[str]] = None
+    date_checkin: Optional[date] = None
+    date_checkout: Optional[date] = None
+    is_active: Optional[bool] = None
+    
+    # Sub-estructuras anidadas
+    rooms: Optional[List[RoomPartialUpdate]] = None
+    availabilities: Optional[List[RoomAvailabilityPartialUpdate]] = None
+
+
+class ProductPatchActivity(ProductsMetadataUpdate):
+    """Schema for PATCH /products/{id}/ - Activity updates with nested structures"""
+    # Campos planos de la actividad
+    name: Optional[str] = None
+    description: Optional[str] = None
+    location_id: Optional[int] = None
+    date: Optional[date] = None
+    start_time: Optional[time] = None
+    duration_hours: Optional[int] = Field(None, ge=0, le=24)
+    include_guide: Optional[bool] = None
+    maximum_spaces: Optional[int] = Field(None, ge=0, le=100)
+    difficulty_level: Optional[Literal[
+        "Very Easy", "Easy", "Medium", "Hard", "Very Hard", "Extreme"
+    ]] = None
+    language: Optional[str] = None
+    available_slots: Optional[int] = Field(None, ge=0, le=100)
+    is_active: Optional[bool] = None
+    
+    # Sub-estructuras anidadas
+    availabilities: Optional[List[ActivityAvailabilityPartialUpdate]] = None
+
+
+class ProductPatchFlight(ProductsMetadataUpdate):
+    """Schema for PATCH /products/{id}/ - Flight updates with nested structures"""
+    # Campos planos del vuelo
+    airline: Optional[str] = None
+    flight_number: Optional[str] = None
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    departure_date: Optional[date] = None
+    departure_time: Optional[time] = None
+    arrival_date: Optional[date] = None
+    arrival_time: Optional[time] = None
+    duration_hours: Optional[int] = Field(None, ge=0, le=192)
+    class_flight: Optional[Literal[
+        "Basic Economy", "Economy", "Premium Economy", "Business Class", "First Class"
+    ]] = None
+    available_seats: Optional[int] = Field(None, ge=0, le=500)
+    luggage_info: Optional[str] = None
+    aircraft_type: Optional[str] = None
+    terminal: Optional[str] = None
+    gate: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+    
+    # Sub-estructuras anidadas
+    flights: Optional[List[FlightPartialUpdate]] = None
+
+
+class ProductPatchTransportation(ProductsMetadataUpdate):
+    """Schema for PATCH /products/{id}/ - Transportation updates with nested structures"""
+    # Campos planos del transporte
+    origin_id: Optional[int] = None
+    destination_id: Optional[int] = None
+    type: Optional[TransportationType] = None
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    capacity: Optional[int] = Field(None, gt=0, le=100)
+    is_active: Optional[bool] = None
+    
+    # Sub-estructuras anidadas
+    transportations: Optional[List[TransportationPartialUpdate]] = None

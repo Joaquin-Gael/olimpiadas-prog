@@ -15,7 +15,7 @@ def list_suppliers(request):
     """
     Lists all active suppliers (not logically deleted)
     """
-    return Suppliers.objects.filter(deleted_at__isnull=True)
+    return Suppliers.objects.active()
 
 @suppliers_router.get("/{id}/", response=SupplierOut)
 def get_supplier(request, id: int):
@@ -67,7 +67,7 @@ def delete_supplier(request, id: int):
     """
     Logically deletes a supplier (marks as deleted without removing from DB)
     """
-    supplier = get_object_or_404(Suppliers, id=id, deleted_at__isnull=True)
+    supplier = get_object_or_404(Suppliers.objects.active(), id=id)
     supplier.deleted_at = timezone.now()
     supplier.save()
     return 204, None

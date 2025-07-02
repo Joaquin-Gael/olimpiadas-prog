@@ -8,6 +8,7 @@ from django.utils import timezone
 from .common.ActiveManager import ActiveManager
 from enum import Enum
 from api.clients.models import Clients
+from api.core.querysets import SoftDeleteModel, ProductsMetadataQuerySet
 
 
 class ProductsMetadataManager(models.Manager):
@@ -16,7 +17,171 @@ class ProductsMetadataManager(models.Manager):
             'activity', 'flights', 'lodgment', 'transportation'
         )
 
-class Suppliers(models.Model):
+    def apply_filters(self, filters):
+        from django.db.models import Q, F
+        from datetime import timedelta
+        qs = self.get_queryset().select_related(
+            'supplier', 'content_type_id'
+        ).prefetch_related(
+            'activity', 'flight', 'lodgment', 'transportation'
+        )
+        # Filtros por tipo de producto
+        if filters.product_type:
+            if filters.product_type == "activity":
+                qs = qs.filter(activity__isnull=False)
+            elif filters.product_type == "flight":
+                qs = qs.filter(flights__isnull=False)
+            elif filters.product_type == "lodgment":
+                qs = qs.filter(lodgment__isnull=False)
+            elif filters.product_type == "transportation":
+                qs = qs.filter(transportation__isnull=False)
+        # Filtros básicos
+        if filters.unit_price_min is not None:
+            qs = qs.filter(unit_price__gte=filters.unit_price_min)
+        if filters.unit_price_max is not None:
+            qs = qs.filter(unit_price__lte=filters.unit_price_max)
+        if filters.supplier_id:
+            qs = qs.filter(supplier_id=filters.supplier_id)
+        # Filtros de precio por noche (alojamientos)
+        if filters.price_per_night_min is not None:
+            qs = qs.filter(lodgment__rooms__base_price_per_night__gte=filters.price_per_night_min)
+        if filters.price_per_night_max is not None:
+            qs = qs.filter(lodgment__rooms__base_price_per_night__lte=filters.price_per_night_max)
+        # Búsqueda de texto
+        if filters.search:
+            qs = qs.filter(
+                Q(activity__name__icontains=filters.search) |
+                Q(activity__description__icontains=filters.search) |
+                Q(flights__airline__icontains=filters.search) |
+                Q(flights__flight_number__icontains=filters.search) |
+                Q(lodgment__name__icontains=filters.search) |
+                Q(lodgment__description__icontains=filters.search) |
+                Q(transportation__description__icontains=filters.search) |
+                Q(supplier__organization_name__icontains=filters.search)
+            )
+        # Filtros de ubicación
+        if filters.destination_id:
+            qs = qs.filter(
+                Q(flights__destination_id=filters.destination_id) |
+                Q(transportation__destination_id=filters.destination_id) |
+                Q(lodgment__location_id=filters.destination_id) |
+                Q(activity__location_id=filters.destination_id)
+            )
+        if filters.origin_id:
+            qs = qs.filter(
+                Q(flights__origin_id=filters.origin_id) |
+                Q(transportation__origin_id=filters.origin_id)
+            )
+        if filters.location_id:
+            qs = qs.filter(
+                Q(lodgment__location_id=filters.location_id) |
+                Q(activity__location_id=filters.location_id)
+            )
+        # Filtros de fechas
+        if filters.date_min:
+            qs = qs.filter(
+                Q(activity__date__gte=filters.date_min) |
+                Q(flights__departure_date__gte=filters.date_min) |
+                Q(transportation__departure_date__gte=filters.date_min) |
+                Q(lodgment__date_checkin__gte=filters.date_min)
+            )
+        if filters.date_max:
+            qs = qs.filter(
+                Q(activity__date__lte=filters.date_max) |
+                Q(flights__departure_date__lte=filters.date_max) |
+                Q(transportation__departure_date__lte=filters.date_max) |
+                Q(lodgment__date_checkin__lte=filters.date_max)
+            )
+        if filters.date_checkin:
+            qs = qs.filter(lodgment__date_checkin__gte=filters.date_checkin)
+        if filters.date_checkout:
+            qs = qs.filter(lodgment__date_checkout__lte=filters.date_checkout)
+        if filters.date_departure:
+            qs = qs.filter(
+                Q(flights__departure_date__gte=filters.date_departure) |
+                Q(transportation__departure_date__gte=filters.date_departure)
+            )
+        if filters.date_arrival:
+            qs = qs.filter(
+                Q(flights__arrival_date__lte=filters.date_arrival) |
+                Q(transportation__arrival_date__lte=filters.date_arrival)
+            )
+        # Filtros de disponibilidad
+        if filters.available_only:
+            qs = qs.available_only()
+        if filters.capacity_min is not None:
+            qs = qs.filter(
+                Q(activity__maximum_spaces__gte=filters.capacity_min) |
+                Q(flights__available_seats__gte=filters.capacity_min) |
+                Q(transportation__capacity__gte=filters.capacity_min)
+            )
+        if filters.capacity_max is not None:
+            qs = qs.filter(
+                Q(activity__maximum_spaces__lte=filters.capacity_max) |
+                Q(flights__available_seats__lte=filters.capacity_max) |
+                Q(transportation__capacity__lte=filters.capacity_max)
+            )
+        if filters.available_seats_min is not None:
+            qs = qs.filter(
+                Q(activity__availabilities__total_seats__gte=filters.available_seats_min) |
+                Q(flights__available_seats__gte=filters.available_seats_min) |
+                Q(transportation__availabilities__total_seats__gte=filters.available_seats_min)
+            )
+        if filters.available_seats_max is not None:
+            qs = qs.filter(
+                Q(activity__availabilities__total_seats__lte=filters.available_seats_max) |
+                Q(flights__available_seats__lte=filters.available_seats_max) |
+                Q(transportation__availabilities__total_seats__lte=filters.available_seats_max)
+            )
+        # Filtros específicos por tipo
+        if filters.difficulty_level:
+            qs = qs.filter(activity__difficulty_level=filters.difficulty_level)
+        if filters.include_guide is not None:
+            qs = qs.filter(activity__include_guide=filters.include_guide)
+        if filters.language:
+            qs = qs.filter(activity__language__icontains=filters.language)
+        if filters.duration_min is not None:
+            qs = qs.filter(activity__duration_hours__gte=filters.duration_min)
+        if filters.duration_max is not None:
+            qs = qs.filter(activity__duration_hours__lte=filters.duration_max)
+        if filters.airline:
+            qs = qs.filter(flights__airline__icontains=filters.airline)
+        if filters.class_flight:
+            qs = qs.filter(flights__class_flight=filters.class_flight)
+        if filters.duration_flight_min is not None:
+            qs = qs.filter(flights__duration_hours__gte=filters.duration_flight_min)
+        if filters.duration_flight_max is not None:
+            qs = qs.filter(flights__duration_hours__lte=filters.duration_flight_max)
+        if filters.direct_flight is not None:
+            if filters.direct_flight:
+                qs = qs.filter(~Q(flights__origin_id=F('flights__destination_id')))
+        if filters.lodgment_type:
+            qs = qs.filter(lodgment__type=filters.lodgment_type)
+        if filters.room_type:
+            qs = qs.filter(lodgment__rooms__room_type=filters.room_type)
+        if filters.guests_min is not None:
+            qs = qs.filter(lodgment__max_guests__gte=filters.guests_min)
+        if filters.guests_max is not None:
+            qs = qs.filter(lodgment__max_guests__lte=filters.guests_max)
+        if filters.nights_min is not None:
+            qs = qs.filter(
+                lodgment__date_checkout__gte=F('lodgment__date_checkin') + timedelta(days=filters.nights_min)
+            )
+        if filters.nights_max is not None:
+            qs = qs.filter(
+                lodgment__date_checkout__lte=F('lodgment__date_checkin') + timedelta(days=filters.nights_max)
+            )
+        if filters.amenities:
+            for amenity in filters.amenities:
+                qs = qs.filter(lodgment__amenities__contains=amenity)
+        # Ordenamiento
+        if filters.ordering:
+            qs = qs.order_by(filters.ordering)
+        else:
+            qs = qs.order_by('-unit_price')
+        return qs
+
+class Suppliers(SoftDeleteModel):
     id = models.AutoField("supplier_id", primary_key=True)
     first_name = models.CharField(max_length=64)
     last_name = models.CharField(max_length=64)
@@ -35,13 +200,14 @@ class Suppliers(models.Model):
     email = models.EmailField()
     telephone = models.CharField(max_length=16)
     website = models.URLField()
-    deleted_at = models.DateTimeField(null=True, blank=True)
-
-    objects = models.Manager()
-    active = ActiveManager()
 
     def __str__(self):
         return f"*{self.__dict__}"
+
+    @property
+    def name(self) -> str:
+        """Nombre legible del proveedor para la API."""
+        return self.organization_name or f"{self.first_name} {self.last_name}"
 
 
 class Location(models.Model):
@@ -474,14 +640,25 @@ class RoomAvailability(models.Model):
         return f"{self.room} [{self.start_date} → {self.end_date}] - {self.available_quantity} available"
 
     def clean(self):
+        super().clean()
         if self.end_date <= self.start_date:
-            raise ValidationError("End date must be after start date.")
+            raise ValidationError({"end_date": "end_date must be after start_date"})
         if self.start_date < timezone.localdate():
-            raise ValidationError("Start date cannot be in the past.")
+            raise ValidationError({"start_date": "Start date cannot be in the past."})
         if self.available_quantity < 0:
-            raise ValidationError("Available quantity cannot be negative.")
+            raise ValidationError({"available_quantity": "Available quantity cannot be negative."})
         if self.minimum_stay < 1:
-            raise ValidationError("Minimum stay must be at least 1 night.")
+            raise ValidationError({"minimum_stay": "Minimum stay must be at least 1 night."})
+        # Validación de solapamiento
+        overlaps = RoomAvailability.objects.filter(
+            room=self.room,
+            start_date__lt=self.end_date,
+            end_date__gt=self.start_date
+        )
+        if self.pk:
+            overlaps = overlaps.exclude(pk=self.pk)
+        if overlaps.exists():
+            raise ValidationError("There is already an availability that overlaps this range.")
 
     @property
     def effective_price(self):
@@ -575,7 +752,7 @@ class ProductType(models.TextChoices):
     TRANSPORTATION = "TRANSPORTATION", "Transportation"
 
 
-class ProductsMetadata(models.Model):
+class ProductsMetadata(SoftDeleteModel):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, on_delete=models.PROTECT)
     start_date = models.DateField(default=timezone.now)
@@ -591,7 +768,6 @@ class ProductsMetadata(models.Model):
     )
     currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
     
     # Property to get the product type
     @property
@@ -612,8 +788,7 @@ class ProductsMetadata(models.Model):
         return self.content_type_id
 
     # managers
-    objects = ProductsMetadataManager()
-    active = ActiveManager()
+    objects = ProductsMetadataQuerySet.as_manager()
 
     def clean(self):
         if self.unit_price < 0:
@@ -657,7 +832,7 @@ class Category(models.Model):
         verbose_name_plural = "Categories"
         ordering = ['name']
 
-class Packages(models.Model):
+class Packages(SoftDeleteModel):
     id = models.AutoField("package_id", primary_key=True)
     name = models.CharField("package_name", max_length=64)
     description = models.TextField()
@@ -710,14 +885,10 @@ class Packages(models.Model):
 
     # Status
     is_active = models.BooleanField(default=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
 
     # Creation and update dates
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    objects = models.Manager()
-    active = ActiveManager()
 
     def __str__(self):
         return f"{self.name} (${self.final_price})"

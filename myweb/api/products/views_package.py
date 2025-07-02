@@ -5,6 +5,10 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from typing import List
 from datetime import date
+from django.db import transaction
+from ninja.errors import HttpError
+from .pagination import PaginationParams, paginate_response, DefaultPagination
+from ninja.pagination import paginate
 
 from .models import Packages, ComponentPackages, ProductsMetadata, Category
 from .schemas import (
@@ -12,7 +16,6 @@ from .schemas import (
     ComponentPackageCreate, ComponentPackageUpdate, ComponentPackageOut,
     PackageCompleteCreate, CategoryCreate, CategoryUpdate, CategoryOut
 )
-from .pagination import PaginationParams, paginate_response
 
 package_router = Router(tags=["Packages"])
 category_router = Router(tags=["Categories"])
@@ -21,15 +24,15 @@ category_router = Router(tags=["Categories"])
 # ──────────────────────────────────────────────────────────────
 
 @package_router.get("/", response=List[PackageOut])
+@paginate(DefaultPagination)
 def list_packages(
     request, 
-    pagination: PaginationParams = Query(...),
     search: PackageSearchParams = Query(...)
 ):
     """
     Lists all packages with filters and pagination
     """
-    queryset = Packages.active.all()
+    queryset = Packages.objects.active()
     
     # Apply search filters
     if search.name:
@@ -59,10 +62,7 @@ def list_packages(
     # Order by name
     queryset = queryset.order_by('name')
     
-    # Convert to schema list before paginating
-    packages = [PackageOut.from_orm(pkg) for pkg in queryset]
-    
-    return paginate_response(packages, pagination)
+    return queryset
 
 
 @package_router.get("/{package_id}", response=PackageDetailOut)
@@ -70,7 +70,7 @@ def get_package(request, package_id: int):
     """
     Gets a specific package with all its components
     """
-    package = get_object_or_404(Packages.active, id=package_id)
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     
     # Get ordered components
     components = package.componentpackages.all().order_by('order')
@@ -111,6 +111,7 @@ def get_package(request, package_id: int):
 
 
 @package_router.post("/", response=PackageDetailOut)
+@transaction.atomic
 def create_package(request, data: PackageCompleteCreate):
     """
     Creates a new package with its components
@@ -136,7 +137,7 @@ def create_package(request, data: PackageCompleteCreate):
         return get_package(request, package.id)
         
     except ValidationError as e:
-        raise ValidationError(f"Validation error: {e}")
+        raise HttpError(422, str(getattr(e, 'message_dict', None) or getattr(e, 'messages', str(e))))
     except Exception as e:
         raise ValidationError(f"Error creating the package: {e}")
 
@@ -146,7 +147,7 @@ def update_package(request, package_id: int, data: PackageUpdate):
     """
     Updates an existing package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     
     try:
         # Update package fields
@@ -159,7 +160,7 @@ def update_package(request, package_id: int, data: PackageUpdate):
         return get_package(request, package.id)
         
     except ValidationError as e:
-        raise ValidationError(f"Validation error: {e}")
+        raise HttpError(422, str(getattr(e, 'message_dict', None) or getattr(e, 'messages', str(e))))
     except Exception as e:
         raise ValidationError(f"Error updating the package: {e}")
 
@@ -169,15 +170,12 @@ def delete_package(request, package_id: int):
     """
     Deletes (soft delete) a package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
-    
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     try:
         package.is_active = False
         package.deleted_at = timezone.now()
         package.save()
-        
         return {"message": "Package deleted successfully"}
-        
     except Exception as e:
         raise ValidationError(f"Error deleting the package: {e}")
 
@@ -191,24 +189,9 @@ def list_package_components(request, package_id: int):
     """
     Lists all components of a specific package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     components = package.componentpackages.all().order_by('order')
-    
-    component_data = []
-    for comp in components:
-        component_data.append({
-            "id": comp.id,
-            "product_metadata_id": comp.product_metadata_id,
-            "order": comp.order,
-            "quantity": comp.quantity,
-            "title": comp.title,
-            "start_date": comp.start_date,
-            "end_date": comp.end_date,
-            "product_type": comp.product_metadata.product_type,
-            "product_name": str(comp.product_metadata.content)
-        })
-    
-    return component_data
+    return [ComponentPackageOut.from_orm(comp) for comp in components]
 
 
 @package_router.post("/{package_id}/components", response=ComponentPackageOut)
@@ -216,30 +199,14 @@ def add_package_component(request, package_id: int, data: ComponentPackageCreate
     """
     Adds a new component to a package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
-    
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     try:
-        # Check that the product_metadata exists
         product_metadata = get_object_or_404(ProductsMetadata, id=data.product_metadata_id)
-        
-        # Create the component
         component = ComponentPackages.objects.create(
             package=package,
             **data.dict()
         )
-        
-        return {
-            "id": component.id,
-            "product_metadata_id": component.product_metadata_id,
-            "order": component.order,
-            "quantity": component.quantity,
-            "title": component.title,
-            "start_date": component.start_date,
-            "end_date": component.end_date,
-            "product_type": component.product_metadata.product_type,
-            "product_name": str(component.product_metadata.content)
-        }
-        
+        return ComponentPackageOut.from_orm(component)
     except ValidationError as e:
         raise ValidationError(f"Validation error: {e}")
     except Exception as e:
@@ -256,29 +223,14 @@ def update_package_component(
     """
     Updates a specific component of a package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     component = get_object_or_404(ComponentPackages, id=component_id, package=package)
-    
     try:
-        # Update component fields
         for field, value in data.dict(exclude_unset=True).items():
             setattr(component, field, value)
-        
         component.full_clean()
         component.save()
-        
-        return {
-            "id": component.id,
-            "product_metadata_id": component.product_metadata_id,
-            "order": component.order,
-            "quantity": component.quantity,
-            "title": component.title,
-            "start_date": component.start_date,
-            "end_date": component.end_date,
-            "product_type": component.product_metadata.product_type,
-            "product_name": str(component.product_metadata.content)
-        }
-        
+        return ComponentPackageOut.from_orm(component)
     except ValidationError as e:
         raise ValidationError(f"Validation error: {e}")
     except Exception as e:
@@ -290,7 +242,7 @@ def remove_package_component(request, package_id: int, component_id: int):
     """
     Deletes a specific component from a package
     """
-    package = get_object_or_404(Packages.active, id=package_id)
+    package = get_object_or_404(Packages.objects.active(), id=package_id)
     component = get_object_or_404(ComponentPackages, id=component_id, package=package)
     
     try:
@@ -310,7 +262,7 @@ def get_featured_packages(request, limit: int = 10):
     """
     Gets featured packages (with best rating)
     """
-    packages = Packages.active.filter(
+    packages = Packages.objects.active().filter(
         rating_average__gt=0,
         total_reviews__gt=0
     ).order_by('-rating_average', '-total_reviews')[:limit]
@@ -319,49 +271,29 @@ def get_featured_packages(request, limit: int = 10):
 
 
 @package_router.get("/search/by-price-range", response=List[PackageOut])
+@paginate(DefaultPagination)
 def get_packages_by_price_range(
     request, 
     min_price: float, 
-    max_price: float,
-    pagination: PaginationParams = Query(...)
+    max_price: float
 ):
-    """
-    Search packages by price range
-    """
-    queryset = Packages.active.filter(
+    queryset = Packages.objects.active().filter(
         final_price__gte=min_price,
         final_price__lte=max_price
     ).order_by('final_price')
-    
-    return paginate_response(queryset, pagination)
+    return queryset
 
 
 @package_router.get("/search/by-duration", response=List[PackageOut])
+@paginate(DefaultPagination)
 def get_packages_by_duration(
     request, 
     min_days: int, 
-    max_days: int,
-    pagination: PaginationParams = Query(...)
+    max_days: int
 ):
-    """
-    Search packages by duration (calculated automatically)
-    """
-    # Note: This implementation is basic, you could optimize it
-    # by calculating the duration in the database
-    packages = Packages.active.all()
-    
-    filtered_packages = []
-    for package in packages:
-        duration = package.duration_days
-        if duration and min_days <= duration <= max_days:
-            filtered_packages.append(package)
-    
-    # Apply manual pagination
-    start = (pagination.page - 1) * pagination.page_size
-    end = start + pagination.page_size
-    paginated_packages = filtered_packages[start:end]
-    
-    return [PackageOut.from_orm(pkg) for pkg in paginated_packages]
+    packages = Packages.objects.active().all()
+    filtered_packages = [pkg for pkg in packages if pkg.duration_days and min_days <= pkg.duration_days <= max_days]
+    return filtered_packages
 
 
 # ──────────────────────────────────────────────────────────────
@@ -373,18 +305,18 @@ def get_packages_stats(request):
     """
     Gets general statistics of packages
     """
-    total_packages = Packages.active.count()
-    active_packages = Packages.active.filter(is_active=True).count()
+    total_packages = Packages.objects.active().count()
+    active_packages = Packages.objects.active().filter(is_active=True).count()
     
     # Price statistics
-    price_stats = Packages.active.aggregate(
+    price_stats = Packages.objects.active().aggregate(
         avg_price=Avg('final_price'),
         min_price=Min('final_price'),
         max_price=Max('final_price')
     )
     
     # Rating statistics
-    rating_stats = Packages.active.filter(rating_average__gt=0).aggregate(
+    rating_stats = Packages.objects.active().filter(rating_average__gt=0).aggregate(
         avg_rating=Avg('rating_average'),
         total_reviews=Count('total_reviews')
     )
@@ -405,7 +337,7 @@ def list_categories(request):
     """
     Lists all active categories
     """
-    categories = Category.active.all().order_by('name')
+    categories = Category.objects.active().all().order_by('name')
     return [CategoryOut.from_orm(cat) for cat in categories]
 
 
@@ -414,7 +346,7 @@ def get_category(request, category_id: int):
     """
     Gets a specific category
     """
-    category = get_object_or_404(Category.active, id=category_id)
+    category = get_object_or_404(Category.objects.active(), id=category_id)
     return CategoryOut.from_orm(category)
 
 
@@ -435,7 +367,7 @@ def update_category(request, category_id: int, data: CategoryUpdate):
     """
     Updates an existing category
     """
-    category = get_object_or_404(Category.active, id=category_id)
+    category = get_object_or_404(Category.objects.active(), id=category_id)
     
     try:
         for field, value in data.dict(exclude_unset=True).items():
@@ -454,7 +386,7 @@ def delete_category(request, category_id: int):
     """
     Elimina (soft delete) una categoría
     """
-    category = get_object_or_404(Category.active, id=category_id)
+    category = get_object_or_404(Category.objects.active(), id=category_id)
     
     try:
         category.is_active = False
@@ -465,12 +397,8 @@ def delete_category(request, category_id: int):
         raise ValidationError(f"Error al eliminar la categoría: {e}")
 
 
-@category_router.get("/{category_id}/packages", response=List[PackageOut])
-def get_packages_by_category(request, category_id: int, pagination: PaginationParams = Query(...)):
-    """
-    Obtiene todos los paquetes de una categoría específica
-    """
-    category = get_object_or_404(Category.active, id=category_id)
-    packages = Packages.active.filter(category=category).order_by('name')
-    
-    return paginate_response(packages, pagination)
+@package_router.get("/{category_id}/packages", response=List[PackageOut])
+@paginate(DefaultPagination)
+def get_packages_by_category(request, category_id: int):
+    queryset = Packages.objects.active().filter(category_id=category_id).order_by('name')
+    return queryset
