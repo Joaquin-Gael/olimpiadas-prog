@@ -6,7 +6,7 @@ import dj_database_url
 from datetime import timedelta
 
 from django.conf.global_settings import AUTH_USER_MODEL
-from env import DEBUG, DATABASE_URL, SECRET_KEY
+from env import DEBUG, SECRET_KEY
 
 import os
 
@@ -77,11 +77,10 @@ TEMPLATES = [
 ASGI_APPLICATION = 'myweb.asgi.application'
 
 DATABASES = {
-    'default': dj_database_url.config(
-        conn_max_age=600,
-        conn_health_checks=True,
-        default=DATABASE_URL
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 AUTH_USER_MODEL = "users.Users"

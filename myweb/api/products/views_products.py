@@ -8,7 +8,8 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut,
+    ProductsMetadataUpdateWithProduct
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
@@ -48,7 +49,9 @@ def create_product(request, data: ProductsMetadataCreate):
     if not Model:
         raise HttpError(400, "Invalid product type")
 
-    product = Model(**data.product.dict())
+    product_data = data.product.dict()
+    product_data.pop("currency", None)  # Elimina currency si existe
+    product = Model(**product_data)
 
     # 2️⃣ Perform full_clean() to enforce model validators and custom clean()
     try:
@@ -493,7 +496,7 @@ def get_product(request, id: int):
 
 @products_router.patch("/products/{id}/", response=ProductsMetadataOut)
 @transaction.atomic
-def update_product(request, id: int, data: ProductsMetadataUpdate):
+def update_product(request, id: int, data: ProductsMetadataUpdateWithProduct):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
     product = metadata.content
 
