@@ -197,7 +197,7 @@ class Suppliers(SoftDeleteModel):
     )
     city = models.CharField(max_length=64)
     country = models.CharField(max_length=64)
-    email = models.EmailField()
+    email = models.EmailField(unique=True)
     telephone = models.CharField(max_length=16)
     website = models.URLField()
 
@@ -210,16 +210,58 @@ class Suppliers(SoftDeleteModel):
         return self.organization_name or f"{self.first_name} {self.last_name}"
 
 
+class LocationType(models.TextChoices):
+    COUNTRY = "country", "Country"
+    STATE = "state", "State/Province"
+    CITY = "city", "City"
+    DISTRICT = "district", "District/Locality"
+    AIRPORT = "airport", "Airport"
+    TERMINAL = "terminal", "Terminal"
+    OTHER = "other", "Other"
+
 class Location(models.Model):
-    # País donde se encuentra la ubicación
+    name = models.CharField(max_length=128, help_text="Display name (city, airport, etc.)")
     country = models.CharField(max_length=64)
-    # Provincia o estado dentro del país
-    state = models.CharField(max_length=64)
-    # Ciudad específica
-    city = models.CharField(max_length=64)
+    state = models.CharField(max_length=64, blank=True, default="")
+    city = models.CharField(max_length=64, blank=True, default="")
+    code = models.CharField(max_length=16, blank=True, default="", help_text="IATA/ICAO code or custom code")
+    type = models.CharField(
+        max_length=16,
+        choices=LocationType.choices,
+        default=LocationType.CITY,
+        help_text="Type of location (city, airport, terminal, etc.)"
+    )
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="children",
+        help_text="Parent location (for hierarchy, e.g., city belongs to country)"
+    )
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["country", "state", "city", "type"]),
+            models.Index(fields=["name"]),
+            models.Index(fields=["code"]),
+        ]
+        ordering = ["country", "state", "city", "name"]
 
     def __str__(self):
-        return f"{self.city}, {self.state}, {self.country}"
+        parts = [self.name]
+        if self.city and self.city != self.name:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        if self.country:
+            parts.append(self.country)
+        if self.code:
+            parts.append(f"({self.code})")
+        return ", ".join(parts)
 
 
 class DifficultyLevel(Enum):
@@ -808,9 +850,6 @@ class ProductsMetadata(SoftDeleteModel):
     def get_final_price(self, discount_percent=0):
         """Calculates the final price with discount"""
         return self.unit_price * (1 - discount_percent / 100)
-
-
-#TODO: Finish making the enums, who the hell thought of making so many enums without providing the list
 
 class Category(models.Model):
     """Model to categorize tour packages"""

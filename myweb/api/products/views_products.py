@@ -8,7 +8,7 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
@@ -1018,3 +1018,36 @@ def check_room(request, room_id: int, qty: int, start_date: date, end_date: date
         currency=av.currency,
         availability_id=av.id,
     )
+    
+@products_router.get("/locations/", response=List[LocationListOut])
+def list_locations(request, is_active: bool = True, type: str = None, country: str = None, search: str = None):
+    qs = Location.objects.all()
+    if is_active:
+        qs = qs.filter(is_active=True)
+    if type:
+        qs = qs.filter(type=type)
+    if country:
+        qs = qs.filter(country__iexact=country)
+    if search:
+        qs = qs.filter(
+            Q(name__icontains=search) |
+            Q(city__icontains=search) |
+            Q(state__icontains=search) |
+            Q(code__icontains=search)
+        )
+    return [
+        LocationListOut(
+            id=loc.id,
+            name=loc.name,
+            country=loc.country,
+            state=loc.state,
+            city=loc.city,
+            code=loc.code,
+            type=loc.type,
+            parent_id=loc.parent_id,
+            latitude=float(loc.latitude) if loc.latitude is not None else None,
+            longitude=float(loc.longitude) if loc.longitude is not None else None,
+            is_active=loc.is_active
+        )
+        for loc in qs.order_by("country", "state", "city", "name")
+    ]

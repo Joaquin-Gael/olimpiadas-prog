@@ -1457,3 +1457,17 @@ class ProductPatchTransportation(ProductsMetadataUpdate):
     
     # Sub-estructuras anidadas
     transportations: Optional[List[TransportationPartialUpdate]] = None
+
+
+class LocationListOut(BaseSchema):
+    id: int
+    name: str
+    country: str
+    state: str
+    city: str
+    code: str
+    type: str
+    parent_id: int | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    is_active: bool
