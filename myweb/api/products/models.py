@@ -808,22 +808,10 @@ class ProductsMetadata(SoftDeleteModel):
         validators=[MinValueValidator(0)],
         help_text="Unit price of the product"
     )
-<<<<<<< HEAD
     currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
     
     # Property to get the product type
-=======
-    product_type = models.CharField(
-        max_length=32,
-        choices=ProductType.choices,
-        help_text="Tipo de product: actividad, vuelo, alojamiento, transporte"
-    )
-    is_active   = models.BooleanField(default=True)
-    deleted_at  = models.DateTimeField(null=True, blank=True)
-
-    # Propiedad para obtener el tipo de producto
->>>>>>> 450537617f565c69e2d25e818a7bb444506448b4
     @property
     def product_type(self):
         model_name = self.content_type_id.model.lower()

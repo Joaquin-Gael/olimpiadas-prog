@@ -6,7 +6,6 @@
 
 .env
 
-<<<<<<< HEAD
 *.sqlite3
 
 # Python cache files
@@ -84,14 +83,3 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-=======
-_pycache_/
-
-*.py[cod]
-
-*.pyo
-
-*.sqlite3
-
-uv.lock
->>>>>>> 450537617f565c69e2d25e818a7bb444506448b4
