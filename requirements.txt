@@ -1,0 +1,7 @@
+Django>=4.2
+mysqlclient>=2.2
+dj-database-url
+celery>=5.3
+redis>=5.0
+django-redis>=5.4
+python-dotenv 
