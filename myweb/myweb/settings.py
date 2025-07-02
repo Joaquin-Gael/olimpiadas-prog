@@ -2,21 +2,15 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-import dj_database_url
 from datetime import timedelta
-
 from django.conf.global_settings import AUTH_USER_MODEL
 from env import DEBUG, SECRET_KEY
-
-import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-
-SECRET_KEY = SECRET_KEY
-
-DEBUG = DEBUG
+SECRET_KEY = '63911f7af64b080f7e450c38a6803311c780e2be264dbc3c5095923d6c3f7a1f'
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -101,8 +95,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -110,7 +102,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 STATIC_URL = '/assets/'
 STATICFILES_DIRS = [

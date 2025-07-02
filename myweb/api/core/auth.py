@@ -50,6 +50,7 @@ class JWTBearer(HttpBearer):
 
         try:
             payload = decode_token(token)
+            print("DEBUG JWT PAYLOAD:", payload)  # Debug
         except ValueError as e:
             raise HttpError(status_code=401, message="Invalid token: " + str(e))
 
@@ -59,22 +60,26 @@ class JWTBearer(HttpBearer):
             raise HttpError(status_code=401, message="Refresh token used in non-refresh endpoint")
 
         user_id = payload.get("sub")
+        print("DEBUG JWT USER_ID:", user_id)  # Debug
 
         if not user_id:
             raise HttpError(status_code=401, message="Missing user ID in token")
 
         # Buscar usuario
         try:
+<<<<<<< HEAD
 
             user = await sync_to_async(get_object_or_404)(Users, id=user_id)
 
+=======
+            user = get_object_or_404(Users, id=user_id)
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
             request.user = user
             request.scopes = payload.get("scopes", [])
             return user
-
         except Http404:
+            print("DEBUG JWT USER NOT FOUND")  # Debug
             raise HttpError(404, f"Usuario con ID {user_id} no encontrado")
-
         except Exception as e:
-            console.print(e)
+            print(e)
             raise HttpError(status_code=401, message="Invalid or expired token")

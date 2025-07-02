@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from django.db import IntegrityError
 from django.conf import settings
 from ninja import Router, Header
+from api.core.auth import gen_token
 from ninja.responses import Response
 from ninja.errors import HttpError
 from typing import List
@@ -24,10 +25,14 @@ from .schemas import (
 
 console = Console()
 
+<<<<<<< HEAD
 user_private_router = Router(
     tags=["Users"],
     auth=JWTBearer(),
 )
+=======
+user_router = Router(tags=["Users"])
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
 
 user_public_router = Router(
     tags=["Users"],
@@ -106,20 +111,18 @@ def login_user(request, payload: UserLoginSchema):
     - También verifica si el usuario está activo antes de autorizar el acceso.
     """
     try:
-        # Autenticar usuario
         user = authenticate(request, email=payload.email, password=payload.password)
-        
         if user is None:
             return Response(
                 {"message": "Credenciales inválidas", "detail": "Email o contraseña incorrectos"},
                 status=401
             )
-        
         if not user.is_active:
             return Response(
                 {"message": "Usuario inactivo", "detail": "El usuario está deshabilitado"},
                 status=401
             )
+<<<<<<< HEAD
 
         console.print(user.get_all_permissions())
 
@@ -137,19 +140,39 @@ def login_user(request, payload: UserLoginSchema):
                 "data":{
                     "access_token": token,
                     "_refresh_token": _refresh_token,
+=======
+        # Generar el token JWT
+
+        token = gen_token({"sub": user.id})
+        return Response(
+            {
+                "message": "Login exitoso",
+                "data": {
+                    "id": user.id,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                    "is_staff": user.is_staff,
+                    "token": token
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
                 }
             },
             status=200
         )
-        
     except Exception as e:
         return Response(
             {"message": "Error interno del servidor", "detail": str(e)},
             status=400
         )
 
+<<<<<<< HEAD
 @user_private_router.get("/", response=List[UserResponseSchema])
 async def list_users(request):
+=======
+
+@user_router.get("/", response=List[UserResponseSchema], auth=JWTBearer())
+def list_users(request):
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
     """
     Retorna una lista con todos los usuarios registrados en el sistema.
 
@@ -178,6 +201,7 @@ async def list_users(request):
     except Exception as e:
         raise HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
+<<<<<<< HEAD
 @user_private_router.get("/refresh")
 async def refresh_token(request):
     try:
@@ -219,6 +243,10 @@ async def refresh_token(request):
 
 @user_private_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema})
 async def me_user(request):
+=======
+@user_router.get("/me", response={200:UserResponseSchema, 401: ErrorResponseSchema}, auth=JWTBearer())
+def me_user(request):
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
     """
     Retorna un usuario en el sistema.
 
@@ -245,9 +273,14 @@ async def me_user(request):
         console.print_exception(show_locals=True)
         return HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
+<<<<<<< HEAD
 
 @user_private_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema})
 async def get_user(request, user_id: int):
+=======
+@user_router.get("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema}, auth=JWTBearer())
+def get_user(request, user_id: int):
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
     """
     Obtiene los datos de un usuario específico mediante su ID.
 
@@ -279,7 +312,12 @@ async def get_user(request, user_id: int):
         )
 
 
+<<<<<<< HEAD
 @user_private_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema})
+=======
+
+@user_router.put("/{user_id}", response={200: UserResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema}, auth=JWTBearer())
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
 def update_user(request, user_id: int, payload: UserUpdateSchema):
     """
     Actualiza los datos de un usuario específico.
@@ -340,7 +378,11 @@ def update_user(request, user_id: int, payload: UserUpdateSchema):
         )
 
 
+<<<<<<< HEAD
 @user_private_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema})
+=======
+@user_router.delete("/{user_id}", response={200: SuccessResponseSchema, 404: ErrorResponseSchema}, auth=JWTBearer())
+>>>>>>> 1e5be1dd49007289eb0670dce677d47358a2b9e9
 def delete_user(request, user_id: int):
     """
     Elimina completamente un usuario por su ID.
