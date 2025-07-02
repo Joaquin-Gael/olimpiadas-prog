@@ -1,17 +1,10 @@
 from pathlib import Path
-
-import dj_database_url
 from datetime import timedelta
-
-from django.conf.global_settings import AUTH_USER_MODEL
-from env import DEBUG, DATABASE_URL, SECRET_KEY
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-SECRET_KEY = SECRET_KEY
-
-DEBUG = DEBUG
+SECRET_KEY = '63911f7af64b080f7e450c38a6803311c780e2be264dbc3c5095923d6c3f7a1f'
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -72,11 +65,10 @@ TEMPLATES = [
 ASGI_APPLICATION = 'myweb.asgi.application'
 
 DATABASES = {
-    'default': dj_database_url.config(
-        conn_max_age=600,
-        conn_health_checks=True,
-        default=DATABASE_URL
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
 
 AUTH_USER_MODEL = "users.Users"
@@ -96,8 +88,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -105,7 +95,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 STATIC_URL = '/assets/'
 STATICFILES_DIRS = [

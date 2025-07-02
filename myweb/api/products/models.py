@@ -32,7 +32,7 @@ class Suppliers(models.Model):
     )
     city = models.CharField(max_length=64)
     country = models.CharField(max_length=64)
-    email = models.EmailField()
+    email = models.EmailField(unique=True)
     telephone = models.CharField(max_length=16)
     website = models.URLField()
     deleted_at = models.DateTimeField(null=True, blank=True)
