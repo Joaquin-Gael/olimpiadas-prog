@@ -1,5 +1,8 @@
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.conf import settings
+from django.utils import timezone
+from decimal import Decimal
 
 from enum import Enum
 
@@ -183,6 +186,9 @@ class OrderDetails(models.Model):
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
     product_metadata = models.ForeignKey(ProductsMetadata, on_delete=models.CASCADE)
     package = models.ForeignKey(Packages, on_delete=models.CASCADE)
+    availability_id = models.PositiveIntegerField(
+        help_text="ID de la disponibilidad específica (ActivityAvailability, RoomAvailability, etc.)"
+    )
     quantity = models.IntegerField(
         validators=[
             MinValueValidator(0),
@@ -271,3 +277,60 @@ class Bills(models.Model):
         choices=BillType.choices,
         default=BillType.STANDARD
     )
+
+class Cart(models.Model):
+    """Un carrito abierto por un cliente autenticado."""
+    STATUS_CHOICES = [
+        ("OPEN",     "Open"),
+        ("ORDERED",  "Ordered"),   # convertido a Order
+        ("EXPIRED",  "Expired"),   # job de limpieza
+    ]
+
+    id         = models.AutoField(primary_key=True)
+    client     = models.ForeignKey(settings.AUTH_USER_MODEL,
+                                   on_delete=models.CASCADE, related_name="carts")
+    status     = models.CharField(max_length=8, choices=STATUS_CHOICES, default="OPEN")
+    currency   = models.CharField(max_length=3, default="USD")       # 1 moneda por carrito
+    total      = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    items_cnt  = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["client", "status"])]
+
+    def __str__(self):
+        return f"Cart {self.id} ({self.client}) – {self.status}"
+
+class CartItem(models.Model):
+    """Un ítem del carrito vinculado a una Availability concreta."""
+    cart                = models.ForeignKey(Cart, on_delete=models.CASCADE,
+                                            related_name="items")
+    availability_id     = models.PositiveIntegerField()              # FK "manual" al servicio reserve_*
+    product_metadata_id = models.PositiveIntegerField()              # para info / precio
+    qty                 = models.PositiveIntegerField()              # habitaciones / seats / etc.
+    unit_price          = models.DecimalField(max_digits=12, decimal_places=2)  # precio TOTAL del ítem (ya multiplicado por noches si aplica)
+    currency            = models.CharField(max_length=3)
+    config              = models.JSONField(default=dict)             # fechas, horario, etc.
+    created_at          = models.DateTimeField(auto_now_add=True)
+    updated_at          = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ["cart", "availability_id"]                # evita duplicar línea
+
+class StoreIdempotencyRecord(models.Model):
+    """
+    Guarda la respuesta *completa* de una primera llamada mutadora
+    — clave única por user+key+path+method, solo para store.
+    """
+    key        = models.CharField(max_length=64)
+    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    method     = models.CharField(max_length=6)
+    path       = models.CharField(max_length=128)
+    status     = models.PositiveSmallIntegerField()         # 200, 201, 409…
+    response   = models.JSONField()                         # cuerpo JSON serializado
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["key", "user", "method", "path"]
+        indexes         = [models.Index(fields=["created_at"])]

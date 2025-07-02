@@ -102,8 +102,9 @@ def release_room_availability(avail_id: int, qty: int):
         logger.warning(f"Intento de liberar qty inválido: {qty} (room_avail_id={avail_id})")
         raise ValueError("qty debe ser positivo")
     av = RoomAvailability.objects.select_for_update().get(pk=avail_id)
-    # Usar max_quantity explícito
-    av.available_quantity = min(av.max_quantity, av.available_quantity + qty)
+    # Usar max_quantity si existe, sino calcular basado en available_quantity
+    max_qty = getattr(av, "max_quantity", av.available_quantity + qty)
+    av.available_quantity = min(max_qty, av.available_quantity + qty)
     av.save(update_fields=["available_quantity"])
     logger.info(f"Liberadas {qty} habitaciones en disponibilidad {avail_id}. Restantes: {av.available_quantity}")
     return {'remaining': av.available_quantity}
@@ -134,8 +135,9 @@ def release_flight(flight_id: int, qty: int):
         logger.warning(f"Intento de liberar qty inválido: {qty} (flight_id={flight_id})")
         raise ValueError("qty debe ser positivo")
     flight = Flights.objects.select_for_update().get(pk=flight_id)
-    # Usar capacity explícito
-    flight.available_seats = min(flight.capacity, flight.available_seats + qty)
+    # Usar capacity si existe, sino calcular basado en available_seats
+    cap = getattr(flight, "capacity", flight.available_seats + qty)
+    flight.available_seats = min(cap, flight.available_seats + qty)
     flight.save(update_fields=["available_seats"])
     logger.info(f"Liberados {qty} asientos en vuelo {flight_id}. Restantes: {flight.available_seats}")
     return {'remaining': flight.available_seats}

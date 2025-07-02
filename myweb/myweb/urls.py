@@ -15,6 +15,7 @@ from api.products.views_products import products_router
 from api.products.views_package import package_router, category_router
 from api.products.views_supliers import suppliers_router
 from api.employees.views_employees import router as employees_router
+from api.store.views_cart import router as store_router
 
 api = NinjaAPI(
     title=settings.API_TITLE,
@@ -34,6 +35,8 @@ api.add_router("/categories/", category_router)
 api.add_router("/suppliers/", suppliers_router)
 # Agregar las rutas de employees
 api.add_router("/employees/", employees_router)
+# Agregar las rutas de store
+api.add_router("/store/", store_router)
 
 class Layout(Enum):
     MODERN = "modern"
