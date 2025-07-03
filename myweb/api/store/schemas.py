@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, PositiveInt
 from typing import List, Any
 from datetime import datetime
 
+from ninja import Schema
+
 # ── Salidas ────────────────────────────────────────────────────
 class CartItemOut(BaseModel):
     id: int
@@ -21,6 +23,15 @@ class CartOut(BaseModel):
     updated_at: datetime
     items: List[CartItemOut]
 
+class SalesOut(Schema):
+    id: int
+    order: int
+    total: float
+    sale_date: datetime
+    payment_status: str
+    sale_type: str
+    payment_type: str
+
 # ── Entradas ───────────────────────────────────────────────────
 class ItemAddIn(BaseModel):
     availability_id: int
@@ -30,4 +41,7 @@ class ItemAddIn(BaseModel):
     config: dict = Field(default_factory=dict)
 
 class ItemQtyPatchIn(BaseModel):
-    qty: PositiveInt 
+    qty: PositiveInt
+
+# ── Updates ───────────────────────────────────────────────────
+ # TODO: hacer las clases respectivas

@@ -1,6 +1,8 @@
 from django.contrib.auth import authenticate
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.conf import settings
+from django.utils import timezone
+
 from ninja import Router, Header
 from ninja.responses import Response
 from ninja.errors import HttpError
@@ -95,9 +97,9 @@ def register_user(request, payload: UserRegistrationSchema):
             status=400
         )
 
-
+@transaction.atomic
 @user_public_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
-def login_user(request, payload: UserLoginSchema):
+async def login_user(request, payload: UserLoginSchema):
     """
     Autentica un usuario utilizando email y contraseña.
 
@@ -107,7 +109,7 @@ def login_user(request, payload: UserLoginSchema):
     """
     try:
         # Autenticar usuario
-        user = authenticate(request, email=payload.email, password=payload.password)
+        user = await sync_to_async(authenticate)(request, email=payload.email, password=payload.password)
         
         if user is None:
             return Response(
@@ -121,11 +123,17 @@ def login_user(request, payload: UserLoginSchema):
                 status=401
             )
 
-        console.print(user.get_all_permissions())
+        console.print(user.last_login)
+
+        user.last_login = timezone.now()
+
+        await sync_to_async(user.save)()
+
+        console.print(await sync_to_async(user.get_all_permissions)())
 
         payload={
             "sub":str(user.id),
-            "scopes": list(user.get_all_permissions())
+            "scopes": list(await sync_to_async(user.get_all_permissions)())
         }
 
         token = gen_token(payload=payload)

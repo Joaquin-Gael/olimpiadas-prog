@@ -220,7 +220,7 @@ class LocationType(models.TextChoices):
     OTHER = "other", "Other"
 
 class Location(models.Model):
-    name = models.CharField(max_length=128, help_text="Display name (city, airport, etc.)")
+    name = models.CharField(max_length=128, help_text="Display name (city, airport, etc.)", default="Non Named Location")
     country = models.CharField(max_length=64)
     state = models.CharField(max_length=64, blank=True, default="")
     city = models.CharField(max_length=64, blank=True, default="")
@@ -282,7 +282,7 @@ class DifficultyLevel(Enum):
 
 class Activities(models.Model):
     id = models.AutoField("activity_id", primary_key=True)
-    name = models.CharField(max_length=128)
+    name = models.CharField(max_length=128, default="Non Named Activity")
     description = models.TextField()
     location = models.ForeignKey(Location, on_delete=models.PROTECT)
     date = models.DateField()
@@ -398,7 +398,7 @@ class Flights(models.Model):
     
     class_flight = models.CharField(max_length=32, choices=ClassFlight.choices())
     available_seats = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(500)])
-    capacity = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(500)], help_text="Maximum number of seats for this flight")
+    capacity = models.IntegerField(default=0, validators=[MinValueValidator(1), MaxValueValidator(500)], help_text="Maximum number of seats for this flight")
 
     luggage_info = models.CharField(max_length=128)
     aircraft_type = models.CharField(max_length=32)
@@ -448,7 +448,7 @@ class LodgmentType(Enum):
 
 class Lodgments(models.Model):
     id = models.AutoField("lodgment_id", primary_key=True)
-    name = models.CharField(max_length=128, db_index=True)
+    name = models.CharField(max_length=128, db_index=True, default="Non Named Lodgment")
     description = models.TextField(blank=True)
     location = models.ForeignKey(Location, on_delete=models.PROTECT, db_index=True)
 
@@ -456,11 +456,13 @@ class Lodgments(models.Model):
     type = models.CharField(
         max_length=32,
         choices=LodgmentType.choices(),
-        help_text="Type of accommodation"
+        help_text="Type of accommodation",
+        default=LodgmentType.HOTEL
     )
     max_guests = models.IntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(50)],
-        help_text="Maximum number of guests the property can accommodate"
+        help_text="Maximum number of guests the property can accommodate",
+        default=1
     )
 
     # Contact and service information
@@ -806,7 +808,8 @@ class ProductsMetadata(SoftDeleteModel):
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(0)],
-        help_text="Unit price of the product"
+        help_text="Unit price of the product",
+        default=0
     )
     currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
