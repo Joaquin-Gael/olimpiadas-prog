@@ -2,6 +2,8 @@ from ninja import Schema
 from typing import Optional
 from datetime import date, datetime
 
+from pydantic import EmailStr
+
 
 class UserRegistrationSchema(Schema):
     """Schema para el registro de usuarios"""
@@ -41,7 +43,7 @@ class UserUpdateSchema(Schema):
 
 class UserLoginSchema(Schema):
     """Schema para el login de usuarios"""
-    email: str
+    email: EmailStr
     password: str
 
 

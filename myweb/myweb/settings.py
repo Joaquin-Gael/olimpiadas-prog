@@ -53,11 +53,13 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions'
 ]
 
 INSTALLED_APPS: list = DJANGO_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -124,9 +126,9 @@ USE_TZ = True
 
 STATIC_URL = '/assets/'
 STATICFILES_DIRS = [
-    BASE_DIR / 'assets',
+    BASE_DIR / 'assets_src',
 ]
-STATIC_ROOT = BASE_DIR / "assets_production"
+STATIC_ROOT = BASE_DIR / "assets"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

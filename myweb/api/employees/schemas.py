@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 
 from ninja import Schema
@@ -41,6 +41,10 @@ class EmployeeUpdateSchema(Schema):
     user_id: Optional[int]
     employee_file: Optional[str]
     state: Optional[str]
+
+class EmployeeAuditsScheme(Schema):
+    product_type: Literal["activity", "transportation", "lodgment", "flight"]
+    action: Literal["create", "update", "delete", "read"]
 
 
 class EmployeeResponseSchema(EmployeeBaseSchema):
