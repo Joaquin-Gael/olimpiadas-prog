@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
     ProductsMetadata, Suppliers,
-    Activities, Flights, Lodgment, Transportation, ActivityAvailability, TransportationAvailability,
+    Activities, Flights, Lodgments, Transportation, ActivityAvailability, TransportationAvailability,
     RoomAvailability, Room, Location
 )
 from django.db.models import Q, F
