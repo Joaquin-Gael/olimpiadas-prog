@@ -41,7 +41,7 @@ def create_product(request, data: ProductsMetadataCreate):
     model_map = {
         "activity": Activities,
         "flight": Flights,
-        "lodgment": Lodgment,
+        "lodgment": Lodgments,
         "transportation": Transportation,
     }
     Model = model_map.get(data.product_type)
@@ -172,7 +172,7 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
         "date_checkout": data.date_checkout,
     }
     
-    lodgment = Lodgment(**lodgment_data)
+    lodgment = Lodgments(**lodgment_data)
     
     try:
         lodgment.full_clean()
@@ -187,7 +187,7 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
     lodgment.save()
     
     # 3. Create product metadata
-    content_type = ContentType.objects.get_for_model(Lodgment)
+    content_type = ContentType.objects.get_for_model(Lodgments)
     
     metadata_obj = ProductsMetadata.objects.create(
         supplier=supplier,
@@ -838,7 +838,7 @@ def list_lodgment_room_availabilities(request, lodgment_id: int, start_date: dat
     Lists all room availabilities of a lodgment
     Optionally filters by date range
     """
-    lodgment = get_object_or_404(Lodgment, id=lodgment_id, is_active=True)
+    lodgment = get_object_or_404(Lodgments, id=lodgment_id, is_active=True)
     
     rooms = lodgment.rooms.filter(is_active=True)
     

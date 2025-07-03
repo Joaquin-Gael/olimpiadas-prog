@@ -6,7 +6,7 @@ from django.db import transaction
 from .models import Orders
 from .services import services_payments as pay_srv
 from .services import services_sales as sale_srv
-from api.notification import services as notif_srv
+from api.core.notification import services as notif_srv
 from .services.services_orders import InvalidCartStateError
 from .idempotency import store_idempotent
 from .models import NotificationType
