@@ -1,48 +1,178 @@
-from ninja import Router
-from ninja.errors import HttpError
-
-from django.shortcuts import get_object_or_404
+"""
+Servicios para manejo de órdenes de compra
+"""
+from decimal import Decimal
+from typing import Optional
 from django.db import transaction
+from django.utils import timezone
 
-from api.core.notification import services as notif_srv
+from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
+from api.notification.services_new import NotificationService
+from api.products.models import ProductsMetadata
 
-from .services import services_payments as pay_srv
-from .services import services_sales as sale_srv
-from .services.services_orders import InvalidCartStateError
-from .idempotency import store_idempotent
-from .models import NotificationType, Orders
 
-router = Router(tags=["Orders"])
+class InvalidCartStateError(Exception):
+    """El carrito no está en estado válido para crear orden."""
 
-@router.patch("/order/{order_id}/pay/", response={200: dict})
-@store_idempotent()
+class OrderCreationError(Exception):
+    """Error al crear la orden."""
+
+
 @transaction.atomic
-def pay_order(request, order_id: int):
-    try:
-        order = get_object_or_404(Orders, id=order_id, client=request.user)
+def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
+    """
+    Crea una orden desde un carrito existente.
 
-        if order.state != "PENDING":
-            raise HttpError(409, "orden_no_pendiente")
+    Args:
+        cart_id: ID del carrito
+        user_id: ID del usuario
+        idempotency_key: Clave de idempotencia
 
+    Returns:
+        Orders: La orden creada
+
+    Raises:
+        InvalidCartStateError: Si el carrito no es válido
+        OrderCreationError: Si hay error al crear la orden
+    """
+    cart = (Cart.objects
+            .select_for_update()
+            .prefetch_related("items")
+            .get(id=cart_id, client_id=user_id, status=CartStatus.OPEN))
+
+    if not cart.items_cnt:
+        raise InvalidCartStateError("EMPTY_CART")
+
+    order = Orders.objects.create(
+        client_id=user_id,
+        date=timezone.now(),
+        state=OrderState.PENDING,
+        total=cart.total,
+        idempotency_key=idempotency_key,
+    )
+
+    OrderDetails.objects.bulk_create([
+        OrderDetails(
+            order=order,
+            product_metadata_id=li.product_metadata_id,
+            package_id=ProductsMetadata.objects
+            .get(id=li.product_metadata_id)
+            .package_id,
+            availability_id=li.availability_id,
+            quantity=li.qty,
+            unit_price=li.unit_price,
+            subtotal=li.qty * li.unit_price,
+            discount_applied=Decimal("0.00"),
+            ) for li in cart.items.all()
+    ])
+
+    NotificationService.booking_pending(order)
+    return order
+
+
+def cancel_order(order_id: int, user_id: int):
+    """
+    Cancela una orden.
+
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+
+    Returns:
+        Orders: La orden cancelada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
+        )
+
+        if order.state not in [OrderState.PENDING, OrderState.CONFIRMED]:
+            raise InvalidCartStateError("No se puede cancelar esta orden")
+
+        order.state = OrderState.CANCELLED
+        order.save()
+
+        return order
+
+
+def pay_order(order_id: int, user_id: int, payment_method: str):
+    """
+    Marca una orden como pagada.
+
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+        payment_method: Método de pago
+
+    Returns:
+        Orders: La orden pagada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
+        )
+
+        if order.state != OrderState.PENDING:
+            raise InvalidCartStateError("La orden no está pendiente de pago")
+
+        order.state = OrderState.CONFIRMED
+        order.save()
+
+        return order
+
+
+def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
+    """
+    Reembolsa una orden.
+
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+        amount: Monto a reembolsar (si es None, reembolsa todo)
+
+    Returns:
+        Orders: La orden reembolsada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
+        )
+
+        if order.state not in [OrderState.CONFIRMED, OrderState.COMPLETED]:
+            raise InvalidCartStateError("No se puede reembolsar esta orden")
+
+        order.state = OrderState.REFUNDED
+        order.save()
+
+        return order
+
+    #  ─────────────────────────────────────────────────────────────
+#  Clase pública – wrapper estático
+#  ─────────────────────────────────────────────────────────────
+
+class OrderService:
+    """Fachada estática para que las vistas usen un API OO."""
+
+    # get_order_by_id ----------------------------------------------------
+    @staticmethod
+    def get_order_by_id(order_id: int, user_id: int) -> "Orders | None":
+        """Devuelve la orden si pertenece al usuario/cliente o None."""
         try:
-            result = pay_srv.fake_payment_gateway(order.total)
-            if result["status"] != "SUCCESS":
-                raise pay_srv.PaymentError()
+            return Orders.objects.get(id=order_id, client_id=user_id)
+        except Orders.DoesNotExist:
+            return None
 
-            sale = sale_srv.register_sale(order, result["gateway_id"])
-            order.state = "CONFIRMED"
-            order.save(update_fields=["state"])
+    # cancel_order -------------------------------------------------------
+    @staticmethod
+    def cancel_order(order_id: int, user_id: int) -> Orders:
+        return cancel_order(order_id, user_id)
 
-            notif_srv.send_notification(
-                order,
-                NotificationType.BOOKING_CONFIRMED,
-                "Reserva confirmada",
-                f"¡Gracias! Tu reserva #{order.id} quedó confirmada."
-            )
+    # pay_order (alias; opcional) ----------------------------------------
+    @staticmethod
+    def pay_order(order_id: int, user_id: int, payment_method: str):
+        return pay_order(order_id, user_id, payment_method)  # noqa: F821
 
-        except pay_srv.PaymentError:
-            raise HttpError(402, "pago_rechazado")
-
-        return 200, {"sale_id": sale.id, "order_state": order.state}
-    except Exception as e:
-        return HttpError(500, message=str(e))
+    # refund_order -------------------------------------------------------
+    @staticmethod
+    def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
+        return refund_order(order_id, user_id, amount)  # noqa: F821

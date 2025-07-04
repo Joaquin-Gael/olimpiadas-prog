@@ -39,7 +39,7 @@ main_router.add_router("/employees/", employees_router)
 main_router.add_router("/store/", store_router)
 # Agregar las rutas de orders
 main_router.add_router("/orders/", orders_router)
-
+# Agregar las rutas de sales
 main_router.add_router("/sales/", sales_router)
 
 class Layout(Enum):
