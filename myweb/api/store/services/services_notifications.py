@@ -6,7 +6,7 @@ import logging
 from django.utils import timezone
 
 from ..models import Orders, Sales
-from api.notification.services import NotificationService
+from api.core.notification.services import NotificationService
 
 logger = logging.getLogger(__name__)
 

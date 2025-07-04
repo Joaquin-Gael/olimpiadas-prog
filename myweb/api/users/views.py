@@ -62,7 +62,7 @@ def register_user(request, payload: UserRegistrationSchema):
         # Crear el usuario
         user = Users.objects.create_user(
             email=payload.email,
-            name=payload.first_name,
+            first_name=payload.first_name,
             last_name=payload.last_name,
             telephone=payload.telephone,
             password=payload.password,

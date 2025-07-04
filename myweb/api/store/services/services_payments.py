@@ -3,6 +3,8 @@ services_payments.py
 Servicio de pagos con idempotencia, control de duplicados y simulación
 de pasarela / reembolso.
 """
+import stripe
+
 import uuid
 from decimal import Decimal
 from typing import Dict, Any, Optional
@@ -10,6 +12,9 @@ from typing import Dict, Any, Optional
 from django.db import transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.conf import settings
+
+from rich import console
 
 from ..models import (
     Orders,
@@ -18,7 +23,14 @@ from ..models import (
     PaymentStatus,
     SaleType,
     PaymentType,
+    OrderDetails
 )
+
+console = console.Console()
+
+stripe.api_key = settings.STRIPE_KEY
+
+DOMAIN = f"http://localhost:8080/"
 
 # -------------------------------------------------------------------
 #  Ayudas internas
@@ -49,7 +61,7 @@ class PaymentService:
         payment_method: str,
         payment_data: Dict[str, Any],
         idempotency_key: str,
-    ) -> Sales:
+    ):
         """
         Procesa el cobro de una orden garantizando idempotencia.
 
@@ -70,6 +82,7 @@ class PaymentService:
                     id=order_id,
                     state=OrderState.PENDING,
                 )
+                payment_data.setdefault("order", order)
             except Orders.DoesNotExist:
                 raise ValidationError("Orden no encontrada o no válida para pago")
 
@@ -84,15 +97,24 @@ class PaymentService:
                 return sale_prev  # reintento seguro
 
             # 3) Llamar (mock) a la pasarela
-            gw_result = PaymentService._process_payment_with_gateway(
+            PaymentService._process_payment_with_gateway(
                 amount=order.total,
                 payment_method=payment_method,
                 payment_data=payment_data,
             )
-            if not gw_result["success"]:
-                raise ValidationError(f"Pago rechazado: {gw_result['message']}")
 
-            # 4) Crear la venta
+    @staticmethod
+    def create_sale(
+            order: Orders,
+            payment_method: str,
+            payment_intent_id: str,
+            idempotency_key
+    ) -> Sales | None:
+        try:
+            order.state = OrderState.IN_PROGRESS
+
+            order.save()
+
             sale = Sales.objects.create(
                 order=order,
                 transaction_number=_next_transaction_number(),
@@ -103,15 +125,34 @@ class PaymentService:
                 payment_method=payment_method,
                 payment_type=PaymentType.ONLINE,
                 sale_type=SaleType.ONLINE,
-                transaction_id=gw_result["transaction_id"],
+                transaction_id= payment_intent_id,
                 idempotency_key=idempotency_key,
             )
 
-            # 5) Confirmar la orden
-            order.state = OrderState.CONFIRMED
-            order.save(update_fields=["state"])
-
             return sale
+        except Exception as e:
+            console.print_exception(show_locals=True)
+
+
+    @staticmethod
+    def cancel_payment(
+            order: Orders
+    ):
+        try:
+            order.state = OrderState.CANCELLED
+            order.save()
+        except Exception as e:
+            console.print_exception(show_locals=True)
+
+
+    @staticmethod
+    def _get_payment_intent_id(session_id):
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            return session.payment_intent
+        except Exception as e:
+            console.print_exception(show_locals=True)
+            return None
 
     # ──────────────────────────────────────────────────────────
     #  Reembolso
@@ -167,23 +208,35 @@ class PaymentService:
         amount: Decimal,
         payment_method: str,
         payment_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ):
         """Simula validaciones básicas y genera un transaction_id."""
-        for field in ("card_number", "expiry_date", "cvv"):
-            if not payment_data.get(field):
-                return {"success": False, "message": f"Campo {field} requerido"}
 
-        card = payment_data["card_number"]
-        if card.endswith("0000"):
-            return {"success": False, "message": "Tarjeta rechazada por el banco"}
-        if card.endswith("1111"):
-            return {"success": False, "message": "Fondos insuficientes"}
+        detail_list: list[OrderDetails] = OrderDetails.objects.filter(order=payment_data.get("order"))
 
-        return {
-            "success": True,
-            "transaction_id": f"TXN_{uuid.uuid4().hex[:16].upper()}",
-            "message": "Pago aprobado",
-        }
+        line_items = []
+        for detail in detail_list:
+            line_items.append({
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": int(round(detail.product_metadata.unit_price*100)),
+                    "product_data": {
+                        "name": detail.product_metadata.name,
+                        "images": [detail.product_metadata.image_url],
+                    },
+                },
+                "quantity": detail.quantity,
+            })
+
+        try:
+            session = stripe.checkout.Session.create(
+                payment_method_types=[payment_method],
+                line_items=line_items,
+                mode="payment",
+                success_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
+                cancel_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/cancel?order_id={payment_data.get('order_id')}",
+            )
+        except Exception as e:
+            console.print_exception(show_locals=True)
 
     @staticmethod
     def _process_refund_with_gateway(
