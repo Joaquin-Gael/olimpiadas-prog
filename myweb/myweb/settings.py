@@ -1,11 +1,11 @@
 from pathlib import Path
-import os
+
 from dotenv import load_dotenv
+from uuid import uuid4
 
 import dj_database_url
 from datetime import timedelta
 
-from django.conf.global_settings import AUTH_USER_MODEL
 from env import (
     DEBUG,
     DATABASE_URL,
@@ -14,7 +14,8 @@ from env import (
     EMAIL_PORT,
     EMAIL_USE_TLS,
     EMAIL_HOST_USER,
-    EMAIL_HOST_PASSWORD
+    EMAIL_HOST_PASSWORD,
+    STRIPE_KEY
 )
 
 import os
@@ -24,6 +25,8 @@ load_dotenv(BASE_DIR / ".env")
 
 
 SECRET_KEY = SECRET_KEY
+STRIPE_KEY = STRIPE_KEY
+ID_PREFIX = uuid4()
 
 DEBUG = DEBUG
 
@@ -33,8 +36,8 @@ API_TITLE = "TITLE-API"
 API_DESCRIPTION = "DESCRIPTION-API"
 API_VERSION = "0.0.24"
 
-JWT_TOKEN_EXPIRES = timedelta(minutes=15)
-JWT_REFRESH_TOKEN_EXPIRES = timedelta(minutes=30)
+JWT_TOKEN_EXPIRES = timedelta(minutes=30)
+JWT_REFRESH_TOKEN_EXPIRES = timedelta(minutes=60)
 JWT_HASH_ALGORITHM = "HS256"
 
 LOCAL_APPS = [

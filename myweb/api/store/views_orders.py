@@ -4,7 +4,10 @@ Vistas para manejo de órdenes
 from typing import List, Optional
 from django.http import HttpRequest
 from django.core.exceptions import ValidationError
-from ninja import Router
+from ninja import Router, Query
+from ninja.errors import HttpError
+
+from uuid import uuid4
 
 from .models import Orders, Sales
 from .schemas import (
@@ -31,16 +34,78 @@ def get_idempotency_key(request) -> Optional[str]:
         • HTTP_IDEMPOTENCY_KEY          (Ninja TestClient)
     """
     return (
-        request.headers.get("Idempotency-Key")
-        or request.headers.get("HTTP_IDEMPOTENCY_KEY")
+            request.headers.get("Idempotency-Key")
+            or request.headers.get("HTTP_IDEMPOTENCY_KEY")
     )
 
-router = Router(tags=["orders"])
+router = Router(tags=["Orders"])
 
+@router.get(
+    "/pay/success",
+    response={200: PaymentOut, 404: ErrorResponse, 500: ErrorResponse},
+    summary="Verifica el estado de un pago exitoso"
+)
+def pay_success(request, session_id: str = Query(...), order_id: int = Query(...), payment_method: str = Query(...)):
+    try:
+        order = Orders.objects.get(id=order_id)
+
+        payment_intent_id = PaymentService._get_payment_intent_id(session_id)
+
+        if payment_intent_id is None:
+            raise Exception("Payment intent not found")
+
+        sale = PaymentService.create_sale(
+            order=order,
+            payment_method=payment_method,
+            payment_intent_id=payment_intent_id,
+            idempotency_key=str(uuid4())
+        )
+
+        OrderNotificationService.send_payment_confirmation(sale)
+
+        return 200, PaymentOut(
+            sale_id=sale.id,
+            amount=float(sale.amount),
+            payment_method=payment_method,
+            payment_status=sale.payment_status,
+            transaction_id=sale.transaction_id,
+            created_at=sale.created_at,
+            order_id=order_id,
+        )
+
+    except Orders.DoesNotExist:
+        return 404, ErrorResponse(
+            message="Orden no encontrada",
+            error_code="ORDER_NOT_FOUND"
+        )
+
+    except Exception as e:
+        return HttpError(status_code=500, message=str(e))
+
+@router.get(
+    "/pay/cancel",
+    response={200:SuccessResponse, 404:ErrorResponse, 500:ErrorResponse},
+    summary="Verifica el estado de un pago canselado"
+)
+def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)):
+    try:
+        order = Orders.objects.get(id=order_id)
+        PaymentService.cancel_payment(order)
+        return 200, SuccessResponse(
+            message="Orden cancelada exitosamente",
+            data={"order_id": order.id, "state": order.state}
+        )
+    except Orders.DoesNotExist:
+        return 404, ErrorResponse(
+            message="Orden no encontrada",
+            error_code="ORDER_NOT_FOUND"
+        )
+    except Exception as e:
+        return HttpError(status_code=500, message=str(e))
 
 @router.post(
     "/orders/{order_id}/pay",
-    response={200: PaymentOut, 400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
+    response={400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
 )
 def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
     """
@@ -53,36 +118,23 @@ def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
                 message="Header Idempotency-Key es requerido",
                 error_code="MISSING_IDEMPOTENCY_KEY",
             )
-        
+
         # Preparar datos del pago
         payment_data = {
-            'card_number': payload.card_number,
-            'expiry_date': payload.expiry_date,
-            'cvv': payload.cvv,
-            'cardholder_name': payload.cardholder_name
+            'order_id': order_id,
         }
-        
+
         # Procesar el pago
-        sale = PaymentService.process_payment(
+        PaymentService.process_payment(
             order_id=order_id,
             payment_method=payload.payment_method,
             payment_data=payment_data,
             idempotency_key=idemp_key
         )
-        
+
         # Enviar notificación de confirmación de pago
-        OrderNotificationService.send_payment_confirmation(sale)
-        
-        return 200, PaymentOut(
-            sale_id=sale.id,
-            transaction_id=sale.transaction_id,
-            amount=float(sale.amount),
-            payment_status=sale.payment_status,
-            order_id=sale.order.id,
-            payment_method=sale.payment_method,
-            created_at=sale.created_at
-        )
-        
+        #OrderNotificationService.send_payment_confirmation(sale)
+
     except ValidationError as e:
         return 400, ErrorResponse(
             message=str(e),
@@ -102,16 +154,16 @@ def cancel_order(request: HttpRequest, order_id: int, payload: OrderCancelIn = N
     """
     try:
         order = order_srv.OrderService.cancel_order(order_id, request.user.id)
-        
+
         # Enviar notificación de cancelación
         reason = payload.reason if payload else None
         OrderNotificationService.send_order_cancellation(order, reason)
-        
+
         return 200, SuccessResponse(
             message="Orden cancelada exitosamente",
             data={"order_id": order.id, "state": order.state}
         )
-        
+
     except ValidationError as e:
         return 400, ErrorResponse(
             message=str(e),
@@ -132,18 +184,18 @@ def list_orders(request: HttpRequest, filters: OrderFilterIn = OrderFilterIn()):
     try:
         # Obtener órdenes del usuario con filtros
         queryset = Orders.objects.filter(client=request.user)
-        
+
         if filters.state:
             queryset = queryset.filter(state=filters.state)
-        
+
         if filters.start_date:
             queryset = queryset.filter(created_at__gte=filters.start_date)
-        
+
         if filters.end_date:
             queryset = queryset.filter(created_at__lte=filters.end_date)
-        
+
         orders = queryset.order_by('-created_at')[:filters.limit]
-        
+
         return 200, [
             OrderListOut(
                 id=order.id,
@@ -154,7 +206,7 @@ def list_orders(request: HttpRequest, filters: OrderFilterIn = OrderFilterIn()):
             )
             for order in orders
         ]
-        
+
     except Exception as e:
         return 500, ErrorResponse(
             message=f"Error interno: {str(e)}",
@@ -175,7 +227,7 @@ def get_payment_status(request: HttpRequest, order_id: int):
                 message="Orden no encontrada",
                 error_code="ORDER_NOT_FOUND"
             )
-        
+
         # Buscar la venta asociada
         try:
             sale = Sales.objects.get(order=order)
@@ -192,7 +244,7 @@ def get_payment_status(request: HttpRequest, order_id: int):
                 payment_status="PENDING",
                 message="No se ha procesado ningún pago para esta orden"
             )
-        
+
     except Exception as e:
         return 500, ErrorResponse(
             message=f"Error interno: {str(e)}",
@@ -213,7 +265,7 @@ def refund_order(request: HttpRequest, order_id: int, payload: RefundIn):
                 message="Orden no encontrada",
                 error_code="ORDER_NOT_FOUND"
             )
-        
+
         # Buscar la venta
         try:
             sale = Sales.objects.get(order=order)
@@ -222,25 +274,25 @@ def refund_order(request: HttpRequest, order_id: int, payload: RefundIn):
                 message="No se encontró una venta para esta orden",
                 error_code="SALE_NOT_FOUND"
             )
-        
+
         # Procesar reembolso
         refunded_sale = PaymentService.refund_payment(
             sale_id=sale.id,
             amount=payload.amount
         )
-        
+
         # Enviar notificación de reembolso
         OrderNotificationService.send_refund_confirmation(
-            refunded_sale, 
+            refunded_sale,
             refund_amount=payload.amount
         )
-        
+
         return 200, RefundOut(
             message="Reembolso procesado exitosamente",
             sale_id=refunded_sale.id,
             refunded_amount=float(payload.amount or refunded_sale.amount)
         )
-        
+
     except ValidationError as e:
         return 400, ErrorResponse(
             message=str(e),
@@ -266,7 +318,7 @@ def get_order_sale(request: HttpRequest, order_id: int):
                 message="Orden no encontrada",
                 error_code="ORDER_NOT_FOUND"
             )
-        
+
         # Buscar la venta
         try:
             sale = Sales.objects.get(order=order)
@@ -284,7 +336,7 @@ def get_order_sale(request: HttpRequest, order_id: int):
                 message="No se encontró una venta para esta orden",
                 error_code="SALE_NOT_FOUND"
             )
-        
+
     except Exception as e:
         return 500, ErrorResponse(
             message=f"Error interno: {str(e)}",
@@ -299,7 +351,7 @@ def get_sales_summary(request: HttpRequest):
     """
     try:
         summary = SalesService.get_sales_summary(request.user.id)
-        
+
         return 200, SaleSummaryOut(
             total_sales=summary['total_sales'],
             total_amount=float(summary['total_amount']),
@@ -307,9 +359,9 @@ def get_sales_summary(request: HttpRequest):
             recent_sales_amount=float(summary['recent_sales_amount']),
             average_amount=float(summary['average_amount'])
         )
-        
+
     except Exception as e:
         return 500, ErrorResponse(
             message=f"Error interno: {str(e)}",
             error_code="INTERNAL_ERROR"
-        ) 
+        )

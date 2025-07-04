@@ -78,10 +78,10 @@ class OrderCancelIn(BaseModel):
 # ── Schemas para Pagos ─────────────────────────────────────────
 class PaymentMethodIn(BaseModel):
     payment_method: str = Field(..., description="Método de pago (credit_card, debit_card, etc.)")
-    card_number: str = Field(..., min_length=13, max_length=19, description="Número de tarjeta")
-    expiry_date: str = Field(..., pattern=r"^\d{2}/\d{2}$", description="Fecha de vencimiento (MM/YY)")
-    cvv: str = Field(..., min_length=3, max_length=4, description="Código de seguridad")
-    cardholder_name: str = Field(..., min_length=2, description="Nombre del titular")
+    #card_number: str = Field(..., min_length=13, max_length=19, description="Número de tarjeta")
+    #expiry_date: str = Field(..., pattern=r"^\d{2}/\d{2}$", description="Fecha de vencimiento (MM/YY)")
+    #cvv: str = Field(..., min_length=3, max_length=4, description="Código de seguridad")
+    #cardholder_name: str = Field(..., min_length=2, description="Nombre del titular")
 
 class PaymentOut(BaseModel):
     sale_id: int
