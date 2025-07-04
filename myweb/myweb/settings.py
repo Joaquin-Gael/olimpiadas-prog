@@ -31,6 +31,12 @@ ID_PREFIX = uuid4()
 DEBUG = DEBUG
 
 ALLOWED_HOSTS = ["*"]
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:4200",
+    "http://127.0.0.1:8080",
+]
 
 API_TITLE = "TITLE-API"
 API_DESCRIPTION = "DESCRIPTION-API"
@@ -56,12 +62,14 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_extensions'
+    'django_extensions',
+    'corsheaders'
 ]
 
 INSTALLED_APPS: list = DJANGO_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
