@@ -6,7 +6,16 @@ import dj_database_url
 from datetime import timedelta
 
 from django.conf.global_settings import AUTH_USER_MODEL
-from env import DEBUG, DATABASE_URL, SECRET_KEY
+from env import (
+    DEBUG,
+    DATABASE_URL,
+    SECRET_KEY,
+    EMAIL_HOST,
+    EMAIL_PORT,
+    EMAIL_USE_TLS,
+    EMAIL_HOST_USER,
+    EMAIL_HOST_PASSWORD
+)
 
 import os
 
@@ -44,11 +53,13 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions'
 ]
 
 INSTALLED_APPS: list = DJANGO_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -115,20 +126,20 @@ USE_TZ = True
 
 STATIC_URL = '/assets/'
 STATICFILES_DIRS = [
-    BASE_DIR / 'assets',
+    BASE_DIR / 'assets_src',
 ]
-STATIC_ROOT = BASE_DIR / "assets_production"
+STATIC_ROOT = BASE_DIR / "assets"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuración de correo desde variables de entorno
-EMAIL_BACKEND      = os.getenv("EMAIL_BACKEND")
-EMAIL_HOST         = os.getenv("SMTP_HOST")
-EMAIL_PORT         = int(os.getenv("SMTP_PORT", 25))
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
-EMAIL_HOST_USER    = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD= os.getenv("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS      = os.getenv("EMAIL_USE_TLS", "False") == "True"
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = EMAIL_HOST
+EMAIL_PORT = EMAIL_PORT
+#DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
+EMAIL_HOST_USER = EMAIL_HOST_USER
+EMAIL_HOST_PASSWORD = EMAIL_HOST_PASSWORD
+EMAIL_USE_TLS = EMAIL_USE_TLS
 
 # Configuración de Celery (Redis)
 CELERY_BROKER_URL  = os.getenv("REDIS_URL", "redis://localhost:6379/0")

@@ -3,7 +3,7 @@ from ninja import Router
 from ninja.errors import HttpError
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.utils import timezone
+from django.utils import timezone # Dependencia sin utilizar
 
 from .models import Cart, CartItem
 from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn
@@ -13,7 +13,12 @@ from .services import services_orders as order_srv
 from .idempotency import store_idempotent
 from api.products.services.stock_services import InsufficientStockError
 
-router = Router(tags=["Cart"])
+from api.core.auth import JWTBearer
+
+router = Router(
+    tags=["Cart"],
+    auth=JWTBearer()
+)
 
 # ── Helper: obtener (o crear) carrito OPEN del usuario ─────────
 def _get_open_cart(user, currency=None):

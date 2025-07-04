@@ -4,8 +4,11 @@ from asgiref.sync import sync_to_async
 
 from django.shortcuts import get_object_or_404, get_list_or_404
 from django.http.response import Http404
+from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 
-from ninja import Router
+
+from ninja import Router, Query
 from ninja.responses import Response
 from ninja.errors import HttpError
 
@@ -23,12 +26,14 @@ from .schemas import (
     EmployeeUpdateSchema,
     EmployeeDeleteSchema,
     AuditSchema,
+    EmployeeAuditsScheme
 )
 
 console = Console()
 
 router = Router(
-    tags=["Employees"]
+    tags=["Employees"],
+    auth=JWTBearer()
 )
 
 
@@ -83,7 +88,6 @@ async def list_employees(request):
     except Exception as e:
         return HttpError(status_code=500, message=str(e))
 
-
 @router.get(
     "/{employee_id}/see",
     response={200: EmployeeResponseSchema, 404: ErrorResponseSchema},
@@ -111,11 +115,11 @@ async def get_employee(request, employee_id: int):
     response={200: List[AuditSchema], 404: ErrorResponseSchema, 400: ErrorResponseSchema},
     summary="Retrieve employee audits"
 )
-async def get_employee_audits(request, employee_id: int, limit: Optional[int] = 10):
+async def get_employee_audits(request, employee_id: int, start: Optional[int] = 0, limit: Optional[int] = 10):
     try:
         emp = await sync_to_async(get_object_or_404)(Employees, id=employee_id)
 
-        audits = emp.audits.all().order_by('-date')[:limit]
+        audits = emp.audits.all().order_by('-date')[start:limit]
         serialized_audits = [AuditSchema.from_orm(i) for i in audits]
 
         return serialized_audits
@@ -124,6 +128,27 @@ async def get_employee_audits(request, employee_id: int, limit: Optional[int] = 
         return Response(ErrorResponseSchema(message="Error al obtener el empleado", detail=str(e)), status=404)
     except Exception as e:
         console.print_exception(show_locals=True)
+        return HttpError(status_code=500, message=str(e))
+
+
+@router.get(
+    "/{employee_id}/audits"
+)
+async def get_employee_audits_paginated(request, employee_id: int, query: EmployeeAuditsScheme = Query(...)):
+    try:
+        emp = get_object_or_404(Employees, id=employee_id)
+
+        _model = apps.get_model('products', query.product_type)
+
+        ct = ContentType.objects.get_for_model(_model)
+
+        audits: list = emp.audits.filter(action=query.action, content_type=ct).order_by('-date')
+
+        serialized_audist = [AuditSchema.from_orm(i) for i in audits]
+
+        return serialized_audist
+
+    except Exception as e:
         return HttpError(status_code=500, message=str(e))
 
 @router.put(

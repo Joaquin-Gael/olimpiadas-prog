@@ -3,6 +3,7 @@ from typing import List, Any, Optional
 from datetime import datetime
 from decimal import Decimal
 
+
 # ── Salidas ────────────────────────────────────────────────────
 class CartItemOut(BaseModel):
     id: int
@@ -21,6 +22,15 @@ class CartOut(BaseModel):
     currency: str
     updated_at: datetime
     items: List[CartItemOut]
+
+class SalesOut(Schema):
+    id: int
+    order: int
+    total: float
+    sale_date: datetime
+    payment_status: str
+    sale_type: str
+    payment_type: str
 
 # ── Entradas ───────────────────────────────────────────────────
 class ItemAddIn(BaseModel):

@@ -337,8 +337,11 @@ def list_categories(request):
     """
     Lists all active categories
     """
-    categories = Category.objects.active().all().order_by('name')
-    return [CategoryOut.from_orm(cat) for cat in categories]
+    try:
+        categories = Category.objects.get().all().order_by('name')
+        return [CategoryOut.from_orm(cat) for cat in categories]
+    except Exception as e:
+        raise HttpError(500, f"Error listing categories: {e}")
 
 
 @category_router.get("/{category_id}", response=CategoryOut)

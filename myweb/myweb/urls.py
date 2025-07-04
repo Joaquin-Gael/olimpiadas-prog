@@ -18,6 +18,7 @@ from api.products.views_supliers import suppliers_router
 from api.employees.views_employees import router as employees_router
 from api.store.views_cart import router as store_router
 from api.store.views_orders import router as orders_router
+from api.store.views_sales import router as sales_router
 
 id_prefix = uuid4()
 
@@ -39,6 +40,8 @@ main_router.add_router("/employees/", employees_router)
 main_router.add_router("/store/", store_router)
 # Agregar las rutas de orders
 main_router.add_router("/orders/", orders_router)
+# Agregar las rutas de sales
+main_router.add_router("/sales/", sales_router)
 
 class Layout(Enum):
     MODERN = "modern"
@@ -366,12 +369,8 @@ async def scalar_html(request):
         hide_download_button=True,
         layout=Layout.MODERN,
         dark_mode=True,
-        scalar_favicon_url="/assets/img/logo-rest-doc.png"
+        scalar_favicon_url="/assets_src/img/logo-rest-doc.png"
     )
-
-@main_router.get("/id_prefix_api_secret/", include_in_schema=False)
-async def get_secret(request):
-    return {"id_prefix_api_secret": str(id_prefix)}
 
 api = NinjaAPI(
     title=settings.API_TITLE,
@@ -380,17 +379,13 @@ api = NinjaAPI(
     docs_url=None
 )
 
+@api.get("/id_prefix_api_secret/", include_in_schema=False)
+async def get_secret(request):
+    return {"id_prefix_api_secret": str(id_prefix)}
+
 api.add_router(f"/{str(id_prefix)}/", main_router)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', api.urls),
-    path(
-        'assets/<path:path>',
-        serve,
-        {
-            "document_root":settings.STATICFILES_DIRS[0],
-        },
-        name="static-serve",
-    )
+    path('', api.urls)
 ]
