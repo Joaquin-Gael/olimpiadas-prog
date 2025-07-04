@@ -1,1 +1,0 @@
-# Servicios de dominio del módulo store 

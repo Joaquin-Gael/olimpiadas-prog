@@ -68,7 +68,7 @@ def _recalculate_cart(cart: Cart):
         total=models.Sum(price_expr),
     )
     cart.items_cnt = agg["items_cnt"] or 0
-    cart.total     = agg["total"]     or Decimal("0.00")
+    cart.total     = (agg["total"] or Decimal("0.00")).quantize(Decimal("0.01"))
     cart.updated_at = timezone.now()
     cart.save(update_fields=["items_cnt", "total", "updated_at"])
 
@@ -227,5 +227,10 @@ def checkout(cart: Cart, order_creator_fn):
     cart.status = "ORDERED"
     cart.updated_at = timezone.now()
     cart.save(update_fields=["status", "updated_at"])
+
+    # ── 4. LOGGING ────────────────────────────────────────────
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("cart_checked_out", extra={"cart_id": cart.id, "order_id": order.id})
 
     return order 

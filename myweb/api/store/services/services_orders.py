@@ -1,140 +1,143 @@
 """
-Servicios de dominio para órdenes.
-
-► Una única fuente de verdad para:
-  • crear órdenes desde carritos
-  • manejar estados de órdenes
-  • validaciones de negocio
-
-Cualquier vista (API / admin / tests) solo llama a estas funciones.
+Servicios para manejo de órdenes de compra
 """
-
 from decimal import Decimal
+from typing import Optional
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Orders, OrderDetails, Cart
-from api.products.models import ProductsMetadata
-from api.products.services.stock_services import (
-    reserve_activity,       release_activity,
-    reserve_transportation, release_transportation,
-    reserve_room_availability, release_room_availability,
-    reserve_flight,         release_flight,
-    InsufficientStockError,
-)
+from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
+from api.notification.services_new import NotificationService
 
-# ──────────────────────────────────────────────────────────────
-# 1. EXCEPCIONES DE DOMINIO
-# ──────────────────────────────────────────────────────────────
-
-class OrderCreationError(Exception):
-    """Error al crear la orden desde el carrito."""
 
 class InvalidCartStateError(Exception):
     """El carrito no está en estado válido para crear orden."""
 
-# ──────────────────────────────────────────────────────────────
-# 2. MAPA PRODUCTO → FUNCIÓN DE STOCK
-# ──────────────────────────────────────────────────────────────
+class OrderCreationError(Exception):
+    """Error al crear la orden."""
 
-_STOCK_MAP = {
-    "activity":       (reserve_activity, release_activity),
-    "transportation": (reserve_transportation, release_transportation),
-    "lodgment":       (reserve_room_availability, release_room_availability),
-    "flight":         (reserve_flight,   release_flight),
-}
-
-def _get_stock_funcs(product_type: str):
-    """Devuelve (reserve_fn, release_fn) según product_type."""
-    try:
-        return _STOCK_MAP[product_type]
-    except KeyError:  # producto todavía no soportado
-        raise ValueError(f"Tipo de producto no soportado: {product_type}")
-
-# ──────────────────────────────────────────────────────────────
-# 3. API DE SERVICIO
-# ──────────────────────────────────────────────────────────────
 
 @transaction.atomic
-def create_order_from_cart(cart: Cart) -> Orders:
+def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
     """
-    Convierte un carrito en una orden formal con líneas de detalle.
-    
-    Pasos:
-      1. Re-chequeo de stock (validación final)
-      2. Crear encabezado de la orden
-      3. Crear líneas de detalle (OrderDetails)
-      4. Devolver la orden creada
+    Crea una orden desde un carrito existente.
     
     Args:
-        cart: Carrito en estado OPEN con ítems
+        cart_id: ID del carrito
+        user_id: ID del usuario
+        idempotency_key: Clave de idempotencia
         
     Returns:
-        Orders: La orden creada con sus detalles
+        Orders: La orden creada
         
     Raises:
-        InvalidCartStateError: Si el carrito no está en estado OPEN
-        InsufficientStockError: Si no hay stock suficiente para algún ítem
-        OrderCreationError: Si falla la creación de la orden
+        InvalidCartStateError: Si el carrito no es válido
+        OrderCreationError: Si hay error al crear la orden
     """
-    if cart.status != "OPEN":
-        raise InvalidCartStateError("El carrito debe estar en estado OPEN")
+    cart = (Cart.objects
+            .select_for_update()
+            .prefetch_related("items")
+            .get(id=cart_id, client_id=user_id, status=CartStatus.OPEN))
     
-    if not cart.items.exists():
-        raise OrderCreationError("El carrito no tiene ítems para procesar")
+    if not cart.items_cnt:
+        raise InvalidCartStateError("EMPTY_CART")
     
-    # 1. Re-chequeo de stock (validación final)
-    for line in cart.items.select_related(None):
-        try:
-            metadata = ProductsMetadata.objects.get(id=line.product_metadata_id)
-            reserve_fn, _ = _get_stock_funcs(metadata.product_type)
-            # qty = 0 significa "solo validar que existe y está activo"
-            reserve_fn(line.availability_id, 0)
-        except InsufficientStockError:
-            raise InsufficientStockError(f"Stock insuficiente para el producto {line.product_metadata_id}")
-        except Exception as e:
-            raise OrderCreationError(f"Error validando stock: {str(e)}")
+    order = Orders.objects.create(
+        client_id=user_id,
+        date=timezone.now(),
+        state=OrderState.PENDING,
+        total=cart.total,
+        idempotency_key=idempotency_key,
+    )
     
-    # 2. Crear encabezado de la orden
-    try:
-        order = Orders.objects.create(
-            client=cart.client,
-            date=timezone.now(),
-            state="Pending",  # Estado inicial según OrderTravelPackageStatus
-            total=cart.total,
-            address=cart.client.addresses.first(),  # Dirección por defecto del cliente
-            notes="Generada desde checkout del carrito",
+    OrderDetails.objects.bulk_create([
+        OrderDetails(
+            order=order,
+            product_metadata_id=li.product_metadata_id,
+            availability_id=li.availability_id,
+            quantity=li.qty,
+            unit_price=li.unit_price,
+            subtotal=li.qty * li.unit_price,
+            discount_applied=Decimal("0.00"),
+        ) for li in cart.items.all()
+    ])
+    
+    NotificationService.booking_pending(order)
+    return order
+
+
+def cancel_order(order_id: int, user_id: int):
+    """
+    Cancela una orden.
+    
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+        
+    Returns:
+        Orders: La orden cancelada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
         )
-    except Exception as e:
-        raise OrderCreationError(f"Error creando encabezado de orden: {str(e)}")
-    
-    # 3. Crear líneas de detalle (OrderDetails)
-    try:
-        bulk_details = []
-        for line in cart.items.all():
-            metadata = ProductsMetadata.objects.get(id=line.product_metadata_id)
-            
-            # Buscar el paquete asociado (si existe)
-            package = None
-            if hasattr(metadata, 'package'):
-                package = metadata.package
-            
-            bulk_details.append(OrderDetails(
-                order=order,
-                product_metadata=metadata,
-                package=package,
-                availability_id=line.availability_id,
-                quantity=line.qty,
-                unit_price=line.unit_price,
-                subtotal=line.unit_price * line.qty,
-                discount_applied=Decimal("0.00"),
-            ))
         
-        # Crear todas las líneas de una vez (más eficiente)
-        OrderDetails.objects.bulk_create(bulk_details)
+        if order.state not in [OrderState.PENDING, OrderState.CONFIRMED]:
+            raise InvalidCartStateError("No se puede cancelar esta orden")
         
-    except Exception as e:
-        # Si falla la creación de detalles, la transacción se revierte automáticamente
-        raise OrderCreationError(f"Error creando líneas de detalle: {str(e)}")
+        order.state = OrderState.CANCELLED
+        order.save()
+        
+        return order
+
+
+def pay_order(order_id: int, user_id: int, payment_method: str):
+    """
+    Marca una orden como pagada.
     
-    return order 
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+        payment_method: Método de pago
+        
+    Returns:
+        Orders: La orden pagada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
+        )
+        
+        if order.state != OrderState.PENDING:
+            raise InvalidCartStateError("La orden no está pendiente de pago")
+        
+        order.state = OrderState.CONFIRMED
+        order.save()
+        
+        return order
+
+
+def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
+    """
+    Reembolsa una orden.
+    
+    Args:
+        order_id: ID de la orden
+        user_id: ID del usuario
+        amount: Monto a reembolsar (si es None, reembolsa todo)
+        
+    Returns:
+        Orders: La orden reembolsada
+    """
+    with transaction.atomic():
+        order = Orders.objects.select_for_update().get(
+            id=order_id, client_id=user_id
+        )
+        
+        if order.state not in [OrderState.CONFIRMED, OrderState.COMPLETED]:
+            raise InvalidCartStateError("No se puede reembolsar esta orden")
+        
+        order.state = OrderState.REFUNDED
+        order.save()
+        
+        return order 

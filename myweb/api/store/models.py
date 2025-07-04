@@ -1,6 +1,5 @@
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.conf import settings
 from django.utils import timezone
 from decimal import Decimal
 
@@ -90,6 +89,15 @@ class InvoiceState(models.TextChoices):
 
     # Basado en Square API: DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, PARTIALLY_REFUNDED, REFUNDED, CANCELED, FAILED :contentReference[oaicite:1]{index=1}
 
+class OrderState(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    UPCOMING = "UPCOMING", "Upcoming"
+    IN_PROGRESS = "IN_PROGRESS", "In Progress"
+    COMPLETED = "COMPLETED", "Completed"
+    CANCELLED = "CANCELLED", "Cancelled"
+    REFUNDED = "REFUNDED", "Refunded"
+
 class BillType(models.TextChoices):
     STANDARD = "STANDARD", "Standard"
     PROFORMA = "PROFORMA", "Pro Forma"
@@ -128,7 +136,8 @@ class Orders(models.Model):
     date = models.DateTimeField()
     state = models.CharField(
         max_length=32,
-        choices=OrderTravelPackageStatus.choices(),
+        choices=OrderState.choices,
+        default=OrderState.PENDING
     )
     total = models.DecimalField(
         max_digits=10,
@@ -138,8 +147,9 @@ class Orders(models.Model):
         ],
         help_text="Total de la orden"
     )
-    address = models.ForeignKey(Addresses, on_delete=models.CASCADE)
-    notes = models.TextField()
+    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 class Notifications(models.Model):
     id = models.AutoField("notification_id", primary_key=True)
@@ -253,7 +263,7 @@ class VoucherDetails(models.Model):
     service_name = models.CharField(max_length=32)
     product_type = models.CharField(
         max_length=32,
-        choices=VoucherState.choices,
+        choices=ProductType.choices,
     )
     quantity = models.IntegerField(
         validators=[
@@ -288,18 +298,17 @@ class Bills(models.Model):
         default=BillType.STANDARD
     )
 
+class CartStatus(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        ORDERED = "ORDERED", "Ordered"
+        EXPIRED = "EXPIRED", "Expired"
+
 class Cart(models.Model):
     """Un carrito abierto por un cliente autenticado."""
-    STATUS_CHOICES = [
-        ("OPEN",     "Open"),
-        ("ORDERED",  "Ordered"),   # convertido a Order
-        ("EXPIRED",  "Expired"),   # job de limpieza
-    ]
 
     id         = models.AutoField(primary_key=True)
-    client     = models.ForeignKey(settings.AUTH_USER_MODEL,
-                                   on_delete=models.CASCADE, related_name="carts")
-    status     = models.CharField(max_length=8, choices=STATUS_CHOICES, default="OPEN")
+    client     = models.ForeignKey(Clients, on_delete=models.CASCADE, related_name="carts")
+    status     = models.CharField(max_length=8, choices=CartStatus.choices, default=CartStatus.OPEN)
     currency   = models.CharField(max_length=3, default="USD")       # 1 moneda por carrito
     total      = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     items_cnt  = models.PositiveIntegerField(default=0)
@@ -329,18 +338,29 @@ class CartItem(models.Model):
         unique_together = ["cart", "availability_id"]                # evita duplicar línea
 
 class StoreIdempotencyRecord(models.Model):
-    """
-    Guarda la respuesta *completa* de una primera llamada mutadora
-    — clave única por user+key+path+method, solo para store.
-    """
-    key        = models.CharField(max_length=64)
-    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    method     = models.CharField(max_length=6)
-    path       = models.CharField(max_length=128)
-    status     = models.PositiveSmallIntegerField()         # 200, 201, 409…
-    response   = models.JSONField()                         # cuerpo JSON serializado
+
+    class Status(models.IntegerChoices):
+        IN_PROGRESS = 0, "In progress"
+        COMPLETED   = 1, "Completed"
+        FAILED      = 2, "Failed"
+
+    key      = models.CharField(max_length=64)
+    user     = models.ForeignKey(
+        Clients, on_delete=models.CASCADE, null=True, blank=True
+    )
+    method   = models.CharField(max_length=6)
+    path     = models.CharField(max_length=256)
+    status   = models.PositiveSmallIntegerField(
+        choices=Status.choices, default=Status.IN_PROGRESS
+    )
+    response   = models.JSONField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ["key", "user", "method", "path"]
-        indexes         = [models.Index(fields=["created_at"])]
+        indexes = [
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.key} • {self.method} {self.path} ({self.get_status_display()})"
