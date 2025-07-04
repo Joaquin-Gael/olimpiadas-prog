@@ -144,7 +144,7 @@ async def login_user(request, payload: UserLoginSchema):
                 "message":"Login exitoso",
                 "data":{
                     "access_token": token,
-                    "_refresh_token": _refresh_token,
+                    "refresh_token": _refresh_token,
                 }
             },
             status=200
@@ -191,6 +191,9 @@ async def refresh_token(request):
     try:
         user = request.user
 
+        console.print(user)
+        console.print(request.scopes)
+
         if user is None:
             return Response(
                 {"message": "Credenciales inválidas", "detail": "Email o contraseña incorrectos"},
@@ -205,7 +208,7 @@ async def refresh_token(request):
 
         payload={
             "sub":str(user.id),
-            "scopes": list(user.get_all_permissions())
+            "scopes": list(await sync_to_async(user.get_all_permissions)())
         }
 
         token = gen_token(payload=payload)
@@ -216,7 +219,7 @@ async def refresh_token(request):
                 "message":"Login exitoso",
                 "data":{
                     "access_token": token,
-                    "_refresh_token": _refresh_token,
+                    "refresh_token": _refresh_token,
                 }
             },
             status=200
@@ -235,6 +238,8 @@ async def me_user(request):
     """
 
     try:
+        console.print(request.user)
+        console.print(request.scopes)
         if request.user is None:
             return Response(ErrorResponseSchema(message="We cannot find user in this session", detail="Request-User = None"), status=401)
 

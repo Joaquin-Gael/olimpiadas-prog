@@ -51,7 +51,11 @@ class Clients(models.Model):
     state = models.CharField(max_length=32)
 
 class AddressType(Enum):
-
+    HOME = 'Home'
+    WORK = 'Work'
+    BILLING = 'Billing'
+    SHIPPING = 'Shipping'
+    OTHER = 'Other'
 
     @classmethod
     def choices(cls):

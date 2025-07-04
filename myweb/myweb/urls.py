@@ -7,7 +7,6 @@ from django.conf import settings
 import json
 from enum import Enum
 from typing_extensions import Annotated, Doc
-from uuid import uuid4
 
 from ninja import NinjaAPI, Router
 
@@ -20,7 +19,7 @@ from api.store.views_cart import router as store_router
 from api.store.views_orders import router as orders_router
 from api.store.views_sales import router as sales_router
 
-id_prefix = uuid4()
+id_prefix = settings.ID_PREFIX
 
 main_router = Router()
 

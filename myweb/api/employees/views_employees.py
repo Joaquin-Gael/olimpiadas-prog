@@ -38,7 +38,7 @@ router = Router(
 
 
 @router.post(
-    "/create",
+    "/create/",
     response={201: EmployeeResponseSchema, 400: ErrorResponseSchema, 404: ErrorResponseSchema},
     summary="Create a new employee"
 )
@@ -89,7 +89,7 @@ async def list_employees(request):
         return HttpError(status_code=500, message=str(e))
 
 @router.get(
-    "/{employee_id}/see",
+    "/{employee_id}/see/",
     response={200: EmployeeResponseSchema, 404: ErrorResponseSchema},
     summary="Retrieve a single employee by ID"
 )
@@ -111,7 +111,7 @@ async def get_employee(request, employee_id: int):
         return HttpError(status_code=500, message=str(e))
 
 @router.get(
-    "/{employee_id}/audits",
+    "/{employee_id}/audits/",
     response={200: List[AuditSchema], 404: ErrorResponseSchema, 400: ErrorResponseSchema},
     summary="Retrieve employee audits"
 )
@@ -152,7 +152,7 @@ async def get_employee_audits_paginated(request, employee_id: int, query: Employ
         return HttpError(status_code=500, message=str(e))
 
 @router.put(
-    "/update/{employee_id}",
+    "/update/{employee_id}/",
     response={200: EmployeeResponseSchema, 404: ErrorResponseSchema, 400: ErrorResponseSchema},
     summary="Update an existing employee"
 )
@@ -186,7 +186,7 @@ async def update_employee(request, employee_id: int, payload: EmployeeUpdateSche
 
 
 @router.delete(
-    "/delete/{employee_id}",
+    "/delete/{employee_id}/",
     response={204: EmployeeDeleteSchema, 404: ErrorResponseSchema},
     summary="Delete an employee"
 )
