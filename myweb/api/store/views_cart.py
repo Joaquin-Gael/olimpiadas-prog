@@ -28,16 +28,7 @@ def _get_open_cart(user, currency=None):
 @router.get("/cart/", response=CartOut)
 def get_cart(request):
     cart = _get_open_cart(request.user, "USD")
-    items_out = [CartItemOut(
-        **item.__dict__,
-        unit_price=float(item.unit_price)
-    ) for item in cart.items.all()]
-
-    return CartOut(
-        **cart.__dict__,
-        total=float(cart.total),
-        items=items_out
-    )
+    return CartOut.from_orm(cart)
 
 # ───────────────────────────────────────────────────────────────
 # 2. Añadir ítem
@@ -64,10 +55,7 @@ def add_item(request, payload: ItemAddIn):
     except cart_srv.CartClosedError:     # improbable aquí
         raise HttpError(409, "carrito_cerrado")
 
-    return CartItemOut(
-        **item.__dict__,
-        unit_price=float(item.unit_price)
-    )
+    return CartItemOut.from_orm(item)
 
 # ───────────────────────────────────────────────────────────────
 # 3. Cambiar cantidad
@@ -84,10 +72,7 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
 
-    return CartItemOut(
-        **item.__dict__,
-        unit_price=float(item.unit_price)
-    )
+    return CartItemOut.from_orm(item)
 
 # ───────────────────────────────────────────────────────────────
 # 4. Eliminar ítem
@@ -104,16 +89,27 @@ def delete_item(request, item_id: int):
 # ───────────────────────────────────────────────────────────────
 # 5. Checkout  → crea Order
 # ───────────────────────────────────────────────────────────────
-@router.post("/cart/checkout/", response={201: dict})
+@router.post(
+    "/cart/checkout/",
+    response={201: dict},
+    summary="Checkout del carrito",
+    description="Convierte el carrito actual en una orden. Es idempotente y revalida stock. Requiere header Idempotency-Key."
+)
 @store_idempotent()
 @transaction.atomic
 def checkout(request):
     cart = _get_open_cart(request.user, "USD")
+    idemp_key = request.headers.get("Idempotency-Key") \
+                or request.headers.get("HTTP_IDEMPOTENCY_KEY")
 
     try:
         # Usar el servicio de carrito para hacer checkout (incluye re-chequeo de stock)
-        order = cart_srv.checkout(cart, order_srv.create_order_from_cart)
-        
+        order = cart_srv.checkout(
+            cart,
+            lambda c: order_srv.create_order_from_cart(
+                c.id, c.client_id, idempotency_key=idemp_key
+            )
+        )
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
     except InsufficientStockError:

@@ -7,8 +7,6 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
-from django.utils import timezone
-from api.store.models import Notifications, NotificationType
 
 logger = logging.getLogger(__name__)
 
@@ -246,16 +244,4 @@ class NotificationService:
             to_email=user_email,
             context=context,
             subject=f'Confirmación de Pago - Orden #{order_id}'
-        )
-
-def send_notification(order, notif_type: NotificationType, subject: str, body: str):
-    Notifications.objects.create(
-        order             = order,
-        email_destination = order.client.email,
-        subject           = subject,
-        body              = body,
-        date              = timezone.now(),
-        notification_type = notif_type,
-        shipping_state    = order.state,
-    )
-    send_mail(subject, body, None, [order.client.email]) 
+        ) 
