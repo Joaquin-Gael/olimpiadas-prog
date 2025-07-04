@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from ninja.testing import TestClient
 from myweb.myweb.urls import api as main_api
 from api.store.models import Cart, CartItem, CartStatus
-from api.products.models import ProductsMetadata
+from api.products.models import ProductsMetadata, Packages
 from decimal import Decimal
 
 User = get_user_model()
@@ -20,9 +20,19 @@ def client_authed(user):
     return client
 
 @pytest.fixture
+def package_with_metadata(db):
+    package = Packages.objects.create(name="Pack Demo")
+    meta = ProductsMetadata.objects.create(
+        package=package,
+        product_type="package",
+        currency="USD",
+        unit_price=Decimal("200.00"),
+    )
+    return meta
+
+@pytest.fixture
 def product_metadata_usd(db):
     return ProductsMetadata.objects.create(
-        id=1,
         currency="USD",
         product_type="activity",
         unit_price=Decimal("100.00"),
@@ -31,7 +41,6 @@ def product_metadata_usd(db):
 @pytest.fixture
 def product_metadata_eur(db):
     return ProductsMetadata.objects.create(
-        id=2,
         currency="EUR",
         product_type="activity",
         unit_price=Decimal("100.00"),

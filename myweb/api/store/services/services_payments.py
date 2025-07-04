@@ -1,211 +1,205 @@
 """
-Servicios para manejo de pagos
+services_payments.py
+Servicio de pagos con idempotencia, control de duplicados y simulación
+de pasarela / reembolso.
 """
 import uuid
 from decimal import Decimal
 from typing import Dict, Any, Optional
+
 from django.db import transaction
+from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-from ..models import Order, Sale
-from ..idempotency import check_idempotency
+from ..models import (
+    Orders,
+    Sales,
+    OrderState,
+    PaymentStatus,
+    SaleType,
+    PaymentType,
+)
+
+# -------------------------------------------------------------------
+#  Ayudas internas
+# -------------------------------------------------------------------
+def _next_transaction_number() -> int:
+    """
+    Genera el siguiente número de transacción (int) basado en la
+    transacción más alta registrada.  Si tu base tiene una secuencia
+    / trigger, podés omitir esto y delegar en la DB.
+    """
+    last = Sales.objects.order_by("-transaction_number").first()
+    return (last.transaction_number if last else 0) + 1
 
 
+# -------------------------------------------------------------------
+#  Servicio principal
+# -------------------------------------------------------------------
 class PaymentService:
-    """Servicio para manejo de pagos"""
-    
+    """Capa de dominio para procesar cobros y reembolsos"""
+
+    # ──────────────────────────────────────────────────────────
+    #  Cobro / creación de venta
+    # ──────────────────────────────────────────────────────────
     @staticmethod
-    @check_idempotency
     def process_payment(
+        *,
         order_id: int,
         payment_method: str,
         payment_data: Dict[str, Any],
-        idempotency_key: str
-    ) -> Sale:
+        idempotency_key: str,
+    ) -> Sales:
         """
-        Procesa el pago de una orden
-        
-        Args:
-            order_id: ID de la orden
-            payment_method: Método de pago (credit_card, debit_card, etc.)
-            payment_data: Datos del pago (tarjeta, etc.)
-            idempotency_key: Clave de idempotencia
-            
-        Returns:
-            Sale: La venta creada
-            
-        Raises:
-            ValidationError: Si el pago falla
+        Procesa el cobro de una orden garantizando idempotencia.
+
+        - Bloquea la orden (`select_for_update`)
+        - Verifica duplicados por orden e idempotency_key
+        - Simula la pasarela
+        - Crea la venta
+        - Cambia estado de la orden a CONFIRMED
         """
+        if not idempotency_key:
+            raise ValidationError("MISSING_IDEMPOTENCY_KEY")
+
         with transaction.atomic():
-            # Obtener la orden
+
+            # 1) Obtener y bloquear la orden pendiente
             try:
-                order = Order.objects.select_for_update().get(
+                order = Orders.objects.select_for_update().get(
                     id=order_id,
-                    state=Order.State.PENDING
+                    state=OrderState.PENDING,
                 )
-            except Order.DoesNotExist:
+            except Orders.DoesNotExist:
                 raise ValidationError("Orden no encontrada o no válida para pago")
-            
-            # Simular procesamiento de pago
-            payment_result = PaymentService._process_payment_with_gateway(
-                order.total,
-                payment_method,
-                payment_data
-            )
-            
-            if not payment_result['success']:
-                raise ValidationError(f"Pago rechazado: {payment_result['message']}")
-            
-            # Crear la venta
-            sale = Sale.objects.create(
-                order=order,
+
+            # 2) Idempotencia
+            #    a) ¿ya hay venta para la orden?
+            if Sales.objects.filter(order=order).exists():
+                raise ValidationError("La orden ya tiene un pago registrado")
+
+            #    b) ¿ya se usó esta idempotency_key?
+            sale_prev = Sales.objects.filter(idempotency_key=idempotency_key).first()
+            if sale_prev:
+                return sale_prev  # reintento seguro
+
+            # 3) Llamar (mock) a la pasarela
+            gw_result = PaymentService._process_payment_with_gateway(
                 amount=order.total,
                 payment_method=payment_method,
-                payment_status=Sale.PaymentStatus.PAID_ONLINE,
-                transaction_id=payment_result['transaction_id'],
-                idempotency_key=idempotency_key
+                payment_data=payment_data,
             )
-            
-            # Actualizar estado de la orden
-            order.state = Order.State.CONFIRMED
-            order.save()
-            
+            if not gw_result["success"]:
+                raise ValidationError(f"Pago rechazado: {gw_result['message']}")
+
+            # 4) Crear la venta
+            sale = Sales.objects.create(
+                order=order,
+                transaction_number=_next_transaction_number(),
+                sale_date=timezone.now(),
+                total=order.total,
+                amount=order.total,
+                payment_status=PaymentStatus.PAID_ONLINE,
+                payment_method=payment_method,
+                payment_type=PaymentType.ONLINE,
+                sale_type=SaleType.ONLINE,
+                transaction_id=gw_result["transaction_id"],
+                idempotency_key=idempotency_key,
+            )
+
+            # 5) Confirmar la orden
+            order.state = OrderState.CONFIRMED
+            order.save(update_fields=["state"])
+
             return sale
-    
+
+    # ──────────────────────────────────────────────────────────
+    #  Reembolso
+    # ──────────────────────────────────────────────────────────
+    @staticmethod
+    def refund_payment(
+        *,
+        sale_id: int,
+        amount: Optional[Decimal] = None,
+    ) -> Sales:
+        """
+        Reembolsa total o parcialmente una venta.
+
+        - Bloquea la venta
+        - Verifica que sea reembolsable
+        - Simula la pasarela de reembolsos
+        - Marca venta+orden como REFUNDED
+        """
+        with transaction.atomic():
+
+            try:
+                sale = Sales.objects.select_for_update().get(
+                    id=sale_id,
+                    payment_status=PaymentStatus.PAID_ONLINE,
+                )
+            except Sales.DoesNotExist:
+                raise ValidationError("Venta no encontrada o no válida para reembolso")
+
+            refund_amount = amount or sale.amount
+
+            gw_refund = PaymentService._process_refund_with_gateway(
+                transaction_id=sale.transaction_id,
+                amount=refund_amount,
+            )
+            if not gw_refund["success"]:
+                raise ValidationError(f"Reembolso rechazado: {gw_refund['message']}")
+
+            # Actualizar venta
+            sale.payment_status = PaymentStatus.REFUNDED
+            sale.save(update_fields=["payment_status"])
+
+            # Actualizar orden
+            sale.order.state = OrderState.REFUNDED
+            sale.order.save(update_fields=["state"])
+
+            return sale
+
+    # ──────────────────────────────────────────────────────────
+    #  Helpers – Pasarela mock
+    # ──────────────────────────────────────────────────────────
     @staticmethod
     def _process_payment_with_gateway(
         amount: Decimal,
         payment_method: str,
-        payment_data: Dict[str, Any]
+        payment_data: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        Simula el procesamiento de pago con una pasarela externa
-        
-        Args:
-            amount: Monto a cobrar
-            payment_method: Método de pago
-            payment_data: Datos del pago
-            
-        Returns:
-            Dict con el resultado del pago
-        """
-        # Simulación de validaciones básicas
-        if not payment_data.get('card_number'):
-            return {
-                'success': False,
-                'message': 'Número de tarjeta requerido'
-            }
-        
-        if not payment_data.get('expiry_date'):
-            return {
-                'success': False,
-                'message': 'Fecha de vencimiento requerida'
-            }
-        
-        if not payment_data.get('cvv'):
-            return {
-                'success': False,
-                'message': 'CVV requerido'
-            }
-        
-        # Simular rechazo por tarjetas que terminan en ciertos números
-        card_number = payment_data['card_number']
-        if card_number.endswith('0000'):
-            return {
-                'success': False,
-                'message': 'Tarjeta rechazada por el banco'
-            }
-        
-        if card_number.endswith('1111'):
-            return {
-                'success': False,
-                'message': 'Fondos insuficientes'
-            }
-        
-        # Simular éxito
-        transaction_id = f"TXN_{uuid.uuid4().hex[:16].upper()}"
-        
+        """Simula validaciones básicas y genera un transaction_id."""
+        for field in ("card_number", "expiry_date", "cvv"):
+            if not payment_data.get(field):
+                return {"success": False, "message": f"Campo {field} requerido"}
+
+        card = payment_data["card_number"]
+        if card.endswith("0000"):
+            return {"success": False, "message": "Tarjeta rechazada por el banco"}
+        if card.endswith("1111"):
+            return {"success": False, "message": "Fondos insuficientes"}
+
         return {
-            'success': True,
-            'transaction_id': transaction_id,
-            'message': 'Pago procesado exitosamente'
+            "success": True,
+            "transaction_id": f"TXN_{uuid.uuid4().hex[:16].upper()}",
+            "message": "Pago aprobado",
         }
-    
-    @staticmethod
-    def refund_payment(sale_id: int, amount: Optional[Decimal] = None) -> Sale:
-        """
-        Procesa un reembolso
-        
-        Args:
-            sale_id: ID de la venta
-            amount: Monto a reembolsar (si None, reembolsa todo)
-            
-        Returns:
-            Sale: La venta actualizada
-        """
-        with transaction.atomic():
-            try:
-                sale = Sale.objects.select_for_update().get(
-                    id=sale_id,
-                    payment_status=Sale.PaymentStatus.PAID_ONLINE
-                )
-            except Sale.DoesNotExist:
-                raise ValidationError("Venta no encontrada o no válida para reembolso")
-            
-            # Simular reembolso
-            refund_result = PaymentService._process_refund_with_gateway(
-                sale.transaction_id,
-                amount or sale.amount
-            )
-            
-            if not refund_result['success']:
-                raise ValidationError(f"Reembolso rechazado: {refund_result['message']}")
-            
-            # Actualizar estado de la venta
-            sale.payment_status = Sale.PaymentStatus.REFUNDED
-            sale.save()
-            
-            # Actualizar estado de la orden
-            sale.order.state = Order.State.REFUNDED
-            sale.order.save()
-            
-            return sale
-    
+
     @staticmethod
     def _process_refund_with_gateway(
         transaction_id: str,
-        amount: Decimal
+        amount: Decimal,
     ) -> Dict[str, Any]:
-        """
-        Simula el procesamiento de reembolso
-        
-        Args:
-            transaction_id: ID de la transacción original
-            amount: Monto a reembolsar
-            
-        Returns:
-            Dict con el resultado del reembolso
-        """
-        # Simular éxito del reembolso
+        """Mock de reembolso siempre exitoso."""
         return {
-            'success': True,
-            'refund_id': f"REF_{uuid.uuid4().hex[:16].upper()}",
-            'message': 'Reembolso procesado exitosamente'
+            "success": True,
+            "refund_id": f"REF_{uuid.uuid4().hex[:16].upper()}",
+            "message": "Reembolso procesado",
         }
-    
+
+    # ──────────────────────────────────────────────────────────
+    #  Consulta de estado (helper simple)
+    # ──────────────────────────────────────────────────────────
     @staticmethod
-    def get_payment_status(sale_id: int) -> Optional[Sale]:
-        """
-        Obtiene el estado de un pago
-        
-        Args:
-            sale_id: ID de la venta
-            
-        Returns:
-            Sale: La venta o None si no existe
-        """
-        try:
-            return Sale.objects.get(id=sale_id)
-        except Sale.DoesNotExist:
-            return None 
+    def get_payment_status(sale_id: int) -> Optional[Sales]:
+        return Sales.objects.filter(id=sale_id).first()

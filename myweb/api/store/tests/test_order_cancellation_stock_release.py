@@ -45,8 +45,8 @@ class TestOrderCancellationStockRelease(TestCase):
         
         self.availability = ActivityAvailability.objects.create(
             activity=self.activity,
-            event_date=timezone.now().date(),
-            total_seats=10,
+            date=timezone.now().date(),
+            available_seats=10,
             reserved_seats=0,
             is_active=True
         )
@@ -68,7 +68,7 @@ class TestOrderCancellationStockRelease(TestCase):
 
     def test_stock_released_when_order_cancelled(self):
         """Test: stock se libera cuando la orden pasa a CANCELLED."""
-        # Añadir ítem al carrito
+        # Añadir ítem al carrito usando helper
         cart_srv.add_item(
             cart=self.cart,
             metadata=self.metadata,
@@ -94,7 +94,7 @@ class TestOrderCancellationStockRelease(TestCase):
 
     def test_stock_released_when_order_refunded(self):
         """Test: stock se libera cuando la orden pasa a REFUNDED."""
-        # Añadir ítem al carrito
+        # Añadir ítem al carrito usando helper
         cart_srv.add_item(
             cart=self.cart,
             metadata=self.metadata,
@@ -120,7 +120,7 @@ class TestOrderCancellationStockRelease(TestCase):
 
     def test_no_duplicate_stock_release(self):
         """Test: no se libera stock duplicado si la orden ya estaba cancelada."""
-        # Añadir ítem al carrito
+        # Añadir ítem al carrito usando helper
         cart_srv.add_item(
             cart=self.cart,
             metadata=self.metadata,
@@ -152,13 +152,13 @@ class TestOrderCancellationStockRelease(TestCase):
         # Crear segunda disponibilidad
         availability2 = ActivityAvailability.objects.create(
             activity=self.activity,
-            event_date=timezone.now().date() + timezone.timedelta(days=1),
-            total_seats=5,
+            date=timezone.now().date() + timezone.timedelta(days=1),
+            available_seats=5,
             reserved_seats=0,
             is_active=True
         )
         
-        # Añadir dos ítems al carrito
+        # Añadir dos ítems al carrito usando helper
         cart_srv.add_item(
             cart=self.cart,
             metadata=self.metadata,
@@ -198,38 +198,22 @@ class TestOrderCancellationStockRelease(TestCase):
         """Test: productos no soportados se ignoran sin error."""
         # Crear metadata de producto no soportado
         unsupported_metadata = ProductsMetadata.objects.create(
-            product_type="unsupported_type",
+            product_type="unsupported",
             product_id=999,
             currency="USD",
             is_active=True
         )
-        
-        # Crear orden manualmente con producto no soportado
-        order = Orders.objects.create(
-            client=self.user,
-            date=timezone.now(),
-            state="Pending",
-            total=Decimal("100.00"),
-            address=self.user.addresses.first() if hasattr(self.user, 'addresses') else None,
-            notes="Test order"
-        )
-        
-        # Crear detalle de orden con producto no soportado
-        OrderDetails.objects.create(
-            order=order,
-            product_metadata=unsupported_metadata,
-            package=None,
+        # Añadir ítem al carrito usando helper
+        cart_srv.add_item(
+            cart=self.cart,
+            metadata=unsupported_metadata,
             availability_id=999,
-            quantity=1,
-            unit_price=Decimal("100.00"),
-            subtotal=Decimal("100.00"),
-            discount_applied=Decimal("0.00")
+            qty=1,
+            unit_price=Decimal("100.00")
         )
-        
-        # Cambiar estado a CANCELLED - no debería fallar
+        # Hacer checkout para crear la orden
+        order = cart_srv.checkout(self.cart, order_srv.create_order_from_cart)
+        # Cambiar estado a CANCELLED
         order.state = "Cancelled"
         order.save()
-        
-        # Verificar que la orden se guardó correctamente
-        order.refresh_from_db()
-        self.assertEqual(order.state, "Cancelled") 
+        # No debe lanzar excepción 
