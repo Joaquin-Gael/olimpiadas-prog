@@ -10,7 +10,6 @@ from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
 from api.notification.services_new import NotificationService
 from api.products.models import ProductsMetadata
 
-
 class InvalidCartStateError(Exception):
     """El carrito no está en estado válido para crear orden."""
 
