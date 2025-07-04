@@ -1,47 +1,57 @@
 """
 Vistas para manejo de órdenes
 """
-from typing import Dict, Any, List
+from typing import List, Optional
 from django.http import HttpRequest
 from django.core.exceptions import ValidationError
 from ninja import Router
-from ninja.errors import HttpError
-from django.shortcuts import get_object_or_404
-from django.db import transaction
 
-from .models import Orders
-from .services import services_payments as pay_srv
-from .services import services_sales as sale_srv
-from api.core.notification import services as notif_srv
-from .services.services_orders import InvalidCartStateError
-from .idempotency import store_idempotent
-from .models import NotificationType
+from .models import Orders, Sales
 from .schemas import (
     OrderListOut, OrderCancelIn,
     PaymentMethodIn, PaymentOut, PaymentStatusOut,
     RefundIn, RefundOut, ErrorResponse, SuccessResponse,
     OrderFilterIn, SaleOut, SaleSummaryOut
 )
-from .services.services_orders_new import OrderService
+from .services import services_orders as order_srv
 from .services.services_payments import PaymentService
 from .services.services_notifications import OrderNotificationService
-from .models_new import Order, Sale
+from .services.services_sales import SalesService
+
+# ──────────────────────────────────────────────────────────────
+# Helper común para la clave de idempotencia
+# ──────────────────────────────────────────────────────────────
+
+
+def get_idempotency_key(request) -> Optional[str]:
+    """
+    Devuelve la Idempotency-Key tomando cualquiera de los
+    encabezados reconocidos:
+        • Idempotency-Key               (estándar)
+        • HTTP_IDEMPOTENCY_KEY          (Ninja TestClient)
+    """
+    return (
+        request.headers.get("Idempotency-Key")
+        or request.headers.get("HTTP_IDEMPOTENCY_KEY")
+    )
 
 router = Router(tags=["orders"])
 
 
-@router.post("/orders/{order_id}/pay", response={200: PaymentOut, 400: ErrorResponse, 500: ErrorResponse})
+@router.post(
+    "/orders/{order_id}/pay",
+    response={200: PaymentOut, 400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
+)
 def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
     """
     Procesa el pago de una orden
     """
     try:
-        # Obtener la clave de idempotencia del header
-        idempotency_key = request.headers.get('HTTP_IDEMPOTENCY_KEY')
-        if not idempotency_key:
-            return 400, ErrorResponse(
-                message="Header HTTP_IDEMPOTENCY_KEY es requerido",
-                error_code="MISSING_IDEMPOTENCY_KEY"
+        idemp_key = get_idempotency_key(request)
+        if not idemp_key:
+            return 409, ErrorResponse(          # 409 = "conflict" estilo Stripe
+                message="Header Idempotency-Key es requerido",
+                error_code="MISSING_IDEMPOTENCY_KEY",
             )
         
         # Preparar datos del pago
@@ -57,7 +67,7 @@ def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
             order_id=order_id,
             payment_method=payload.payment_method,
             payment_data=payment_data,
-            idempotency_key=idempotency_key
+            idempotency_key=idemp_key
         )
         
         # Enviar notificación de confirmación de pago
@@ -91,7 +101,7 @@ def cancel_order(request: HttpRequest, order_id: int, payload: OrderCancelIn = N
     Cancela una orden
     """
     try:
-        order = OrderService.cancel_order(order_id, request.user.id)
+        order = order_srv.OrderService.cancel_order(order_id, request.user.id)
         
         # Enviar notificación de cancelación
         reason = payload.reason if payload else None
@@ -121,7 +131,7 @@ def list_orders(request: HttpRequest, filters: OrderFilterIn = OrderFilterIn()):
     """
     try:
         # Obtener órdenes del usuario con filtros
-        queryset = Order.objects.filter(user=request.user)
+        queryset = Orders.objects.filter(client=request.user)
         
         if filters.state:
             queryset = queryset.filter(state=filters.state)
@@ -140,7 +150,7 @@ def list_orders(request: HttpRequest, filters: OrderFilterIn = OrderFilterIn()):
                 total=float(order.total),
                 state=order.state,
                 created_at=order.created_at,
-                user_id=order.user.id
+                client_id=order.client.id
             )
             for order in orders
         ]
@@ -159,7 +169,7 @@ def get_payment_status(request: HttpRequest, order_id: int):
     """
     try:
         # Verificar que la orden existe y pertenece al usuario
-        order = OrderService.get_order_by_id(order_id, request.user.id)
+        order = order_srv.OrderService.get_order_by_id(order_id, request.user.id)
         if not order:
             return 404, ErrorResponse(
                 message="Orden no encontrada",
@@ -168,7 +178,7 @@ def get_payment_status(request: HttpRequest, order_id: int):
         
         # Buscar la venta asociada
         try:
-            sale = Sale.objects.get(order=order)
+            sale = Sales.objects.get(order=order)
             return 200, PaymentStatusOut(
                 order_id=order.id,
                 payment_status=sale.payment_status,
@@ -176,7 +186,7 @@ def get_payment_status(request: HttpRequest, order_id: int):
                 amount=float(sale.amount),
                 payment_method=sale.payment_method
             )
-        except Sale.DoesNotExist:
+        except Sales.DoesNotExist:
             return 200, PaymentStatusOut(
                 order_id=order.id,
                 payment_status="PENDING",
@@ -197,7 +207,7 @@ def refund_order(request: HttpRequest, order_id: int, payload: RefundIn):
     """
     try:
         # Verificar que la orden existe y pertenece al usuario
-        order = OrderService.get_order_by_id(order_id, request.user.id)
+        order = order_srv.OrderService.get_order_by_id(order_id, request.user.id)
         if not order:
             return 404, ErrorResponse(
                 message="Orden no encontrada",
@@ -206,8 +216,8 @@ def refund_order(request: HttpRequest, order_id: int, payload: RefundIn):
         
         # Buscar la venta
         try:
-            sale = Sale.objects.get(order=order)
-        except Sale.DoesNotExist:
+            sale = Sales.objects.get(order=order)
+        except Sales.DoesNotExist:
             return 400, ErrorResponse(
                 message="No se encontró una venta para esta orden",
                 error_code="SALE_NOT_FOUND"
@@ -250,7 +260,7 @@ def get_order_sale(request: HttpRequest, order_id: int):
     """
     try:
         # Verificar que la orden existe y pertenece al usuario
-        order = OrderService.get_order_by_id(order_id, request.user.id)
+        order = order_srv.OrderService.get_order_by_id(order_id, request.user.id)
         if not order:
             return 404, ErrorResponse(
                 message="Orden no encontrada",
@@ -259,7 +269,7 @@ def get_order_sale(request: HttpRequest, order_id: int):
         
         # Buscar la venta
         try:
-            sale = Sale.objects.get(order=order)
+            sale = Sales.objects.get(order=order)
             return 200, SaleOut(
                 id=sale.id,
                 order_id=sale.order.id,
@@ -269,7 +279,7 @@ def get_order_sale(request: HttpRequest, order_id: int):
                 transaction_id=sale.transaction_id,
                 created_at=sale.created_at
             )
-        except Sale.DoesNotExist:
+        except Sales.DoesNotExist:
             return 404, ErrorResponse(
                 message="No se encontró una venta para esta orden",
                 error_code="SALE_NOT_FOUND"
@@ -288,8 +298,6 @@ def get_sales_summary(request: HttpRequest):
     Obtiene un resumen de ventas del usuario
     """
     try:
-        from .services.services_sales import SalesService
-        
         summary = SalesService.get_sales_summary(request.user.id)
         
         return 200, SaleSummaryOut(

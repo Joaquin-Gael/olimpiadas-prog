@@ -8,15 +8,15 @@ from django.db.models import Sum, Count
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from ..models import Sale, Order
-from ..idempotency import check_idempotency
+from ..models import Sales, Orders, PaymentStatus
+from ..idempotency import store_idempotent
 
 
 class SalesService:
     """Servicio para manejo de ventas"""
     
     @staticmethod
-    @check_idempotency
+    @store_idempotent()
     def create_sale(
         order_id: int,
         amount: Decimal,
@@ -24,7 +24,7 @@ class SalesService:
         transaction_id: str,
         idempotency_key: str,
         **kwargs
-    ) -> Sale:
+    ) -> Sales:
         """
         Crea una nueva venta
         
@@ -42,37 +42,37 @@ class SalesService:
         with transaction.atomic():
             # Verificar que la orden existe y está en estado válido
             try:
-                order = Order.objects.select_for_update().get(
+                order = Orders.objects.select_for_update().get(
                     id=order_id,
-                    state__in=[Order.State.PENDING, Order.State.CONFIRMED]
+                    state__in=[Orders.State.PENDING, Orders.State.CONFIRMED]
                 )
-            except Order.DoesNotExist:
+            except Orders.DoesNotExist:
                 raise ValidationError("Orden no encontrada o no válida para venta")
             
             # Verificar que no exista ya una venta para esta orden
-            if Sale.objects.filter(order=order).exists():
+            if Sales.objects.filter(order=order).exists():
                 raise ValidationError("Ya existe una venta para esta orden")
             
             # Crear la venta
-            sale = Sale.objects.create(
+            sale = Sales.objects.create(
                 order=order,
                 amount=amount,
                 payment_method=payment_method,
-                payment_status=Sale.PaymentStatus.PAID_ONLINE,
+                payment_status=PaymentStatus.PAID_ONLINE,
                 transaction_id=transaction_id,
                 idempotency_key=idempotency_key,
                 **kwargs
             )
             
             # Actualizar estado de la orden si está pendiente
-            if order.state == Order.State.PENDING:
-                order.state = Order.State.CONFIRMED
+            if order.state == Orders.State.PENDING:
+                order.state = Orders.State.CONFIRMED
                 order.save()
             
             return sale
     
     @staticmethod
-    def get_sale_by_id(sale_id: int) -> Optional[Sale]:
+    def get_sale_by_id(sale_id: int) -> Optional[Sales]:
         """
         Obtiene una venta por ID
         
@@ -83,12 +83,12 @@ class SalesService:
             Sale: La venta o None si no existe
         """
         try:
-            return Sale.objects.select_related('order', 'order__user').get(id=sale_id)
-        except Sale.DoesNotExist:
+            return Sales.objects.select_related('order', 'order__user').get(id=sale_id)
+        except Sales.DoesNotExist:
             return None
     
     @staticmethod
-    def get_sales_by_user(user_id: int, limit: int = 50) -> List[Sale]:
+    def get_sales_by_user(user_id: int, limit: int = 50) -> List[Sales]:
         """
         Obtiene las ventas de un usuario
         
@@ -99,7 +99,7 @@ class SalesService:
         Returns:
             List[Sale]: Lista de ventas
         """
-        return list(Sale.objects.filter(
+        return list(Sales.objects.filter(
             order__user_id=user_id
         ).select_related(
             'order', 'order__user'
@@ -116,9 +116,9 @@ class SalesService:
         Returns:
             Dict con estadísticas de ventas
         """
-        sales = Sale.objects.filter(
+        sales = Sales.objects.filter(
             order__user_id=user_id,
-            payment_status=Sale.PaymentStatus.PAID_ONLINE
+            payment_status=PaymentStatus.PAID_ONLINE
         )
         
         total_sales = sales.count()
@@ -145,8 +145,8 @@ class SalesService:
     @staticmethod
     def update_sale_status(
         sale_id: int,
-        new_status: Sale.PaymentStatus
-    ) -> Sale:
+        new_status: PaymentStatus
+    ) -> Sales:
         """
         Actualiza el estado de pago de una venta
         
@@ -158,13 +158,13 @@ class SalesService:
             Sale: La venta actualizada
         """
         with transaction.atomic():
-            sale = Sale.objects.select_for_update().get(id=sale_id)
+            sale = Sales.objects.select_for_update().get(id=sale_id)
             sale.payment_status = new_status
             sale.save()
             
             # Actualizar estado de la orden si es necesario
-            if new_status == Sale.PaymentStatus.REFUNDED:
-                sale.order.state = Order.State.REFUNDED
+            if new_status == PaymentStatus.REFUNDED:
+                sale.order.state = Orders.State.REFUNDED
                 sale.order.save()
             
             return sale
@@ -174,7 +174,7 @@ class SalesService:
         start_date: timezone.datetime,
         end_date: timezone.datetime,
         user_id: Optional[int] = None
-    ) -> List[Sale]:
+    ) -> List[Sales]:
         """
         Obtiene ventas en un rango de fechas
         
@@ -186,7 +186,7 @@ class SalesService:
         Returns:
             List[Sale]: Lista de ventas
         """
-        queryset = Sale.objects.filter(
+        queryset = Sales.objects.filter(
             created_at__range=(start_date, end_date)
         ).select_related('order', 'order__user')
         
@@ -210,8 +210,8 @@ class SalesService:
         Returns:
             Dict con estadísticas
         """
-        queryset = Sale.objects.filter(
-            payment_status=Sale.PaymentStatus.PAID_ONLINE
+        queryset = Sales.objects.filter(
+            payment_status=PaymentStatus.PAID_ONLINE
         )
         
         if start_date and end_date:

@@ -67,4 +67,4 @@ def store_idempotent():
             logger.info("idempotency_saved", extra=lookup)
             return status, resp
         return wrapper
-    return decorator 
+    return decorator

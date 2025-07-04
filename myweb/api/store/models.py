@@ -42,13 +42,13 @@ class NotificationType(Enum):
     def choices(cls):
         return [tag.value for tag in cls]
 
-
 class PaymentStatus(models.TextChoices):
-    DUE       = "DUE", "Due"
-    PAID_CASH = "PAID_CASH", "Paid (Cash)"
+    DUE         = "DUE", "Due"
+    PAID_CASH   = "PAID_CASH", "Paid (Cash)"
     PAID_CHEQUE = "PAID_CHEQUE", "Paid (Cheque)"
     PAID_ONLINE = "PAID_ONLINE", "Paid (Online)"
-    CANCELLED = "CANCELLED", "Cancelled"
+    REFUNDED    = "REFUNDED", "Refunded"
+    CANCELLED   = "CANCELLED", "Cancelled"
 
 class SaleType(models.TextChoices):
     RETAIL    = "RETAIL", "Retail"
@@ -147,7 +147,13 @@ class Orders(models.Model):
         ],
         help_text="Total de la orden"
     )
-    idempotency_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    idempotency_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -172,8 +178,13 @@ class Notifications(models.Model):
 class Sales(models.Model):
     id = models.AutoField("sale_id", primary_key=True)
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
-    transaction_number = models.IntegerField()
-    sale_date = models.DateTimeField()
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Monto de la venta (puede ser igual a total, pero se mantiene por compatibilidad)"
+    )
     total = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -185,7 +196,7 @@ class Sales(models.Model):
     payment_status = models.CharField(
         max_length=20,
         choices=PaymentStatus.choices,
-        default=PaymentStatus.DUE
+        default=PaymentStatus.PAID_ONLINE
     )
     sale_type = models.CharField(
         max_length=20,
@@ -197,6 +208,41 @@ class Sales(models.Model):
         choices=PaymentType.choices,
         default=PaymentType.ONLINE
     )
+    transaction_number = models.IntegerField(
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Correlativo interno consecutivo"
+    )
+    sale_date = models.DateTimeField(
+        default=timezone.now,
+        db_index=True
+    )
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PAID_ONLINE
+    )
+    transaction_id = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="ID devuelto por la pasarela/banco"
+    )
+    idempotency_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Clave idempotente para evitar cobros duplicados"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
 
 class OrderDetails(models.Model):
     id = models.AutoField("order_detail_id", primary_key=True)

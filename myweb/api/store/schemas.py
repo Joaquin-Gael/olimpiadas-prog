@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field, PositiveInt
 from typing import List, Any, Optional
 from datetime import datetime
-from decimal import Decimal
-
+from ninja import Schema
 
 # ── Salidas ────────────────────────────────────────────────────
 class CartItemOut(BaseModel):
@@ -59,7 +58,7 @@ class OrderOut(BaseModel):
     state: str
     created_at: datetime
     updated_at: datetime
-    user_id: int
+    client_id: int
     items_count: int
     items: Optional[List[OrderItemOut]] = None
 
@@ -68,7 +67,7 @@ class OrderListOut(BaseModel):
     total: float
     state: str
     created_at: datetime
-    user_id: int
+    client_id: int
 
 class OrderCreateIn(BaseModel):
     cart_id: int = Field(..., description="ID del carrito a convertir en orden")

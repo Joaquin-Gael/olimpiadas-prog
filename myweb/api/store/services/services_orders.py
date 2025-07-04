@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
 from api.notification.services_new import NotificationService
+from api.products.models import ProductsMetadata
 
 
 class InvalidCartStateError(Exception):
@@ -54,6 +55,9 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
         OrderDetails(
             order=order,
             product_metadata_id=li.product_metadata_id,
+            package_id=ProductsMetadata.objects
+                .get(id=li.product_metadata_id)
+                .package_id,
             availability_id=li.availability_id,
             quantity=li.qty,
             unit_price=li.unit_price,
@@ -141,3 +145,34 @@ def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
         order.save()
         
         return order 
+
+#  ─────────────────────────────────────────────────────────────
+#  Clase pública – wrapper estático
+#  ─────────────────────────────────────────────────────────────
+
+class OrderService:
+    """Fachada estática para que las vistas usen un API OO."""
+
+    # get_order_by_id ----------------------------------------------------
+    @staticmethod
+    def get_order_by_id(order_id: int, user_id: int) -> "Orders | None":
+        """Devuelve la orden si pertenece al usuario/cliente o None."""
+        try:
+            return Orders.objects.get(id=order_id, client_id=user_id)
+        except Orders.DoesNotExist:
+            return None
+
+    # cancel_order -------------------------------------------------------
+    @staticmethod
+    def cancel_order(order_id: int, user_id: int) -> Orders:
+        return cancel_order(order_id, user_id)
+
+    # pay_order (alias; opcional) ----------------------------------------
+    @staticmethod
+    def pay_order(order_id: int, user_id: int, payment_method: str):
+        return pay_order(order_id, user_id, payment_method)  # noqa: F821
+
+    # refund_order -------------------------------------------------------
+    @staticmethod
+    def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
+        return refund_order(order_id, user_id, amount)  # noqa: F821 
