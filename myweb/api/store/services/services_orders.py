@@ -7,7 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
-from api.core.notification.services_new import NotificationService
+from api.core.notification.services import NotificationService
 from api.products.models import ProductsMetadata
 
 
