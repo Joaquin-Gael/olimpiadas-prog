@@ -8,7 +8,7 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, SerializedHelperMetadata
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
@@ -30,9 +30,13 @@ from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
 
+from rich import console
+
+console = console.Console()
+
 products_router = Router(tags=["Products"])
 
-@products_router.post("/products/create/", response=ProductsMetadataOut)
+@products_router.post("/create/", response=ProductsMetadataOut)
 @transaction.atomic
 def create_product(request, data: ProductsMetadataCreate):
     supplier = get_object_or_404(Suppliers, id=data.supplier_id)
@@ -77,7 +81,7 @@ def create_product(request, data: ProductsMetadataCreate):
     return serialize_product_metadata(metadata)
 
 
-@products_router.post("/products/activity-complete/", response=ProductsMetadataOut)
+@products_router.post("/activity-complete/", response=ProductsMetadataOut)
 @transaction.atomic
 def create_complete_activity(request, data: ActivityCompleteCreate, metadata: ActivityMetadataCreate):
     """
@@ -149,7 +153,7 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
     return serialize_product_metadata(metadata_obj)
 
 
-@products_router.post("/products/lodgment-complete/", response=ProductsMetadataOutLodgmentDetail)
+@products_router.post("/lodgment-complete/", response=ProductsMetadataOutLodgmentDetail)
 @transaction.atomic
 def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: LodgmentMetadataCreate):
     """
@@ -238,7 +242,7 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
     return serialize_product_metadata(metadata_obj)
 
 
-@products_router.post("/products/transport-complete/", response=ProductsMetadataOut)
+@products_router.post("/transport-complete/", response=ProductsMetadataOut)
 @transaction.atomic
 def create_complete_transport(request, data: TransportationCompleteCreate, metadata: TransportationMetadataCreate):
     """
@@ -307,7 +311,7 @@ def create_complete_transport(request, data: TransportationCompleteCreate, metad
     return serialize_product_metadata(metadata_obj)
 
 
-@products_router.post("/products/{id}/transportation-availability/", response=TransportationAvailabilityOut)
+@products_router.post("/{id}/transportation-availability/", response=TransportationAvailabilityOut)
 @transaction.atomic
 def create_transportation_availability(request, id: int, data: TransportationAvailabilityCreate):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
@@ -338,7 +342,7 @@ def create_transportation_availability(request, id: int, data: TransportationAva
     return serialize_transportation_availability(availability)
 
 
-@products_router.get("/products/{id}/transportation-availability/", response=List[TransportationAvailabilityOut])
+@products_router.get("/{id}/transportation-availability/", response=List[TransportationAvailabilityOut])
 def list_transportation_availabilities(request, id: int):
     # 1. Find the product
     metadata = get_object_or_404(
@@ -357,7 +361,7 @@ def list_transportation_availabilities(request, id: int):
     return [serialize_transportation_availability(av) for av in availabilities]
 
 
-@products_router.delete("/products/transportation-availability/{id}/", response={204: None})
+@products_router.delete("/transportation-availability/{id}/", response={204: None})
 @transaction.atomic
 def delete_transportation_availability(request, id: int):
     # 1. Find the availability
@@ -370,7 +374,7 @@ def delete_transportation_availability(request, id: int):
     return 204, None
 
 
-@products_router.patch("/products/transportation-availability/{id}/", response=TransportationAvailabilityOut)
+@products_router.patch("/transportation-availability/{id}/", response=TransportationAvailabilityOut)
 @transaction.atomic
 def update_transportation_availability(request, id: int, data: TransportationAvailabilityUpdate):
     availability = get_object_or_404(TransportationAvailability, id=id)
@@ -394,7 +398,7 @@ def update_transportation_availability(request, id: int, data: TransportationAva
     return serialize_transportation_availability(availability)
 
 
-@products_router.post("/products/{id}/availability/", response=ActivityAvailabilityOut)
+@products_router.post("/{id}/availability/", response=ActivityAvailabilityOut)
 @transaction.atomic
 def create_availability(request, id: int, data: ActivityAvailabilityCreate):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
@@ -422,7 +426,7 @@ def create_availability(request, id: int, data: ActivityAvailabilityCreate):
 
     return serialize_activity_availability(availability)
 
-@products_router.get("/products/{id}/availability/", response=List[ActivityAvailabilityOut])
+@products_router.get("/{id}/availability/", response=List[ActivityAvailabilityOut])
 def list_availabilities(request, id: int):
     # 1. Find the product
     metadata = get_object_or_404(
@@ -440,7 +444,7 @@ def list_availabilities(request, id: int):
     availabilities = activity.availabilities.order_by("event_date", "start_time").all()
     return [serialize_activity_availability(av) for av in availabilities]
 
-@products_router.delete("/products/availability/{id}/", response={204: None})
+@products_router.delete("/availability/{id}/", response={204: None})
 @transaction.atomic
 def delete_availability(request, id: int):
     # 1. Find the availability
@@ -452,7 +456,7 @@ def delete_availability(request, id: int):
     # 3. Return empty with status 204 (no content)
     return 204, None
 
-@products_router.patch("/products/availability/{id}/", response=ActivityAvailabilityOut)
+@products_router.patch("/availability/{id}/", response=ActivityAvailabilityOut)
 @transaction.atomic
 def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     availability = get_object_or_404(ActivityAvailability, id=id)
@@ -476,22 +480,31 @@ def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     return serialize_activity_availability(availability)
 
 
-@products_router.get("/products/", response=list[ProductsMetadataOut])
+@products_router.get("/", response={200: List[ProductsMetadataOut]})
 @paginate(DefaultPagination)
-def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
+def list_products(request):
     """
     Lists all products with advanced filters and pagination
     """
-    return ProductsMetadata.objects.active().apply_filters(filters)
+    data = ProductsMetadata.objects.active().available_only()
+    serialized_list = []
+    for i in data:
+        serialized_data = serialize_product_metadata(i)
+        serialized_data.update({'unit_price': float(i.unit_price)})
+        serialized_list.append(
+            serialized_data
+        )
+    console.print(serialized_list)
+    return serialized_list
 
 
-@products_router.get("/products/{id}/", response=ProductsMetadataOut)
+@products_router.get("/{id}/", response=ProductsMetadataOut)
 def get_product(request, id: int):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
     return serialize_product_metadata(metadata)
 
 
-@products_router.patch("/products/{id}/", response=ProductsMetadataOut)
+@products_router.patch("/{id}/", response=ProductsMetadataOut)
 @transaction.atomic
 def update_product(request, id: int, data: ProductsMetadataUpdate):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
@@ -568,7 +581,7 @@ def update_product(request, id: int, data: ProductsMetadataUpdate):
     return serialize_product_metadata(metadata)
 
 
-@products_router.delete("/products/{id}/", response={204: None})
+@products_router.delete("/{id}/", response={204: None})
 @transaction.atomic
 def deactivate_product(request, id: int):
     metadata = get_object_or_404(ProductsMetadata.objects.active(), id=id)
@@ -585,7 +598,7 @@ def deactivate_product(request, id: int):
     return 204, None
 
 
-@products_router.get("/products/search/advanced/", response=list[ProductsMetadataOut])
+@products_router.get("/search/advanced/", response=list[ProductsMetadataOut])
 @paginate(DefaultPagination)
 def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
     """
@@ -594,7 +607,7 @@ def advanced_search(request, filters: ProductosFiltro = ProductosFiltro()):
     return ProductsMetadata.objects.active().apply_filters(filters)
 
 
-@products_router.get("/products/search/quick/", response=list[ProductsMetadataOut])
+@products_router.get("/search/quick/", response=list[ProductsMetadataOut])
 def quick_search(request, q: str, limit: int = 10):
     """
     Quick text search with result limit
@@ -620,7 +633,7 @@ def quick_search(request, q: str, limit: int = 10):
     return qs
 
 
-@products_router.get("/products/stats/filters/")
+@products_router.get("/stats/filters/")
 def get_filter_stats(request):
     """
     Gets statistics to help with filters
@@ -654,7 +667,7 @@ def get_filter_stats(request):
 # ENDPOINTS TO MANAGE FLIGHT AVAILABILITY
 # ──────────────────────────────────────────────────────────────
 
-@products_router.patch("/products/{id}/flight-availability/", response=ProductsMetadataOut)
+@products_router.patch("/{id}/flight-availability/", response=ProductsMetadataOut)
 @transaction.atomic
 def update_flight_availability(request, id: int, available_seats: int):
     """
@@ -693,7 +706,7 @@ def update_flight_availability(request, id: int, available_seats: int):
     return serialize_product_metadata(metadata)
 
 
-@products_router.get("/products/{id}/flight-availability/")
+@products_router.get("/{id}/flight-availability/")
 def get_flight_availability(request, id: int):
     """
     Gets the current availability of a flight
@@ -709,7 +722,7 @@ def get_flight_availability(request, id: int):
 # ENDPOINTS TO MANAGE ROOM AVAILABILITY
 # ──────────────────────────────────────────────────────────────
 
-@products_router.post("/products/room-availability/", response=RoomAvailabilityOut)
+@products_router.post("/room-availability/", response=RoomAvailabilityOut)
 @transaction.atomic
 def create_room_availability(request, data: RoomAvailabilityCreate):
     """
@@ -745,7 +758,7 @@ def create_room_availability(request, data: RoomAvailabilityCreate):
     return RoomAvailabilityOut.from_orm(availability)
 
 
-@products_router.get("/products/room-availability/{id}/", response=RoomAvailabilityOut)
+@products_router.get("/room-availability/{id}/", response=RoomAvailabilityOut)
 def get_room_availability(request, id: int):
     """
     Gets a specific room availability
@@ -755,7 +768,7 @@ def get_room_availability(request, id: int):
     return RoomAvailabilityOut.from_orm(availability)
 
 
-@products_router.get("/products/room/{room_id}/availabilities/", response=List[RoomAvailabilityOut])
+@products_router.get("/room/{room_id}/availabilities/", response=List[RoomAvailabilityOut])
 def list_room_availabilities(request, room_id: int):
     """
     Lists all availabilities of a specific room
@@ -767,7 +780,7 @@ def list_room_availabilities(request, room_id: int):
     return [RoomAvailabilityOut.from_orm(av) for av in availabilities]
 
 
-@products_router.patch("/products/room-availability/{id}/", response=RoomAvailabilityOut)
+@products_router.patch("/room-availability/{id}/", response=RoomAvailabilityOut)
 @transaction.atomic
 def update_room_availability(request, id: int, data: RoomAvailabilityUpdate):
     """
@@ -816,7 +829,7 @@ def update_room_availability(request, id: int, data: RoomAvailabilityUpdate):
     return RoomAvailabilityOut.from_orm(availability)
 
 
-@products_router.delete("/products/room-availability/{id}/", response={204: None})
+@products_router.delete("/room-availability/{id}/", response={204: None})
 @transaction.atomic
 def delete_room_availability(request, id: int):
     """
@@ -832,7 +845,7 @@ def delete_room_availability(request, id: int):
     return 204, None
 
 
-@products_router.get("/products/lodgment/{lodgment_id}/rooms/availabilities/", response=List[dict])
+@products_router.get("/lodgment/{lodgment_id}/rooms/availabilities/", response=List[dict])
 def list_lodgment_room_availabilities(request, lodgment_id: int, start_date: date = None, end_date: date = None):
     """
     Lists all room availabilities of a lodgment
@@ -880,7 +893,7 @@ def list_lodgment_room_availabilities(request, lodgment_id: int, start_date: dat
     return result
 
 
-@products_router.get("/products/room/{room_id}/quote/", response=RoomQuoteOut)
+@products_router.get("/room/{room_id}/quote/", response=RoomQuoteOut)
 def quote_room(request, room_id: int, start_date: date, end_date: date, qty: int = 1):
     if start_date >= end_date:
         raise HttpError(422, "start_date debe ser < end_date")
@@ -920,7 +933,7 @@ def quote_room(request, room_id: int, start_date: date, end_date: date, qty: int
         availability_id=av.id
     )
 
-@products_router.get("/products/{metadata_id}/check/", response=CheckAvailabilityOut)
+@products_router.get("/{metadata_id}/check/", response=CheckAvailabilityOut)
 def check_activity(request, metadata_id: int, qty: int, date: date, start_time: time):
     if qty <= 0:
         raise HttpError(422, "qty debe ser positivo")
@@ -945,7 +958,7 @@ def check_activity(request, metadata_id: int, qty: int, date: date, start_time: 
         availability_id=av.id,
     )
 
-@products_router.get("/products/{metadata_id}/transport/check/", response=CheckAvailabilityOut)
+@products_router.get("/{metadata_id}/transport/check/", response=CheckAvailabilityOut)
 def check_transport(request, metadata_id: int, qty: int, date: date, time: time):
     if qty <= 0:
         raise HttpError(422, "qty debe ser positivo")
@@ -969,7 +982,7 @@ def check_transport(request, metadata_id: int, qty: int, date: date, time: time)
         availability_id=av.id,
     )
 
-@products_router.get("/products/{metadata_id}/flight/check/", response=CheckAvailabilityOut)
+@products_router.get("/{metadata_id}/flight/check/", response=CheckAvailabilityOut)
 def check_flight(request, metadata_id: int, qty: int):
     if qty <= 0:
         raise HttpError(422, "qty debe ser positivo")
@@ -992,7 +1005,7 @@ def check_flight(request, metadata_id: int, qty: int):
         availability_id=flight.id,
     )
 
-@products_router.get("/products/room/{room_id}/check/", response=CheckAvailabilityOut)
+@products_router.get("/room/{room_id}/check/", response=CheckAvailabilityOut)
 def check_room(request, room_id: int, qty: int, start_date: date, end_date: date):
     if qty <= 0:
         raise HttpError(422, "qty debe ser positivo")

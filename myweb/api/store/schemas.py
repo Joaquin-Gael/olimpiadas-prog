@@ -3,8 +3,10 @@ from typing import List, Any, Optional
 from datetime import datetime, date
 from ninja import Schema
 
+from api.products.common.schemas import BaseSchema
+
 # ── Salidas ────────────────────────────────────────────────────
-class CartItemOut(BaseModel):
+class CartItemOut(Schema):
     id: int
     availability_id: int
     product_metadata_id: int
@@ -13,7 +15,10 @@ class CartItemOut(BaseModel):
     currency: str
     config: Any
 
-class CartOut(BaseModel):
+    class Meta:
+        from_attributes = True
+
+class CartOut(BaseSchema):
     id: int
     status: str
     items_cnt: int
@@ -39,7 +44,7 @@ class SalesOut(Schema):
     updated_at: datetime  # Agregado: campo del modelo
 
 # ── Entradas ───────────────────────────────────────────────────
-class ItemAddIn(BaseModel):
+class ItemAddIn(BaseSchema):
     availability_id: int
     product_metadata_id: int
     qty: PositiveInt

@@ -46,10 +46,6 @@ class SyncJWTBearer(HttpBearer):
         console.rule("Token")
         console.print(token)
         console.rule("Token arriba")
-        if not token.startswith("Bearer "):
-            raise HttpError(status_code=403, message="Invalid token format")
-
-        token = token.split(" ")[1]
 
         try:
             payload = decode_token(token)
@@ -88,6 +84,7 @@ class SyncJWTBearer(HttpBearer):
             raise HttpError(404, f"Usuario con ID {user_id} no encontrado")
 
         except Exception as e:
+            console.print_exception(show_locals=True)
             console.print(e)
             raise HttpError(status_code=401, message="Invalid or expired token")
 
@@ -100,10 +97,6 @@ class JWTBearer(HttpBearer):
         console.rule("Token")
         console.print(token)
         console.rule("Token arriba")
-        if not token.startswith("Bearer "):
-            raise HttpError(status_code=403, message="Invalid token format")
-
-        token = token.split(" ")[1]
 
         try:
             payload = decode_token(token)

@@ -1,6 +1,6 @@
 from ninja import Schema
 from pydantic import BaseModel, Field, field_validator, EmailStr, AnyUrl, ConfigDict
-from typing import Union, Literal, Optional, List
+from typing import Union, Literal, Optional, List, Any
 from enum import Enum
 from datetime import date, time, datetime
 from api.products.common.schemas import BaseSchema
@@ -677,9 +677,17 @@ class ProductsMetadataOut(BaseSchema):
     id: int
     unit_price: float
     currency: str
-    product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    #product_type: Literal["activity", "flight", "lodgment", "transportation"]
+    #product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    product_type: str
+    product: dict[str, Any]
 
+class SerializedHelperMetadata(BaseSchema):
+    id: int
+    unit_price: float
+    currency: str
+    product_type: str
+    product: dict[str, Any]
 
 class ProductsMetadataOutLodgmentDetail(BaseSchema):
     """Output schema for product metadata with lodging detail (includes rooms)"""

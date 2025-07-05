@@ -76,8 +76,6 @@ class PaymentService:
             raise ValidationError("MISSING_IDEMPOTENCY_KEY")
 
         with transaction.atomic():
-
-            # 1) Obtener y bloquear la orden pendiente
             try:
                 order = Orders.objects.select_for_update().get(
                     id=order_id,
@@ -87,18 +85,17 @@ class PaymentService:
             except Orders.DoesNotExist:
                 raise ValidationError("Orden no encontrada o no válida para pago")
 
-            # 2) Idempotencia
-            #    a) ¿ya hay venta para la orden?
+
             if Sales.objects.filter(order=order).exists():
                 raise ValidationError("La orden ya tiene un pago registrado")
 
-            #    b) ¿ya se usó esta idempotency_key?
+
             sale_prev = Sales.objects.filter(idempotency_key=idempotency_key).first()
             if sale_prev:
-                return sale_prev  # reintento seguro
+                return sale_prev
 
-            # 3) Llamar (mock) a la pasarela
-            PaymentService._process_payment_with_gateway(
+
+            return PaymentService._process_payment_with_gateway(
                 amount=order.total,
                 payment_method=payment_method,
                 payment_data=payment_data,
@@ -220,7 +217,7 @@ class PaymentService:
             instance_orm = model_orm.model_class().objects.get(id=detail.product_metadata.object_id)
             line_items.append({
                 "price_data": {
-                    "currency": "usd",
+                    "currency": "USD",
                     "unit_amount": int(round(detail.product_metadata.unit_price*100)),
                     "product_data": {
                         "name": detail.product_metadata.name,
@@ -238,6 +235,8 @@ class PaymentService:
                 success_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
                 cancel_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/cancel?order_id={payment_data.get('order_id')}",
             )
+
+            return session.url
         except Exception as e:
             console.print_exception(show_locals=True)
 
