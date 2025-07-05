@@ -679,9 +679,17 @@ class ProductsMetadataOut(BaseSchema):
     id: int
     unit_price: float
     currency: str
-    product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    #product_type: Literal["activity", "flight", "lodgment", "transportation"]
+    #product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    product_type: str
+    product: dict[str, Any]
 
+class SerializedHelperMetadata(BaseSchema):
+    id: int
+    unit_price: float
+    currency: str
+    product_type: str
+    product: dict[str, Any]
 
 class ProductsMetadataOutLodgmentDetail(BaseSchema):
     """Output schema for product metadata with lodging detail (includes rooms)"""

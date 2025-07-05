@@ -21,7 +21,8 @@ from .schemas import (
     UserUpdateSchema,
     UserLoginSchema,
     ErrorResponseSchema,
-    SuccessResponseSchema
+    SuccessResponseSchema,
+    TokensResponseSchema
 )
 
 console = Console()
@@ -98,7 +99,7 @@ def register_user(request, payload: UserRegistrationSchema):
         )
 
 @transaction.atomic
-@user_public_router.post("/login", response={200: SuccessResponseSchema, 401: ErrorResponseSchema})
+@user_public_router.post("/login", response={200: TokensResponseSchema, 401: ErrorResponseSchema})
 async def login_user(request, payload: UserLoginSchema):
     """
     Autentica un usuario utilizando email y contraseña.

@@ -13,11 +13,11 @@ from .services import services_orders as order_srv
 from .idempotency import store_idempotent
 from api.products.services.stock_services import InsufficientStockError
 
-from api.core.auth import JWTBearer
+from api.core.auth import SyncJWTBearer
 
 router = Router(
     tags=["Cart"],
-    auth=JWTBearer()
+    auth=SyncJWTBearer()
 )
 
 # ── Helper: obtener (o crear) carrito OPEN del usuario ─────────
@@ -38,7 +38,7 @@ def get_cart(request):
 # ───────────────────────────────────────────────────────────────
 # 2. Añadir ítem
 # ───────────────────────────────────────────────────────────────
-@router.post("/cart/items/", response=CartItemOut)
+@router.post("/cart/items/", response={200: CartItemOut})
 @store_idempotent()
 def add_item(request, payload: ItemAddIn):
     metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
@@ -53,14 +53,22 @@ def add_item(request, payload: ItemAddIn):
             Decimal(str(payload.unit_price)),
             payload.config
         )
+
+        return 200, {
+                "id": item.cart.id,
+                "availability_id": item.availability_id,
+                "product_metadata_id": item.product_metadata_id,
+                "qty": item.qty,
+                "unit_price": float(item.unit_price),
+                "currency": item.currency,
+                "config": item.config
+            }
     except cart_srv.InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CurrencyMismatchError:
         raise HttpError(422, "moneda_distinta")
     except cart_srv.CartClosedError:     # improbable aquí
         raise HttpError(409, "carrito_cerrado")
-
-    return CartItemOut.from_orm(item)
 
 # ───────────────────────────────────────────────────────────────
 # 3. Cambiar cantidad
@@ -115,6 +123,9 @@ def checkout(request):
                 c.id, c.user_id, idempotency_key=idemp_key
             )
         )
+
+        return 201, {"order_id": order.id, "total": float(order.total)}
+
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
     except InsufficientStockError:
@@ -123,5 +134,3 @@ def checkout(request):
         raise HttpError(409, "carrito_cerrado")
     except order_srv.OrderCreationError as e:
         raise HttpError(500, f"error_creacion_orden: {str(e)}")
-
-    return 201, {"order_id": order.id, "total": float(order.total)} 

@@ -797,6 +797,19 @@ class ProductType(models.TextChoices):
     TRANSPORTATION = "TRANSPORTATION", "Transportation"
 
 
+class ProductsMetadataManager(
+    models.Manager.from_queryset(ProductsMetadataQuerySet)
+):
+    """
+    Manager que hereda de Models.Manager pero usa ProductsMetadataQuerySet
+    como clase base para los QuerySets, así expone:
+      - active()        (de ActiveQuerySet)
+      - available_only()
+      - apply_filters()
+      - y cualquier otro método de QuerySet
+    """
+    pass
+
 class ProductsMetadata(SoftDeleteModel):
     id = models.AutoField("product_metadata_id", primary_key=True)
     supplier = models.ForeignKey(Suppliers, on_delete=models.PROTECT)
@@ -834,7 +847,8 @@ class ProductsMetadata(SoftDeleteModel):
         return self.content_type_id
 
     # managers
-    objects = ProductsMetadataQuerySet.as_manager()
+    #objects = ProductsMetadataQuerySet.as_manager()
+    objects = ProductsMetadataManager()
 
     def clean(self):
         if self.unit_price < 0:
