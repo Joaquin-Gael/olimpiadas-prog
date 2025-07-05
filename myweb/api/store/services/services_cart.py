@@ -214,7 +214,7 @@ def checkout(cart: Cart, order_creator_fn):
             ProductsMetadata.objects.get(id=line.product_metadata_id).product_type
         )
         try:
-            reserve_fn(line.availability_id, 0)     # qty=0 ⇒ solo valida
+            reserve_fn(line.availability_id, line.qty)     # qty=0 ⇒ solo valida
         except InsufficientStockError:
             raise InsufficientStockError(
                 f"Stock insuficiente para availability {line.availability_id}"

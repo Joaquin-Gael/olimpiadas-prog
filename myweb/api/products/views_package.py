@@ -1,3 +1,4 @@
+from dns.rdtypes.svcbbase import ParamKey
 from ninja import Router, Query
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Avg, Count, Min, Max, Sum
@@ -24,7 +25,7 @@ category_router = Router(tags=["Categories"])
 # MAIN PACKAGE ENDPOINTS
 # ──────────────────────────────────────────────────────────────
 
-@package_router.get("/", response=List[PackageOut])
+@package_router.get("/", response={200: List[PackageOut]})
 @paginate(DefaultPagination)
 def list_packages(
     request, 
@@ -77,7 +78,35 @@ def list_packages(
         # Order by name for consistency
         queryset = queryset.order_by('name')
         
-        return queryset
+        # Serialize the queryset for response
+        serialized_list: List[PackageOut] = []
+        for pkg in queryset:
+            serialized_list.append(
+                PackageOut(
+                    id=pkg.id,
+                    name=pkg.name,
+                    description=pkg.description,
+                    cover_image=pkg.cover_image or None,
+
+                    base_price=float(pkg.base_price) if pkg.base_price is not None else None,
+                    taxes=float(pkg.taxes)         if pkg.taxes      is not None else None,
+                    final_price=float(pkg.final_price),
+
+                    rating_average=float(pkg.rating_average),
+                    total_reviews=pkg.total_reviews,
+
+                    is_active=pkg.is_active,
+
+                    created_at=pkg.created_at,
+                    updated_at=pkg.updated_at,
+
+                    duration_days=pkg.duration_days,
+
+                    currency='USD',  # o el campo que necesites traer realmente
+                )
+            )
+        
+        return serialized_list
         
     except HttpError:
         raise

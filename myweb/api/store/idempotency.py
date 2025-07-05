@@ -9,6 +9,10 @@ from .models import StoreIdempotencyRecord
 import logging
 logger = logging.getLogger(__name__)
 
+from rich import console
+
+console = console.Console()
+
 IN_PROGRESS = 0  # estado provisional antes de saber el resultado
 
 
@@ -65,6 +69,10 @@ def store_idempotent():
             record.status, record.response = status, resp
             record.save(update_fields=["status", "response"])
             logger.info("idempotency_saved", extra=lookup)
-            return status, resp
+
+            console.print(resp)
+            console.print(type(resp))
+
+            return resp
         return wrapper
     return decorator

@@ -9,6 +9,8 @@ from ninja.errors import HttpError
 
 from uuid import uuid4
 
+from api.core.auth import SyncJWTBearer
+
 from .models import Orders, Sales
 from .schemas import (
     OrderListOut, OrderCancelIn,
@@ -38,7 +40,10 @@ def get_idempotency_key(request) -> Optional[str]:
             or request.headers.get("HTTP_IDEMPOTENCY_KEY")
     )
 
-router = Router(tags=["Orders"])
+router = Router(
+    tags=["Orders"],
+    #auth=SyncJWTBearer() TODO: preparar para fu aplicacion
+)
 
 @router.get(
     "/pay/success",
@@ -104,7 +109,7 @@ def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)
         return HttpError(status_code=500, message=str(e))
 
 @router.post(
-    "/orders/{order_id}/pay",
+    "/{order_id}/pay",
     response={400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
 )
 def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
@@ -125,15 +130,16 @@ def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
         }
 
         # Procesar el pago
-        PaymentService.process_payment(
+        session_url = PaymentService.process_payment(
             order_id=order_id,
             payment_method=payload.payment_method,
             payment_data=payment_data,
             idempotency_key=idemp_key
         )
 
-        # Enviar notificación de confirmación de pago
-        #OrderNotificationService.send_payment_confirmation(sale)
+        return {
+            "session_url": session_url,
+        }
 
     except ValidationError as e:
         return 400, ErrorResponse(
