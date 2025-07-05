@@ -935,103 +935,185 @@ def quote_room(request, room_id: int, start_date: date, end_date: date, qty: int
 
 @products_router.get("/{metadata_id}/check/", response=CheckAvailabilityOut)
 def check_activity(request, metadata_id: int, qty: int, date: date, start_time: time):
-    if qty <= 0:
-        raise HttpError(422, "qty debe ser positivo")
+    """Verifica disponibilidad de stock para una actividad usando el servicio mejorado."""
     from .models import ActivityAvailability
+    from .services.stock_services import check_activity_stock, InvalidQuantityError, ProductNotFoundError
+    
     try:
+        # Buscar la disponibilidad de la actividad
         av = ActivityAvailability.objects.get(
             activity__product_metadata_id=metadata_id,
             event_date=date,
             start_time=start_time,
             state="active",
         )
+        
+        # Usar el servicio mejorado para verificar stock
+        stock_info = check_activity_stock(av.id, qty)
+        
+        return CheckAvailabilityOut(
+            remaining=stock_info['available'],
+            enough=stock_info['sufficient'],
+            unit_price=float(av.price),
+            currency=av.currency,
+            availability_id=av.id,
+        )
+        
+    except InvalidQuantityError as e:
+        raise HttpError(422, str(e))
+    except ProductNotFoundError as e:
+        raise HttpError(404, str(e))
     except ActivityAvailability.DoesNotExist:
-        raise HttpError(404, "no_existe_disponibilidad")
-    remaining = av.total_seats - av.reserved_seats
-    enough = remaining >= qty
-    status = 200 if enough else 409
-    return status, CheckAvailabilityOut(
-        remaining=remaining,
-        enough=enough,
-        unit_price=float(av.price),
-        currency=av.currency,
-        availability_id=av.id,
-    )
+        raise HttpError(404, "No existe disponibilidad para la fecha y horario especificados")
+    except Exception as e:
+        raise HttpError(500, f"Error al verificar disponibilidad: {str(e)}")
 
 @products_router.get("/{metadata_id}/transport/check/", response=CheckAvailabilityOut)
 def check_transport(request, metadata_id: int, qty: int, date: date, time: time):
-    if qty <= 0:
-        raise HttpError(422, "qty debe ser positivo")
+    """Verifica disponibilidad de stock para transporte usando el servicio mejorado."""
     from .models import TransportationAvailability
+    from .services.stock_services import check_transportation_stock, InvalidQuantityError, ProductNotFoundError
+    
     try:
+        # Buscar la disponibilidad de transporte
         av = TransportationAvailability.objects.get(
             transportation__product_metadata_id=metadata_id,
             departure_date=date,
             departure_time=time,
         )
+        
+        # Usar el servicio mejorado para verificar stock
+        stock_info = check_transportation_stock(av.id, qty)
+        
+        return CheckAvailabilityOut(
+            remaining=stock_info['available'],
+            enough=stock_info['sufficient'],
+            unit_price=float(av.price),
+            currency=av.currency,
+            availability_id=av.id,
+        )
+        
+    except InvalidQuantityError as e:
+        raise HttpError(422, str(e))
+    except ProductNotFoundError as e:
+        raise HttpError(404, str(e))
     except TransportationAvailability.DoesNotExist:
-        raise HttpError(404, "no_existe_disponibilidad")
-    remaining = av.total_seats - av.reserved_seats
-    enough = remaining >= qty
-    status = 200 if enough else 409
-    return status, CheckAvailabilityOut(
-        remaining=remaining,
-        enough=enough,
-        unit_price=float(av.price),
-        currency=av.currency,
-        availability_id=av.id,
-    )
+        raise HttpError(404, "No existe disponibilidad para la fecha y horario especificados")
+    except Exception as e:
+        raise HttpError(500, f"Error al verificar disponibilidad: {str(e)}")
 
 @products_router.get("/{metadata_id}/flight/check/", response=CheckAvailabilityOut)
 def check_flight(request, metadata_id: int, qty: int):
-    if qty <= 0:
-        raise HttpError(422, "qty debe ser positivo")
+    """Verifica disponibilidad de stock para un vuelo usando el servicio mejorado."""
     from .models import Flights, ProductsMetadata
+    from .services.stock_services import check_flight_stock, InvalidQuantityError, ProductNotFoundError
+    
     try:
+        # Buscar el vuelo y metadata
         flight = Flights.objects.get(product_metadata_id=metadata_id)
         meta = ProductsMetadata.objects.get(id=metadata_id)
+        
+        # Usar el servicio mejorado para verificar stock
+        stock_info = check_flight_stock(flight.id, qty)
+        
+        return CheckAvailabilityOut(
+            remaining=stock_info['available'],
+            enough=stock_info['sufficient'],
+            unit_price=float(meta.unit_price),
+            currency=meta.currency,
+            availability_id=flight.id,
+        )
+        
+    except InvalidQuantityError as e:
+        raise HttpError(422, str(e))
+    except ProductNotFoundError as e:
+        raise HttpError(404, str(e))
     except Flights.DoesNotExist:
-        raise HttpError(404, "no_existe_disponibilidad")
+        raise HttpError(404, "No existe el vuelo especificado")
     except ProductsMetadata.DoesNotExist:
-        raise HttpError(404, "no_existe_metadata")
-    remaining = flight.available_seats
-    enough = remaining >= qty
-    status = 200 if enough else 409
-    return status, CheckAvailabilityOut(
-        remaining=remaining,
-        enough=enough,
-        unit_price=float(meta.unit_price),
-        currency=meta.currency,
-        availability_id=flight.id,
-    )
+        raise HttpError(404, "No existe metadata para el producto")
+    except Exception as e:
+        raise HttpError(500, f"Error al verificar disponibilidad: {str(e)}")
 
 @products_router.get("/room/{room_id}/check/", response=CheckAvailabilityOut)
 def check_room(request, room_id: int, qty: int, start_date: date, end_date: date):
-    if qty <= 0:
-        raise HttpError(422, "qty debe ser positivo")
-    if start_date >= end_date:
-        raise HttpError(422, "start_date debe ser < end_date")
+    """Verifica disponibilidad de stock para habitaciones usando el servicio mejorado."""
     from .models import RoomAvailability
+    from .services.stock_services import check_room_stock, InvalidQuantityError, ProductNotFoundError
+    
+    if start_date >= end_date:
+        raise HttpError(422, "start_date debe ser anterior a end_date")
+    
     try:
+        # Buscar la disponibilidad de la habitación
         av = RoomAvailability.objects.get(
             room_id=room_id,
             start_date__lte=start_date,
             end_date__gte=end_date,
             is_blocked=False,
         )
+        
+        # Usar el servicio mejorado para verificar stock
+        stock_info = check_room_stock(av.id, qty)
+        
+        return CheckAvailabilityOut(
+            remaining=stock_info['available'],
+            enough=stock_info['sufficient'],
+            unit_price=float(av.effective_price),
+            currency=av.currency,
+            availability_id=av.id,
+        )
+        
+    except InvalidQuantityError as e:
+        raise HttpError(422, str(e))
+    except ProductNotFoundError as e:
+        raise HttpError(404, str(e))
     except RoomAvailability.DoesNotExist:
-        raise HttpError(404, "no_existe_disponibilidad")
-    remaining = av.available_quantity
-    enough = remaining >= qty
-    status = 200 if enough else 409
-    return status, CheckAvailabilityOut(
-        remaining=remaining,
-        enough=enough,
-        unit_price=float(av.effective_price),
-        currency=av.currency,
-        availability_id=av.id,
-    )
+        raise HttpError(404, "No existe disponibilidad para el rango de fechas especificado")
+    except Exception as e:
+        raise HttpError(500, f"Error al verificar disponibilidad: {str(e)}")
     
+# ─────────────────────────────────────────────
+# NUEVOS ENDPOINTS PARA VALIDACIÓN DE STOCK
+# ─────────────────────────────────────────────
+
+@products_router.post("/products/stock/validate-bulk/")
+def validate_bulk_stock(request, reservations: List[dict]):
+    """
+    Valida múltiples reservas de stock antes de ejecutarlas.
+    Útil para verificar disponibilidad de paquetes completos.
+    """
+    from .services.stock_services import validate_bulk_stock_reservation
+    
+    try:
+        validation_result = validate_bulk_stock_reservation(reservations)
+        return {
+            'valid': validation_result['valid'],
+            'errors': validation_result['errors'],
+            'warnings': validation_result['warnings'],
+            'valid_reservations': len(validation_result['reservations']),
+            'total_reservations': len(reservations)
+        }
+    except Exception as e:
+        raise HttpError(500, f"Error al validar reservas: {str(e)}")
+
+@products_router.get("/products/stock/summary/{product_type}/{product_id}/")
+def get_stock_summary(request, product_type: str, product_id: int):
+    """
+    Obtiene un resumen detallado del stock actual de un producto.
+    """
+    from .services.stock_services import get_stock_summary, ProductNotFoundError
+    
+    try:
+        summary = get_stock_summary(product_type, product_id)
+        return summary
+    except ProductNotFoundError as e:
+        raise HttpError(404, str(e))
+    except ValueError as e:
+        raise HttpError(422, str(e))
+    except Exception as e:
+        raise HttpError(500, f"Error al obtener resumen de stock: {str(e)}")
+
 @products_router.get("/locations/", response=List[LocationListOut])
 def list_locations(request, is_active: bool = True, type: str = None, country: str = None, search: str = None):
     qs = Location.objects.all()

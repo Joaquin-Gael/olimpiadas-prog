@@ -14,6 +14,7 @@ from api.users.urls import user_router
 from api.products.views_products import products_router
 from api.products.views_package import package_router, category_router
 from api.products.views_supliers import suppliers_router
+from api.products.views_audit import audit_router
 from api.employees.views_employees import router as employees_router
 from api.store.views_cart import router as store_router
 from api.store.views_orders import router as orders_router
@@ -42,6 +43,8 @@ main_router.add_router("/store/", store_router)
 main_router.add_router("/orders/", orders_router)
 # Agregar las rutas de sales
 main_router.add_router("/sales/", sales_router)
+# Agregar las rutas de auditoría
+main_router.add_router("/audit/", audit_router)
 # Agregar las rutas de clients
 main_router.add_router("/clients/", clients_router)
 

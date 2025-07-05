@@ -303,7 +303,7 @@ class Activities(models.Model):
         ]
     )
     difficulty_level = models.CharField(
-        max_length=16,                       # ❶ añadido
+        max_length=16,
         choices=DifficultyLevel.choices(),
     )
     language = models.CharField(max_length=32)
@@ -1065,3 +1065,303 @@ class Promotions(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField()
+
+class StockAuditLog(models.Model):
+    """
+    Modelo para auditar todos los cambios en el stock de productos.
+    Rastrea reservas, liberaciones, verificaciones y modificaciones.
+    """
+    
+    class OperationType(models.TextChoices):
+        RESERVE = "reserve", "Reserva"
+        RELEASE = "release", "Liberación"
+        CHECK = "check", "Verificación"
+        MODIFY = "modify", "Modificación"
+        CREATE = "create", "Creación"
+        DELETE = "delete", "Eliminación"
+    
+    class ProductType(models.TextChoices):
+        ACTIVITY = "activity", "Actividad"
+        TRANSPORTATION = "transportation", "Transporte"
+        ROOM = "room", "Habitación"
+        FLIGHT = "flight", "Vuelo"
+    
+    # Información básica
+    id = models.AutoField(primary_key=True)
+    operation_type = models.CharField(
+        max_length=16,
+        choices=OperationType.choices,
+        help_text="Tipo de operación realizada"
+    )
+    product_type = models.CharField(
+        max_length=16,
+        choices=ProductType.choices,
+        help_text="Tipo de producto afectado"
+    )
+    product_id = models.IntegerField(
+        help_text="ID del producto específico (availability_id, flight_id, etc.)"
+    )
+    
+    # Detalles de la operación
+    quantity = models.IntegerField(
+        help_text="Cantidad involucrada en la operación"
+    )
+    previous_stock = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Stock anterior a la operación"
+    )
+    new_stock = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Stock después de la operación"
+    )
+    
+    # Información del usuario y contexto
+    user_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ID del usuario que realizó la operación"
+    )
+    session_id = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text="ID de sesión para rastrear operaciones"
+    )
+    request_id = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text="ID único de la solicitud HTTP"
+    )
+    
+    # Metadatos adicionales
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Información adicional en formato JSON"
+    )
+    success = models.BooleanField(
+        default=True,
+        help_text="Indica si la operación fue exitosa"
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text="Mensaje de error si la operación falló"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'stock_audit_logs'
+        indexes = [
+            models.Index(fields=['operation_type', 'created_at']),
+            models.Index(fields=['product_type', 'product_id']),
+            models.Index(fields=['user_id', 'created_at']),
+            models.Index(fields=['session_id']),
+            models.Index(fields=['success']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.operation_type} - {self.product_type} {self.product_id} - {self.created_at}"
+    
+    @classmethod
+    def log_operation(cls, operation_type, product_type, product_id, quantity, 
+                     previous_stock=None, new_stock=None, user_id=None, 
+                     session_id=None, request_id=None, metadata=None, 
+                     success=True, error_message=""):
+        """
+        Método de clase para registrar una operación de stock.
+        """
+        return cls.objects.create(
+            operation_type=operation_type,
+            product_type=product_type,
+            product_id=product_id,
+            quantity=quantity,
+            previous_stock=previous_stock,
+            new_stock=new_stock,
+            user_id=user_id,
+            session_id=session_id,
+            request_id=request_id,
+            metadata=metadata or {},
+            success=success,
+            error_message=error_message
+        )
+
+
+class StockChangeHistory(models.Model):
+    """
+    Modelo para mantener un historial detallado de cambios en el stock.
+    Similar a StockAuditLog pero con más detalles sobre los cambios específicos.
+    """
+    
+    class ChangeType(models.TextChoices):
+        INCREASE = "increase", "Aumento"
+        DECREASE = "decrease", "Disminución"
+        SET = "set", "Establecer"
+        RESET = "reset", "Reiniciar"
+    
+    # Información básica
+    id = models.AutoField(primary_key=True)
+    audit_log = models.ForeignKey(
+        StockAuditLog,
+        on_delete=models.CASCADE,
+        related_name='changes',
+        help_text="Referencia al log de auditoría principal"
+    )
+    change_type = models.CharField(
+        max_length=16,
+        choices=ChangeType.choices,
+        help_text="Tipo de cambio realizado"
+    )
+    
+    # Detalles del cambio
+    field_name = models.CharField(
+        max_length=32,
+        help_text="Nombre del campo que cambió (reserved_seats, available_seats, etc.)"
+    )
+    old_value = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Valor anterior del campo"
+    )
+    new_value = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Nuevo valor del campo"
+    )
+    change_amount = models.IntegerField(
+        help_text="Cantidad del cambio (positivo para aumentos, negativo para disminuciones)"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'stock_change_history'
+        indexes = [
+            models.Index(fields=['audit_log', 'field_name']),
+            models.Index(fields=['change_type', 'created_at']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.change_type} {self.field_name}: {self.old_value} -> {self.new_value}"
+    
+    @classmethod
+    def log_change(cls, audit_log, change_type, field_name, old_value, new_value):
+        """
+        Método de clase para registrar un cambio específico en el stock.
+        """
+        change_amount = new_value - old_value if old_value is not None and new_value is not None else 0
+        
+        return cls.objects.create(
+            audit_log=audit_log,
+            change_type=change_type,
+            field_name=field_name,
+            old_value=old_value,
+            new_value=new_value,
+            change_amount=change_amount
+        )
+
+
+class StockMetrics(models.Model):
+    """
+    Modelo para almacenar métricas y estadísticas de stock.
+    Permite análisis y reportes de rendimiento.
+    """
+    
+    # Información básica
+    id = models.AutoField(primary_key=True)
+    product_type = models.CharField(
+        max_length=16,
+        choices=StockAuditLog.ProductType.choices,
+        help_text="Tipo de producto"
+    )
+    product_id = models.IntegerField(
+        help_text="ID del producto específico"
+    )
+    
+    # Métricas de stock
+    total_capacity = models.IntegerField(
+        help_text="Capacidad total del producto"
+    )
+    current_reserved = models.IntegerField(
+        help_text="Cantidad actual reservada"
+    )
+    current_available = models.IntegerField(
+        help_text="Cantidad actual disponible"
+    )
+    utilization_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Porcentaje de utilización (0-100)"
+    )
+    
+    # Métricas de operaciones
+    total_reservations = models.IntegerField(
+        default=0,
+        help_text="Total de reservas realizadas"
+    )
+    total_releases = models.IntegerField(
+        default=0,
+        help_text="Total de liberaciones realizadas"
+    )
+    failed_operations = models.IntegerField(
+        default=0,
+        help_text="Total de operaciones fallidas"
+    )
+    
+    # Fechas
+    date = models.DateField(
+        help_text="Fecha de las métricas"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'stock_metrics'
+        indexes = [
+            models.Index(fields=['product_type', 'product_id', 'date']),
+            models.Index(fields=['date', 'utilization_rate']),
+        ]
+        ordering = ['-date', '-created_at']
+        unique_together = (('product_type', 'product_id', 'date'),)
+    
+    def __str__(self):
+        return f"{self.product_type} {self.product_id} - {self.date} - {self.utilization_rate}%"
+    
+    @classmethod
+    def update_metrics(cls, product_type, product_id, total_capacity, 
+                      current_reserved, current_available, date=None):
+        """
+        Método de clase para actualizar las métricas de stock.
+        """
+        if date is None:
+            date = timezone.now().date()
+        
+        utilization_rate = (current_reserved / total_capacity * 100) if total_capacity > 0 else 0
+        
+        metrics, created = cls.objects.get_or_create(
+            product_type=product_type,
+            product_id=product_id,
+            date=date,
+            defaults={
+                'total_capacity': total_capacity,
+                'current_reserved': current_reserved,
+                'current_available': current_available,
+                'utilization_rate': utilization_rate,
+            }
+        )
+        
+        if not created:
+            metrics.total_capacity = total_capacity
+            metrics.current_reserved = current_reserved
+            metrics.current_available = current_available
+            metrics.utilization_rate = utilization_rate
+            metrics.save()
+        
+        return metrics
