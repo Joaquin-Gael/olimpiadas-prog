@@ -1,10 +1,12 @@
-#from ninja import Schema
-#from typing import List, Optional, Literal
-#from datetime import date, datetime
-#from pydantic import EmailStr, Field
-#from api.users.schemas import UserResponseSchema
-#
-## ── Schemas para Clients ────────────────────────────────────────
+from ninja import Schema
+from typing import List, Optional, Literal
+from datetime import date, datetime
+from pydantic import EmailStr, Field
+from api.users.schemas import UserResponseSchema
+
+from api.products.schemas import BaseSchema
+
+# ── Schemas para Clients ────────────────────────────────────────
 #class ClientCreateSchema(Schema):
 #    """Schema para crear un cliente"""
 #    user_id: int = Field(..., description="ID del usuario asociado")
@@ -30,17 +32,17 @@
 #    class Config:
 #        from_attributes = True
 #
-#class ClientListSchema(Schema):
-#    """Schema para listar clientes (sin información detallada del usuario)"""
-#    id: int
-#    user_id: int
-#    identity_document_type: str
-#    identity_document: str
-#    state: str
-#    user_first_name: str
-#    user_last_name: str
-#    user_email: str
-#
+class ClientOutSchema(BaseSchema):
+    """Schema para listar clientes (sin información detallada del usuario)"""
+    id: int
+    user_id: int
+    identity_document_type: str
+    identity_document: str
+    state: str
+    user_first_name: str
+    user_last_name: str
+    user_email: str
+
 ## ── Schemas para Addresses ──────────────────────────────────────
 #class AddressCreateSchema(Schema):
 #    """Schema para crear una dirección"""

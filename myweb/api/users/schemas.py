@@ -56,4 +56,11 @@ class ErrorResponseSchema(Schema):
 class SuccessResponseSchema(Schema):
     """Schema para respuestas de éxito"""
     message: str
-    data: Optional[dict] = None 
+    data: Optional[dict] = None
+
+class TokensResponseSchema(SuccessResponseSchema):
+    class Data(Schema):
+        access_token: str
+        token_type: str
+
+    data: Data

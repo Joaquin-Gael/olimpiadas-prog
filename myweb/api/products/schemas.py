@@ -672,18 +672,17 @@ class SupplierOut(BaseSchema):
 # ──────────────────────────────────────────────────────────────
 
 # ── OUTPUT ────────────────────────────────────────────────────
-class ProductsMetadataOut(Schema):
+class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""
     id: int
     unit_price: float
     currency: str
-    product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    #product_type: Literal["activity", "flight", "lodgment", "transportation"]
+    #product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
+    product_type: str
+    product: dict[str, Any]
 
-    class Config:
-        orm_mode = True
-
-class SerializedHelperMetadata(Schema):
+class SerializedHelperMetadata(BaseSchema):
     id: int
     unit_price: float
     currency: str

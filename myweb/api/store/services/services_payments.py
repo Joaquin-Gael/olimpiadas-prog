@@ -217,7 +217,7 @@ class PaymentService:
             instance_orm = model_orm.model_class().objects.get(id=detail.product_metadata.object_id)
             line_items.append({
                 "price_data": {
-                    "currency": "usd",
+                    "currency": "USD",
                     "unit_amount": int(round(detail.product_metadata.unit_price*100)),
                     "product_data": {
                         "name": detail.product_metadata.name,
