@@ -8,7 +8,7 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, SerializedHelperMetadata
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
@@ -29,6 +29,10 @@ from typing import List
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
+
+from rich import console
+
+console = console.Console()
 
 products_router = Router(tags=["Products"])
 
@@ -476,13 +480,20 @@ def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     return serialize_activity_availability(availability)
 
 
-@products_router.get("/products/", response=list[ProductsMetadataOut])
+@products_router.get("/products/", response={200: List[SerializedHelperMetadata]})
 @paginate(DefaultPagination)
-def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
+def list_products(request):
     """
     Lists all products with advanced filters and pagination
     """
-    return ProductsMetadata.objects.active().apply_filters(filters).available_only()
+    data = ProductsMetadata.objects.active().available_only()
+    serialized_list = []
+    for i in data:
+        serialized_list.append(
+            serialize_product_metadata(i)
+        )
+    console.print(serialized_list)
+    return serialized_list
 
 
 @products_router.get("/products/{id}/", response=ProductsMetadataOut)
