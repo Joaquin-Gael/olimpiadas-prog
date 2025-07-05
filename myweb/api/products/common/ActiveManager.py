@@ -1,5 +1,5 @@
 from django.db import models
-from api.clients.models import Clients
+from api.users.models import Users
 
 class ActiveManager(models.Manager):
     """

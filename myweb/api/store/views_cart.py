@@ -22,10 +22,10 @@ router = Router(
 
 # ── Helper: obtener (o crear) carrito OPEN del usuario ─────────
 def _get_open_cart(user, currency=None):
-    cart = Cart.objects.filter(client=user, status="OPEN").first()
+    cart = Cart.objects.filter(user=user, status="OPEN").first()
     if cart:
         return cart
-    return Cart.objects.create(client=user, status="OPEN", currency=currency or "USD")
+    return Cart.objects.create(user=user, status="OPEN", currency=currency or "USD")
 
 # ───────────────────────────────────────────────────────────────
 # 1. Obtener carrito
@@ -68,7 +68,7 @@ def add_item(request, payload: ItemAddIn):
 @router.patch("/cart/items/{item_id}/", response=CartItemOut)
 @store_idempotent()
 def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
-    item = get_object_or_404(CartItem, id=item_id, cart__client=request.user)
+    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
 
     try:
         item = cart_srv.update_qty(item, payload.qty)
@@ -84,7 +84,7 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
 # ───────────────────────────────────────────────────────────────
 @router.delete("/cart/items/{item_id}/", response={204: None})
 def delete_item(request, item_id: int):
-    item = get_object_or_404(CartItem, id=item_id, cart__client=request.user)
+    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
     try:
         cart_srv.remove_item(item)
     except cart_srv.CartClosedError:
@@ -112,7 +112,7 @@ def checkout(request):
         order = cart_srv.checkout(
             cart,
             lambda c: order_srv.create_order_from_cart(
-                c.id, c.client_id, idempotency_key=idemp_key
+                c.id, c.user_id, idempotency_key=idemp_key
             )
         )
     except cart_srv.CartClosedError:

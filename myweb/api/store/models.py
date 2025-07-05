@@ -5,8 +5,42 @@ from decimal import Decimal
 
 from enum import Enum
 
-from api.clients.models import IdentityDocumentType, Clients, Addresses
+from api.users.models import Users
 from api.products.models import ProductsMetadata, Packages, ProductType
+
+# ──────────────────────────────────────────────────────────────
+# ENUMS Y CHOICES
+# ──────────────────────────────────────────────────────────────
+
+class IdentityDocumentType(Enum):
+    """
+    Enumeración de los distintos tipos de formatos de documentos de identificación.
+    Cada miembro representa un formato genérico de documento que puede existir en distintos países.
+    """
+    PASSPORT = "Passport"
+    NATIONAL_ID_DOCUMENT = "National Identity Document"
+    ID_CARD = "Identity Card"
+    RESIDENCE_PERMIT = "Residence Permit"
+    DRIVER_LICENSE = "Driver's License"
+    BIRTH_CERTIFICATE = "Birth Certificate"
+    FOREIGNER_IDENTIFICATION_NUMBER = "Foreigner Identification Number"
+    SOCIAL_SECURITY_NUMBER = "Social Security Number"
+    SOCIAL_INSURANCE_NUMBER = "Social Insurance Number"
+    TAX_IDENTIFICATION_NUMBER = "Tax Identification Number"
+    VOTER_IDENTIFICATION_CARD = "Voter Identification Card"
+    PASSPORT_CARD = "Passport Card"
+    MILITARY_ID = "Military ID"
+    STUDENT_ID = "Student ID"
+    HEALTH_INSURANCE_CARD = "Health Insurance Card"
+    VISA = "Visa"
+    WORK_PERMIT = "Work Permit"
+    TRAVEL_DOCUMENT = "Travel Document"
+    POLICE_ID = "Police Identification Card"
+    MARITIME_DOCUMENT = "Maritime Document"
+
+    @classmethod
+    def choices(cls):
+        return [(tag.value, tag.name.title()) for tag in cls]
 
 class SexType(Enum):
     M = "M"
@@ -132,7 +166,7 @@ class Companions(models.Model):
 
 class Orders(models.Model):
     id = models.AutoField("order_id", primary_key=True)
-    client = models.ForeignKey(Clients, on_delete=models.CASCADE)
+    user = models.ForeignKey(Users, on_delete=models.CASCADE)
     date = models.DateTimeField()
     state = models.CharField(
         max_length=32,
@@ -293,7 +327,7 @@ class Vouchers(models.Model):
         default=PassengerType.Cl,
     )
     passenger = models.ForeignKey(Companions, on_delete=models.CASCADE, null=True)
-    client = models.ForeignKey(Clients, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(Users, on_delete=models.CASCADE, null=True)
     state = models.CharField(
         max_length=32,
         choices=VoucherState.choices,
@@ -323,7 +357,7 @@ class Bills(models.Model):
     sale = models.ForeignKey(Sales, on_delete=models.CASCADE)
     bill_number = models.PositiveIntegerField()
     emission_date = models.DateTimeField()
-    client = models.ForeignKey(Clients, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(Users, on_delete=models.CASCADE, null=True)
     items_details = models.TextField()
     total = models.DecimalField(
         max_digits=10,
@@ -350,10 +384,10 @@ class CartStatus(models.TextChoices):
         EXPIRED = "EXPIRED", "Expired"
 
 class Cart(models.Model):
-    """Un carrito abierto por un cliente autenticado."""
+    """Un carrito abierto por un usuario autenticado."""
 
     id         = models.AutoField(primary_key=True)
-    client     = models.ForeignKey(Clients, on_delete=models.CASCADE, related_name="carts")
+    user       = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="carts")
     status     = models.CharField(max_length=8, choices=CartStatus.choices, default=CartStatus.OPEN)
     currency   = models.CharField(max_length=3, default="USD")       # 1 moneda por carrito
     total      = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
@@ -362,10 +396,10 @@ class Cart(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [models.Index(fields=["client", "status"])]
+        indexes = [models.Index(fields=["user", "status"])]
 
     def __str__(self):
-        return f"Cart {self.id} ({self.client}) – {self.status}"
+        return f"Cart {self.id} ({self.user}) – {self.status}"
 
 class CartItem(models.Model):
     """Un ítem del carrito vinculado a una Availability concreta."""
@@ -392,7 +426,7 @@ class StoreIdempotencyRecord(models.Model):
 
     key      = models.CharField(max_length=64)
     user     = models.ForeignKey(
-        Clients, on_delete=models.CASCADE, null=True, blank=True
+        Users, on_delete=models.CASCADE, null=True, blank=True
     )
     method   = models.CharField(max_length=6)
     path     = models.CharField(max_length=256)
