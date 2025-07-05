@@ -144,9 +144,9 @@ def update_qty(item: CartItem, new_qty: int):
     if diff == 0:
         return item  # sin cambios
 
-    reserve_fn, release_fn = _get_stock_funcs(
-        ProductsMetadata.objects.get(id=item.product_metadata_id).product_type
-    )
+    # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
+    metadata = ProductsMetadata.objects.get(id=item.product_metadata_id)
+    reserve_fn, release_fn = _get_stock_funcs(metadata.product_type)
 
     # Reservar o liberar según el signo
     if diff > 0:
@@ -168,9 +168,9 @@ def remove_item(item: CartItem):
     if item.cart.status != "OPEN":
         raise CartClosedError("El carrito no está abierto")
 
-    _, release_fn = _get_stock_funcs(
-        ProductsMetadata.objects.get(id=item.product_metadata_id).product_type
-    )
+    # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
+    metadata = ProductsMetadata.objects.get(id=item.product_metadata_id)
+    _, release_fn = _get_stock_funcs(metadata.product_type)
 
     release_fn(item.availability_id, item.qty)
     cart = item.cart   # guardamos antes de borrar
@@ -186,10 +186,11 @@ def expire_cart(cart: Cart):
     if cart.status != "OPEN":
         return  # nada que hacer
 
-    for item in cart.items.select_for_update():
-        _, release_fn = _get_stock_funcs(
-            ProductsMetadata.objects.get(id=item.product_metadata_id).product_type
-        )
+    # ✅ OPTIMIZACIÓN: Obtener todos los product_types en una sola consulta
+    items_with_metadata = cart.items.select_for_update().select_related('product_metadata')
+    
+    for item in items_with_metadata:
+        _, release_fn = _get_stock_funcs(item.product_metadata.product_type)
         release_fn(item.availability_id, item.qty)
 
     cart.status = "EXPIRED"
@@ -209,10 +210,11 @@ def checkout(cart: Cart, order_creator_fn):
         raise CartClosedError("El carrito no está abierto")
 
     # ── 1. RE-CHEQUEO DE STOCK ────────────────────────────────
-    for line in cart.items.select_for_update():     # lock de fila por seguridad
-        reserve_fn, _ = _get_stock_funcs(
-            ProductsMetadata.objects.get(id=line.product_metadata_id).product_type
-        )
+    # ✅ OPTIMIZACIÓN: Obtener todos los product_types en una sola consulta
+    lines_with_metadata = cart.items.select_for_update().select_related('product_metadata')
+    
+    for line in lines_with_metadata:
+        reserve_fn, _ = _get_stock_funcs(line.product_metadata.product_type)
         try:
             reserve_fn(line.availability_id, line.qty)     # qty=0 ⇒ solo valida
         except InsufficientStockError:

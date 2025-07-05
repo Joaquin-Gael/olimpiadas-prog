@@ -1,0 +1,1 @@
+# Este archivo hace que el directorio migrations sea un paquete de Python 

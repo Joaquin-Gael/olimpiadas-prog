@@ -247,6 +247,35 @@ class NotificationService:
             context=context,
             subject=f'Confirmación de Pago - Orden #{order_id}'
         )
+    
+    @staticmethod
+    def booking_pending(order):
+        """
+        Envía notificación de reserva pendiente
+        
+        Args:
+            order: Instancia de Orders
+            
+        Returns:
+            bool: True si se envió exitosamente
+        """
+        try:
+            context = {
+                'order_id': order.id,
+                'user_name': f"{order.user.first_name} {order.user.last_name}",
+                'total': order.total,
+                'created_at': order.date.strftime('%Y-%m-%d %H:%M:%S'),
+            }
+            
+            return NotificationService.send_email(
+                template_name='booking_pending',
+                to_email=order.user.email,
+                context=context,
+                subject=f'Reserva Pendiente - Orden #{order.id}'
+            )
+        except Exception as e:
+            logger.error(f"Error enviando notificación de reserva pendiente para orden {order.id}: {e}")
+            return False
 
 def send_notification(order, notif_type: NotificationType, subject: str, body: str):
     Notifications.objects.create(

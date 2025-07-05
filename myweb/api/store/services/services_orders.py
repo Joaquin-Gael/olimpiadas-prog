@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from ..models import Cart, Orders, OrderDetails, OrderState, CartStatus
 from api.core.notification.services import NotificationService
-from api.products.models import ProductsMetadata
+from api.products.models import ProductsMetadata, ComponentPackages
 
 
 class InvalidCartStateError(Exception):
@@ -51,13 +51,21 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
         idempotency_key=idempotency_key,
     )
     
+    # ✅ SOLUCIÓN: Mapear product_metadata_id a package_id usando ComponentPackages
+    # Ahora package puede ser None para productos individuales
+    product_metadata_ids = [li.product_metadata_id for li in cart.items.all()]
+    component_map = {
+        cp.product_metadata_id: cp.package_id
+        for cp in ComponentPackages.objects.filter(
+            product_metadata_id__in=product_metadata_ids
+        )
+    }
+    
     OrderDetails.objects.bulk_create([
         OrderDetails(
             order=order,
             product_metadata_id=li.product_metadata_id,
-            package_id=ProductsMetadata.objects
-                .get(id=li.product_metadata_id)
-                .package_id,
+            package_id=component_map.get(li.product_metadata_id),  # ✅ Puede ser None
             availability_id=li.availability_id,
             quantity=li.qty,
             unit_price=li.unit_price,
@@ -65,6 +73,10 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
             discount_applied=Decimal("0.00"),
         ) for li in cart.items.all()
     ])
+    
+    # ✅ SOLUCIÓN: Cambiar estado del carrito a ORDERED para evitar reutilización
+    cart.status = CartStatus.ORDERED
+    cart.save()
     
     NotificationService.booking_pending(order)
     return order

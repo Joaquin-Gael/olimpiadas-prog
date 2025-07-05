@@ -1,4 +1,4 @@
-from ..schemas import (
+from .schemas import (
     ProductsMetadataOut,
     ActivityOut,
     FlightOut,

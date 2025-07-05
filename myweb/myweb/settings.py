@@ -158,3 +158,6 @@ CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
 # Configuración de pasarela de pago
 PAYMENT_GATEWAY = os.getenv("PAYMENT_GATEWAY", "dummy")
+
+# Configuración de idempotencia
+IDEMPOTENCY_ENABLED = os.getenv('IDEMPOTENCY_ENABLED', 'True').lower() == 'true'
