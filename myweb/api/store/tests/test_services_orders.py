@@ -10,7 +10,6 @@ from django.utils import timezone
 from api.store.models import Cart, CartItem, Orders, OrderDetails
 from api.store.services.services_orders import create_order_from_cart, OrderCreationError, InvalidCartStateError
 from api.products.models import ProductsMetadata
-from api.clients.models import Clients, Addresses
 
 User = get_user_model()
 
@@ -20,29 +19,11 @@ class CreateOrderFromCartTestCase(TestCase):
     
     def setUp(self):
         """Configuración inicial para las pruebas."""
-        # Crear usuario/cliente
+        # Crear usuario
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
             password='testpass123'
-        )
-        
-        # Crear cliente
-        self.client_obj = Clients.objects.create(
-            user=self.user,
-            first_name="Test",
-            last_name="User",
-            email="test@example.com"
-        )
-        
-        # Crear dirección
-        self.address = Addresses.objects.create(
-            client=self.client_obj,
-            street="Test Street 123",
-            city="Test City",
-            state="Test State",
-            country="Test Country",
-            postal_code="12345"
         )
         
         # Crear metadata de producto
@@ -56,7 +37,7 @@ class CreateOrderFromCartTestCase(TestCase):
         
         # Crear carrito
         self.cart = Cart.objects.create(
-            client=self.user,
+            user=self.user,
             status="OPEN",
             currency="USD",
             total=Decimal("100.00"),
@@ -81,10 +62,9 @@ class CreateOrderFromCartTestCase(TestCase):
         
         # Verificar que se creó la orden
         self.assertIsInstance(order, Orders)
-        self.assertEqual(order.client.user, self.user)
+        self.assertEqual(order.user, self.user)
         self.assertEqual(order.total, Decimal("100.00"))
         self.assertEqual(order.state, "Pending")
-        # self.assertEqual(order.address, self.address)  # Si address ya no existe, comentar
         
         # Verificar que se crearon los detalles
         details = OrderDetails.objects.filter(order=order)

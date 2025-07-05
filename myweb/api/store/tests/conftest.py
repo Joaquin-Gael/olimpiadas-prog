@@ -48,7 +48,7 @@ def product_metadata_eur(db):
 
 @pytest.fixture
 def cart_with_items(user, product_metadata_usd):
-    cart = Cart.objects.create(client=user, status=CartStatus.OPEN, currency="USD")
+    cart = Cart.objects.create(user=user, status=CartStatus.OPEN, currency="USD")
     CartItem.objects.create(
         cart=cart,
         availability_id=1,

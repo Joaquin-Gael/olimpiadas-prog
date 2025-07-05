@@ -9,6 +9,7 @@ from .common.ActiveManager import ActiveManager
 from enum import Enum
 from api.clients.models import Clients
 from api.core.querysets import SoftDeleteModel, ProductsMetadataQuerySet
+from api.users.models import Users
 
 
 class ProductsMetadataManager(models.Manager):
@@ -1020,7 +1021,7 @@ class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)
     product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.PROTECT)
     package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.CASCADE)
-    client = models.ForeignKey(Clients, verbose_name="client_id", on_delete=models.CASCADE)
+    user = models.ForeignKey(Users, verbose_name="user_id", on_delete=models.CASCADE)
     punctuation = models.DecimalField(
         max_digits=3,
         decimal_places=2,
