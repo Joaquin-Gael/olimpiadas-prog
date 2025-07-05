@@ -125,15 +125,16 @@ def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
         }
 
         # Procesar el pago
-        PaymentService.process_payment(
+        session_url = PaymentService.process_payment(
             order_id=order_id,
             payment_method=payload.payment_method,
             payment_data=payment_data,
             idempotency_key=idemp_key
         )
 
-        # Enviar notificación de confirmación de pago
-        #OrderNotificationService.send_payment_confirmation(sale)
+        return {
+            "session_url": session_url,
+        }
 
     except ValidationError as e:
         return 400, ErrorResponse(

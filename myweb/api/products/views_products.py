@@ -482,7 +482,7 @@ def list_products(request, filters: ProductosFiltro = ProductosFiltro()):
     """
     Lists all products with advanced filters and pagination
     """
-    return ProductsMetadata.objects.active().apply_filters(filters)
+    return ProductsMetadata.objects.active().apply_filters(filters).available_only()
 
 
 @products_router.get("/products/{id}/", response=ProductsMetadataOut)
