@@ -184,7 +184,7 @@ def list_orders(request: HttpRequest, filters: OrderFilterIn = OrderFilterIn()):
     """
     try:
         # Obtener órdenes del usuario con filtros
-        queryset = Orders.objects.filter(client=request.user)
+        queryset = Orders.objects.filter(user=request.user)
 
         if filters.state:
             queryset = queryset.filter(state=filters.state)

@@ -38,13 +38,13 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
     cart = (Cart.objects
             .select_for_update()
             .prefetch_related("items")
-            .get(id=cart_id, client_id=user_id, status=CartStatus.OPEN))
+            .get(id=cart_id, user_id=user_id, status=CartStatus.OPEN))
     
     if not cart.items_cnt:
         raise InvalidCartStateError("EMPTY_CART")
     
     order = Orders.objects.create(
-        client_id=user_id,
+        user_id=user_id,
         date=timezone.now(),
         state=OrderState.PENDING,
         total=cart.total,
@@ -83,7 +83,7 @@ def cancel_order(order_id: int, user_id: int):
     """
     with transaction.atomic():
         order = Orders.objects.select_for_update().get(
-            id=order_id, client_id=user_id
+            id=order_id, user_id=user_id
         )
         
         if order.state not in [OrderState.PENDING, OrderState.CONFIRMED]:
@@ -109,7 +109,7 @@ def pay_order(order_id: int, user_id: int, payment_method: str):
     """
     with transaction.atomic():
         order = Orders.objects.select_for_update().get(
-            id=order_id, client_id=user_id
+            id=order_id, user_id=user_id
         )
         
         if order.state != OrderState.PENDING:
@@ -135,7 +135,7 @@ def refund_order(order_id: int, user_id: int, amount: Optional[Decimal] = None):
     """
     with transaction.atomic():
         order = Orders.objects.select_for_update().get(
-            id=order_id, client_id=user_id
+            id=order_id, user_id=user_id
         )
         
         if order.state not in [OrderState.CONFIRMED, OrderState.COMPLETED]:
@@ -156,9 +156,9 @@ class OrderService:
     # get_order_by_id ----------------------------------------------------
     @staticmethod
     def get_order_by_id(order_id: int, user_id: int) -> "Orders | None":
-        """Devuelve la orden si pertenece al usuario/cliente o None."""
+        """Devuelve la orden si pertenece al usuario o None."""
         try:
-            return Orders.objects.get(id=order_id, client_id=user_id)
+            return Orders.objects.get(id=order_id, user_id=user_id)
         except Orders.DoesNotExist:
             return None
 

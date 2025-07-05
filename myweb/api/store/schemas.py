@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, PositiveInt
 from typing import List, Any, Optional
-from datetime import datetime
+from datetime import datetime, date
 from ninja import Schema
 
 # ── Salidas ────────────────────────────────────────────────────
@@ -22,14 +22,21 @@ class CartOut(BaseModel):
     updated_at: datetime
     items: List[CartItemOut]
 
+# ── Schemas para Sales (CORREGIDOS) ────────────────────────────
 class SalesOut(Schema):
+    """Schema de salida para Sales - Corregido para coincidir con el modelo"""
     id: int
-    order: int
+    order_id: int  # Corregido: era 'order', ahora es 'order_id'
+    amount: Optional[float] = None  # Agregado: campo opcional del modelo
     total: float
-    sale_date: datetime
     payment_status: str
     sale_type: str
     payment_type: str
+    transaction_number: Optional[int] = None  # Agregado: campo opcional del modelo
+    sale_date: datetime
+    transaction_id: Optional[str] = None  # Agregado: campo opcional del modelo
+    created_at: datetime  # Agregado: campo del modelo
+    updated_at: datetime  # Agregado: campo del modelo
 
 # ── Entradas ───────────────────────────────────────────────────
 class ItemAddIn(BaseModel):
@@ -58,7 +65,7 @@ class OrderOut(BaseModel):
     state: str
     created_at: datetime
     updated_at: datetime
-    client_id: int
+    user_id: int
     items_count: int
     items: Optional[List[OrderItemOut]] = None
 
@@ -67,7 +74,7 @@ class OrderListOut(BaseModel):
     total: float
     state: str
     created_at: datetime
-    client_id: int
+    user_id: int
 
 class OrderCreateIn(BaseModel):
     cart_id: int = Field(..., description="ID del carrito a convertir en orden")
@@ -100,15 +107,21 @@ class PaymentStatusOut(BaseModel):
     payment_method: Optional[str] = None
     message: Optional[str] = None
 
-# ── Schemas para Ventas ────────────────────────────────────────
+# ── Schemas para Ventas (CORREGIDOS) ────────────────────────────
 class SaleOut(BaseModel):
+    """Schema de salida para Sale - Corregido para coincidir con el modelo"""
     id: int
-    order_id: int
-    amount: float
-    payment_method: str
-    payment_status: str
-    transaction_id: str
-    created_at: datetime
+    order_id: int  # Corregido: ya estaba bien
+    amount: Optional[float] = None  # Corregido: campo opcional del modelo
+    total: float  # Agregado: campo requerido del modelo
+    payment_status: str  # Corregido: ya estaba bien
+    sale_type: str  # Agregado: campo del modelo
+    payment_type: str  # Agregado: campo del modelo
+    transaction_number: Optional[int] = None  # Agregado: campo opcional del modelo
+    sale_date: datetime  # Corregido: era 'created_at', ahora es 'sale_date'
+    transaction_id: Optional[str] = None  # Corregido: ya estaba bien
+    created_at: datetime  # Agregado: campo del modelo
+    updated_at: datetime  # Agregado: campo del modelo
 
 class SaleSummaryOut(BaseModel):
     total_sales: int
@@ -170,6 +183,189 @@ class NotificationOut(BaseModel):
 # ── Schemas para Validación ────────────────────────────────────
 class IdempotencyHeader(BaseModel):
     HTTP_IDEMPOTENCY_KEY: str = Field(..., description="Clave de idempotencia requerida")
+
+# ── Schemas para Companions ─────────────────────────────────────
+class CompanionCreateSchema(BaseModel):
+    """Schema para crear un acompañante"""
+    first_name: str = Field(..., max_length=64, description="Nombre del acompañante")
+    last_name: str = Field(..., max_length=64, description="Apellido del acompañante")
+    identity_document_type: str = Field(..., description="Tipo de documento de identidad")
+    identity_document: str = Field(..., max_length=255, description="Número del documento")
+    born_date: date = Field(..., description="Fecha de nacimiento")
+    sex: str = Field(..., description="Sexo (M/F)")
+    observations: str = Field(..., description="Observaciones adicionales")
+
+class CompanionUpdateSchema(BaseModel):
+    """Schema para actualizar un acompañante"""
+    first_name: Optional[str] = Field(None, max_length=64)
+    last_name: Optional[str] = Field(None, max_length=64)
+    identity_document_type: Optional[str] = Field(None, description="Tipo de documento de identidad")
+    identity_document: Optional[str] = Field(None, max_length=255)
+    born_date: Optional[date] = Field(None, description="Fecha de nacimiento")
+    sex: Optional[str] = Field(None, description="Sexo (M/F)")
+    observations: Optional[str] = Field(None, description="Observaciones adicionales")
+
+class CompanionResponseSchema(BaseModel):
+    """Schema de respuesta para acompañantes"""
+    id: int
+    first_name: str
+    last_name: str
+    identity_document_type: str
+    identity_document: str
+    born_date: date
+    sex: str
+    observations: str
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para OrderDetails ───────────────────────────────────
+class OrderDetailCreateSchema(BaseModel):
+    """Schema para crear un detalle de orden"""
+    order_id: int = Field(..., description="ID de la orden")
+    product_metadata_id: int = Field(..., description="ID del metadata del producto")
+    package_id: int = Field(..., description="ID del paquete")
+    availability_id: int = Field(..., description="ID de la disponibilidad")
+    quantity: int = Field(..., ge=0, description="Cantidad del producto")
+    unit_price: float = Field(..., ge=0, description="Precio unitario")
+    subtotal: float = Field(..., ge=0, description="Subtotal del detalle")
+    discount_applied: float = Field(default=0, ge=0, description="Descuento aplicado")
+
+class OrderDetailResponseSchema(BaseModel):
+    """Schema de respuesta para detalles de orden"""
+    id: int
+    order_id: int
+    product_metadata_id: int
+    package_id: int
+    availability_id: int
+    quantity: int
+    unit_price: float
+    subtotal: float
+    discount_applied: float
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para Vouchers ───────────────────────────────────────
+class VoucherCreateSchema(BaseModel):
+    """Schema para crear un voucher"""
+    sale_id: int = Field(..., description="ID de la venta")
+    emission_date: datetime = Field(..., description="Fecha de emisión")
+    voucher_code: str = Field(..., max_length=128, description="Código del voucher")
+    passenger_type: str = Field(..., description="Tipo de pasajero (CLIENT/COMPANY)")
+    passenger_id: Optional[int] = Field(None, description="ID del acompañante")
+    user_id: Optional[int] = Field(None, description="ID del usuario")
+    state: str = Field(default="AVAILABLE", description="Estado del voucher")
+
+class VoucherUpdateSchema(BaseModel):
+    """Schema para actualizar un voucher"""
+    emission_date: Optional[datetime] = Field(None, description="Fecha de emisión")
+    voucher_code: Optional[str] = Field(None, max_length=128, description="Código del voucher")
+    passenger_type: Optional[str] = Field(None, description="Tipo de pasajero")
+    passenger_id: Optional[int] = Field(None, description="ID del acompañante")
+    user_id: Optional[int] = Field(None, description="ID del usuario")
+    state: Optional[str] = Field(None, description="Estado del voucher")
+
+class VoucherResponseSchema(BaseModel):
+    """Schema de respuesta para vouchers"""
+    id: int
+    sale_id: int
+    emission_date: datetime
+    voucher_code: str
+    passenger_type: str
+    passenger_id: Optional[int]
+    user_id: Optional[int]
+    state: str
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para VoucherDetails ──────────────────────────────────
+class VoucherDetailCreateSchema(BaseModel):
+    """Schema para crear un detalle de voucher"""
+    voucher_id: int = Field(..., description="ID del voucher")
+    product_metadata_id: int = Field(..., description="ID del metadata del producto")
+    package_id: int = Field(..., description="ID del paquete")
+    service_name: str = Field(..., max_length=32, description="Nombre del servicio")
+    product_type: str = Field(..., description="Tipo de producto")
+    quantity: int = Field(..., ge=0, description="Cantidad")
+    order: str = Field(..., max_length=32, description="Orden del servicio")
+
+class VoucherDetailResponseSchema(BaseModel):
+    """Schema de respuesta para detalles de voucher"""
+    id: int
+    voucher_id: int
+    product_metadata_id: int
+    package_id: int
+    service_name: str
+    product_type: str
+    quantity: int
+    order: str
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para Bills ───────────────────────────────────────────
+class BillCreateSchema(BaseModel):
+    """Schema para crear una factura"""
+    sale_id: int = Field(..., description="ID de la venta")
+    bill_number: int = Field(..., ge=1, description="Número de factura")
+    emission_date: datetime = Field(..., description="Fecha de emisión")
+    user_id: Optional[int] = Field(None, description="ID del usuario")
+    items_details: str = Field(..., description="Detalles de los items")
+    total: float = Field(..., ge=0, description="Total de la factura")
+    state: str = Field(default="DRAFT", description="Estado de la factura")
+    bill_type: str = Field(default="STANDARD", description="Tipo de factura")
+
+class BillUpdateSchema(BaseModel):
+    """Schema para actualizar una factura"""
+    bill_number: Optional[int] = Field(None, ge=1, description="Número de factura")
+    emission_date: Optional[datetime] = Field(None, description="Fecha de emisión")
+    user_id: Optional[int] = Field(None, description="ID del usuario")
+    items_details: Optional[str] = Field(None, description="Detalles de los items")
+    total: Optional[float] = Field(None, ge=0, description="Total de la factura")
+    state: Optional[str] = Field(None, description="Estado de la factura")
+    bill_type: Optional[str] = Field(None, description="Tipo de factura")
+
+class BillResponseSchema(BaseModel):
+    """Schema de respuesta para facturas"""
+    id: int
+    sale_id: int
+    bill_number: int
+    emission_date: datetime
+    user_id: Optional[int]
+    items_details: str
+    total: float
+    state: str
+    bill_type: str
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para Notifications ───────────────────────────────────
+class NotificationCreateSchema(BaseModel):
+    """Schema para crear una notificación"""
+    order_id: int = Field(..., description="ID de la orden")
+    email_destination: str = Field(..., description="Email de destino")
+    subject: str = Field(..., max_length=255, description="Asunto de la notificación")
+    body: str = Field(..., description="Cuerpo de la notificación")
+    date: datetime = Field(..., description="Fecha de la notificación")
+    notification_type: str = Field(..., description="Tipo de notificación")
+    shipping_state: str = Field(..., description="Estado de envío")
+
+class NotificationResponseSchema(BaseModel):
+    """Schema de respuesta para notificaciones"""
+    id: int
+    order_id: int
+    email_destination: str
+    subject: str
+    body: str
+    date: datetime
+    notification_type: str
+    shipping_state: str
+
+    class Config:
+        from_attributes = True
 
 # ── Schemas para Reportes ──────────────────────────────────────
 class SalesReportIn(BaseModel):

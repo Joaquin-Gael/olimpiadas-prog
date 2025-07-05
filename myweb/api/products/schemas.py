@@ -35,7 +35,7 @@ class ActivityCreate(BaseSchema):
     name: str
     description: str
     location_id: int
-    date: date
+    activity_date: date
     start_time: time
     duration_hours: int = Field(..., ge=0, le=24)
     include_guide: bool
@@ -47,7 +47,7 @@ class ActivityCreate(BaseSchema):
     available_slots: int = Field(..., ge=0, le=100)
     currency: str = Field(default="USD", max_length=3)
 
-    @field_validator("date")
+    @field_validator("activity_date")
     @classmethod
     def validate_date(cls, v):
         if v < date.today():
@@ -87,7 +87,7 @@ class ActivityUpdate(Schema):
     name: Optional[str] = None
     description: Optional[str] = None
     location_id: Optional[int] = None
-    date: Optional[date] = None
+    activity_date: Optional[date] = None
     start_time: Optional[time] = None
     duration_hours: Optional[int] = Field(None, ge=0, le=24)
     include_guide: Optional[bool] = None
@@ -118,7 +118,7 @@ class ActivityOut(BaseSchema):
     name: str
     description: str
     location: LocationOut
-    date: date
+    activity_date: date
     start_time: time
     duration_hours: int
     include_guide: bool
@@ -156,6 +156,7 @@ class FlightCreate(BaseSchema):
         "Basic Economy", "Economy", "Premium Economy", "Business Class", "First Class"
     ]
     available_seats: int = Field(..., ge=0, le=500)
+    capacity: int = Field(..., ge=1, le=500, description="Maximum number of seats for this flight")
     luggage_info: str
     aircraft_type: str
     terminal: Optional[str] = None
@@ -180,6 +181,7 @@ class FlightUpdate(Schema):
         "Basic Economy", "Economy", "Premium Economy", "Business Class", "First Class"
     ]] = None
     available_seats: Optional[int] = Field(None, ge=0, le=500)
+    capacity: Optional[int] = Field(None, ge=1, le=500, description="Maximum number of seats for this flight")
     luggage_info: Optional[str] = None
     aircraft_type: Optional[str] = None
     terminal: Optional[str] = None
@@ -203,6 +205,7 @@ class FlightOut(BaseSchema):
     duration_hours: int
     class_flight: str
     available_seats: int
+    capacity: int
     luggage_info: str
     aircraft_type: str
     terminal: Optional[str]
@@ -771,7 +774,7 @@ class ActivityCompleteCreate(BaseSchema):
     name: str
     description: str
     location_id: int
-    date: date
+    activity_date: date
     start_time: time
     duration_hours: int = Field(..., ge=1, le=24)
     include_guide: bool
@@ -786,7 +789,7 @@ class ActivityCompleteCreate(BaseSchema):
     availabilities: List[ActivityAvailabilityCreateNested] = []
     currency: str = Field(default="USD", max_length=3)
 
-    @field_validator("date")
+    @field_validator("activity_date")
     @classmethod
     def check_date(cls, v):
         if v < date.today():
@@ -1332,7 +1335,7 @@ class ProductPatch(BaseSchema):
     date_checkout: Optional[date] = None
     
     # Actividad
-    date: Optional[date] = None
+    activity_date: Optional[date] = None
     start_time: Optional[time] = None
     duration_hours: Optional[int] = Field(None, ge=0, le=24)
     include_guide: Optional[bool] = None
@@ -1410,7 +1413,7 @@ class ProductPatchActivity(ProductsMetadataUpdate):
     name: Optional[str] = None
     description: Optional[str] = None
     location_id: Optional[int] = None
-    date: Optional[date] = None
+    activity_date: Optional[date] = None
     start_time: Optional[time] = None
     duration_hours: Optional[int] = Field(None, ge=0, le=24)
     include_guide: Optional[bool] = None
@@ -1468,6 +1471,49 @@ class ProductPatchTransportation(ProductsMetadataUpdate):
     transportations: Optional[List[TransportationPartialUpdate]] = None
 
 
+# ── Schemas para Location ────────────────────────────────────────
+class LocationCreateSchema(BaseSchema):
+    """Schema para crear una ubicación"""
+    name: str = Field(..., max_length=128, description="Nombre de la ubicación")
+    country: str = Field(..., max_length=64, description="País")
+    state: str = Field(..., max_length=64, description="Estado/Provincia")
+    city: str = Field(..., max_length=64, description="Ciudad")
+    code: str = Field(..., max_length=16, description="Código IATA/ICAO o código personalizado")
+    type: str = Field(..., description="Tipo de ubicación (country, state, city, airport, etc.)")
+    parent_id: Optional[int] = Field(None, description="ID de la ubicación padre")
+    latitude: Optional[float] = Field(None, description="Latitud")
+    longitude: Optional[float] = Field(None, description="Longitud")
+
+class LocationUpdateSchema(BaseSchema):
+    """Schema para actualizar una ubicación"""
+    name: Optional[str] = Field(None, max_length=128)
+    country: Optional[str] = Field(None, max_length=64)
+    state: Optional[str] = Field(None, max_length=64)
+    city: Optional[str] = Field(None, max_length=64)
+    code: Optional[str] = Field(None, max_length=16)
+    type: Optional[str] = Field(None, description="Tipo de ubicación")
+    parent_id: Optional[int] = Field(None, description="ID de la ubicación padre")
+    latitude: Optional[float] = Field(None, description="Latitud")
+    longitude: Optional[float] = Field(None, description="Longitud")
+    is_active: Optional[bool] = Field(None, description="Si la ubicación está activa")
+
+class LocationResponseSchema(BaseSchema):
+    """Schema de respuesta para ubicaciones"""
+    id: int
+    name: str
+    country: str
+    state: str
+    city: str
+    code: str
+    type: str
+    parent_id: Optional[int]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
 class LocationListOut(BaseSchema):
     id: int
     name: str
@@ -1480,3 +1526,65 @@ class LocationListOut(BaseSchema):
     latitude: float | None = None
     longitude: float | None = None
     is_active: bool
+
+# ── Schemas para Reviews ──────────────────────────────────────────
+class ReviewCreateSchema(BaseSchema):
+    """Schema para crear una reseña"""
+    product_metadata_id: int = Field(..., description="ID del metadata del producto")
+    package_id: int = Field(..., description="ID del paquete")
+    user_id: int = Field(..., description="ID del usuario")
+    punctuation: float = Field(..., ge=0, le=5, description="Puntuación (0-5)")
+    comment: str = Field(..., description="Comentario de la reseña")
+    review_date: date = Field(..., description="Fecha de la reseña")
+
+class ReviewUpdateSchema(BaseSchema):
+    """Schema para actualizar una reseña"""
+    punctuation: Optional[float] = Field(None, ge=0, le=5, description="Puntuación (0-5)")
+    comment: Optional[str] = Field(None, description="Comentario de la reseña")
+    review_date: Optional[date] = Field(None, description="Fecha de la reseña")
+
+class ReviewResponseSchema(BaseSchema):
+    """Schema de respuesta para reseñas"""
+    id: int
+    product_metadata_id: int
+    package_id: int
+    user_id: int
+    punctuation: float
+    comment: str
+    review_date: date
+
+    class Config:
+        from_attributes = True
+
+# ── Schemas para Promotions ───────────────────────────────────────
+class PromotionCreateSchema(BaseSchema):
+    """Schema para crear una promoción"""
+    product_metadata_id: int = Field(..., description="ID del metadata del producto")
+    package_id: int = Field(..., description="ID del paquete")
+    name: str = Field(..., max_length=64, description="Nombre de la promoción")
+    discount: float = Field(..., ge=0, le=100, description="Porcentaje de descuento (0-100)")
+    start_date: date = Field(..., description="Fecha de inicio de la promoción")
+    end_date: date = Field(..., description="Fecha de fin de la promoción")
+    is_active: bool = Field(..., description="Si la promoción está activa")
+
+class PromotionUpdateSchema(BaseSchema):
+    """Schema para actualizar una promoción"""
+    name: Optional[str] = Field(None, max_length=64, description="Nombre de la promoción")
+    discount: Optional[float] = Field(None, ge=0, le=100, description="Porcentaje de descuento (0-100)")
+    start_date: Optional[date] = Field(None, description="Fecha de inicio de la promoción")
+    end_date: Optional[date] = Field(None, description="Fecha de fin de la promoción")
+    is_active: Optional[bool] = Field(None, description="Si la promoción está activa")
+
+class PromotionResponseSchema(BaseSchema):
+    """Schema de respuesta para promociones"""
+    id: int
+    product_metadata_id: int
+    package_id: int
+    name: str
+    discount: float
+    start_date: date
+    end_date: date
+    is_active: bool
+
+    class Config:
+        from_attributes = True
