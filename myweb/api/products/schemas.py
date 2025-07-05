@@ -1,6 +1,6 @@
 from ninja import Schema
 from pydantic import BaseModel, Field, field_validator, EmailStr, AnyUrl, ConfigDict
-from typing import Union, Literal, Optional, List
+from typing import Union, Literal, Optional, List, Dict, Any
 from enum import Enum
 from datetime import date, time, datetime
 from api.products.common.schemas import BaseSchema
@@ -663,8 +663,8 @@ class SupplierOut(BaseSchema):
     currency: str
 
     class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+        from_attributes = True
+        validate_by_name = True
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1579,3 +1579,97 @@ class PromotionResponseSchema(BaseSchema):
 
     class Config:
         from_attributes = True
+
+
+# ─────────────────────────────────────────────
+# ESQUEMAS PARA AUDITORÍA DE STOCK
+# ─────────────────────────────────────────────
+
+class AuditLogOut(BaseSchema):
+    """Esquema de salida para logs de auditoría de stock."""
+    id: int
+    operation_type: str
+    product_type: str
+    product_id: int
+    quantity: int
+    previous_stock: Optional[int] = None
+    new_stock: Optional[int] = None
+    user_id: Optional[int] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+    metadata: Dict[str, Any] = {}
+    success: bool
+    error_message: str = ""
+    created_at: datetime
+
+
+class StockChangeOut(BaseSchema):
+    """Esquema de salida para cambios específicos de stock."""
+    id: int
+    audit_log_id: int
+    change_type: str
+    field_name: str
+    old_value: Optional[int] = None
+    new_value: Optional[int] = None
+    change_amount: int
+    created_at: datetime
+
+
+class StockMetricsOut(BaseSchema):
+    """Esquema de salida para métricas de stock."""
+    id: int
+    product_type: str
+    product_id: int
+    total_capacity: int
+    current_reserved: int
+    current_available: int
+    utilization_rate: float
+    total_reservations: int
+    total_releases: int
+    failed_operations: int
+    date: date
+    created_at: datetime
+    updated_at: datetime
+
+
+class OperationSummaryOut(BaseSchema):
+    """Esquema de salida para resumen de operaciones."""
+    total_operations: int
+    successful_operations: int
+    failed_operations: int
+    success_rate: float
+    operation_types: List[Dict[str, Any]]
+
+
+class AuditLogFilterIn(BaseSchema):
+    """Esquema de entrada para filtros de auditoría."""
+    product_type: Optional[str] = None
+    product_id: Optional[int] = None
+    operation_type: Optional[str] = None
+    user_id: Optional[int] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    success_only: bool = False
+    limit: int = 100
+
+
+# ──────────────────────────────────────────────────────────────
+# ESQUEMAS DE PAGINACIÓN PARA AUDITORÍA
+# ──────────────────────────────────────────────────────────────
+
+class PaginatedAuditLogs(BaseSchema):
+    """Esquema de respuesta paginada para logs de auditoría."""
+    count: int
+    results: List[AuditLogOut]
+
+
+class PaginatedStockChanges(BaseSchema):
+    """Esquema de respuesta paginada para cambios de stock."""
+    count: int
+    results: List[StockChangeOut]
+
+
+class PaginatedStockMetrics(BaseSchema):
+    """Esquema de respuesta paginada para métricas de stock."""
+    count: int
+    results: List[StockMetricsOut]
