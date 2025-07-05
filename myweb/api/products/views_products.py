@@ -481,21 +481,121 @@ def update_availability(request, id: int, data: ActivityAvailabilityUpdate):
     return serialize_activity_availability(availability)
 
 
+@products_router.get("/test/", response={200: dict})
+def test_products_endpoint(request):
+    """
+    Endpoint de prueba para diagnosticar problemas con productos
+    """
+    try:
+        # Contar productos activos
+        total_active = ProductsMetadata.objects.active().count()
+        
+        # Contar por tipo
+        activity_count = ProductsMetadata.objects.active().filter(activity__isnull=False).count()
+        flight_count = ProductsMetadata.objects.active().filter(flights__isnull=False).count()
+        lodgment_count = ProductsMetadata.objects.active().filter(lodgment__isnull=False).count()
+        transportation_count = ProductsMetadata.objects.active().filter(transportation__isnull=False).count()
+        
+        # Probar available_only
+        available_count = ProductsMetadata.objects.active().available_only().count()
+        
+        # Verificar productos con problemas
+        products_with_issues = []
+        for metadata in ProductsMetadata.objects.active()[:5]:  # Solo los primeros 5
+            try:
+                serialize_product_metadata(metadata)
+            except Exception as e:
+                products_with_issues.append({
+                    "id": metadata.id,
+                    "product_type": metadata.product_type,
+                    "error": str(e)
+                })
+        
+        return {
+            "status": "success",
+            "total_active_products": total_active,
+            "by_type": {
+                "activity": activity_count,
+                "flight": flight_count,
+                "lodgment": lodgment_count,
+                "transportation": transportation_count
+            },
+            "available_products": available_count,
+            "products_with_issues": products_with_issues,
+            "message": "Diagnóstico completado"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "message": "Error en el diagnóstico"
+        }
+
+
+@products_router.get("/all/", response={200: List[ProductsMetadataOut]})
+@paginate(DefaultPagination)
+def list_all_products(request):
+    """
+    Lists all active products without availability filters
+    """
+    # Solo filtrar por productos activos, sin filtros de disponibilidad
+    data = ProductsMetadata.objects.active().select_related(
+        'supplier', 'content_type_id'
+    ).prefetch_related(
+        'activity__location',
+        'flights__origin',
+        'flights__destination', 
+        'lodgment__location',
+        'lodgment__rooms',
+        'transportation__origin',
+        'transportation__destination'
+    )
+    
+    serialized_list = []
+    for metadata in data:
+        try:
+            serialized_data = serialize_product_metadata(metadata)
+            serialized_list.append(serialized_data)
+        except Exception as e:
+            console.print(f"Error serializando producto {metadata.id}: {str(e)}")
+            continue
+    
+    console.print(f"Productos serializados: {len(serialized_list)}")
+    return serialized_list
+
+
 @products_router.get("/", response={200: List[ProductsMetadataOut]})
 @paginate(DefaultPagination)
 def list_products(request):
     """
     Lists all products with advanced filters and pagination
     """
-    data = ProductsMetadata.objects.active().available_only()
+    # Optimizar consultas con select_related y prefetch_related
+    data = ProductsMetadata.objects.active().available_only().select_related(
+        'supplier', 'content_type_id'
+    ).prefetch_related(
+        'activity__location',
+        'flights__origin',
+        'flights__destination', 
+        'lodgment__location',
+        'lodgment__rooms',
+        'transportation__origin',
+        'transportation__destination'
+    )
+    
     serialized_list = []
-    for i in data:
-        serialized_data = serialize_product_metadata(i)
-        serialized_data.update({'unit_price': float(i.unit_price)})
-        serialized_list.append(
-            serialized_data
-        )
-    console.print(serialized_list)
+    for metadata in data:
+        try:
+            serialized_data = serialize_product_metadata(metadata)
+            # No duplicar unit_price ya que ya está en serialized_data
+            serialized_list.append(serialized_data)
+        except Exception as e:
+            console.print(f"Error serializando producto {metadata.id}: {str(e)}")
+            # Continuar con el siguiente producto en lugar de fallar completamente
+            continue
+    
+    console.print(f"Productos serializados: {len(serialized_list)}")
     return serialized_list
 
 
@@ -1358,3 +1458,5 @@ def list_lodgment_rooms(request, lodgment_id: int, is_active: bool = None):
     rooms = rooms.order_by("room_type", "name")
     
     return [serialize_room(room) for room in rooms]
+
+
