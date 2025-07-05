@@ -8,9 +8,10 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, SerializedHelperMetadata
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, RoomCreate, RoomUpdate, RoomOut, RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
+from .helpers import serialize_room, serialize_room_with_availability
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (
@@ -20,7 +21,7 @@ from .models import (
 )
 from django.db.models import Q, F
 from ninja.pagination import paginate
-from .filters import ProductosFiltro
+from .filters import ProductosFiltro, RoomFilter
 from .pagination import DefaultPagination
 from django.db import transaction
 from django.utils import timezone
@@ -1146,3 +1147,214 @@ def list_locations(request, is_active: bool = True, type: str = None, country: s
         )
         for loc in qs.order_by("country", "state", "city", "name")
     ]
+
+# ──────────────────────────────────────────────────────────────
+# ENDPOINTS CRUD PARA HABITACIONES
+# ──────────────────────────────────────────────────────────────
+
+@products_router.post("/rooms/", response=RoomOut)
+@transaction.atomic
+def create_room(request, data: RoomCreate):
+    """
+    Crea una nueva habitación independiente
+    """
+    # 1. Verificar que el alojamiento existe y está activo
+    lodgment = get_object_or_404(Lodgments, id=data.lodgment_id, is_active=True)
+    
+    # 2. Crear la habitación
+    room_data = {
+        "lodgment": lodgment,
+        "room_type": data.room_type,
+        "name": data.name,
+        "description": data.description,
+        "capacity": data.capacity,
+        "has_private_bathroom": data.has_private_bathroom,
+        "has_balcony": data.has_balcony,
+        "has_air_conditioning": data.has_air_conditioning,
+        "has_wifi": data.has_wifi,
+        "base_price_per_night": Decimal(str(data.base_price_per_night)),
+        "currency": data.currency,
+    }
+    
+    room = Room(**room_data)
+    
+    # 3. Validar y guardar
+    try:
+        room.full_clean()
+    except ValidationError as e:
+        error_messages = []
+        for field, errors in e.message_dict.items():
+            for error in errors:
+                error_messages.append(f"{field}: {error}")
+        error_detail = "; ".join(error_messages)
+        raise HttpError(422, error_detail)
+    
+    room.save()
+    
+    return serialize_room(room)
+
+
+@products_router.get("/rooms/", response=List[RoomOut])
+@paginate(DefaultPagination)
+def list_rooms(request, filters: RoomFilter = RoomFilter()):
+    """
+    Lista todas las habitaciones con filtros y paginación
+    """
+    qs = Room.objects.select_related("lodgment")
+    
+    # Aplicar filtros
+    if filters.lodgment_id:
+        qs = qs.filter(lodgment_id=filters.lodgment_id)
+    
+    if filters.room_type:
+        qs = qs.filter(room_type=filters.room_type)
+    
+    if filters.capacity_min is not None:
+        qs = qs.filter(capacity__gte=filters.capacity_min)
+    
+    if filters.capacity_max is not None:
+        qs = qs.filter(capacity__lte=filters.capacity_max)
+    
+    if filters.price_min is not None:
+        qs = qs.filter(base_price_per_night__gte=Decimal(str(filters.price_min)))
+    
+    if filters.price_max is not None:
+        qs = qs.filter(base_price_per_night__lte=Decimal(str(filters.price_max)))
+    
+    if filters.has_private_bathroom is not None:
+        qs = qs.filter(has_private_bathroom=filters.has_private_bathroom)
+    
+    if filters.has_balcony is not None:
+        qs = qs.filter(has_balcony=filters.has_balcony)
+    
+    if filters.has_air_conditioning is not None:
+        qs = qs.filter(has_air_conditioning=filters.has_air_conditioning)
+    
+    if filters.has_wifi is not None:
+        qs = qs.filter(has_wifi=filters.has_wifi)
+    
+    if filters.is_active is not None:
+        qs = qs.filter(is_active=filters.is_active)
+    else:
+        # Por defecto, mostrar solo habitaciones activas
+        qs = qs.filter(is_active=True)
+    
+    if filters.currency:
+        qs = qs.filter(currency__iexact=filters.currency)
+    
+    if filters.search:
+        qs = qs.filter(
+            Q(name__icontains=filters.search) |
+            Q(description__icontains=filters.search) |
+            Q(lodgment__name__icontains=filters.search)
+        )
+    
+    # Ordenamiento por defecto
+    qs = qs.order_by("lodgment__name", "room_type", "name")
+    
+    return [serialize_room(room) for room in qs]
+
+
+@products_router.get("/rooms/{id}/", response=RoomDetailOut)
+def get_room(request, id: int):
+    """
+    Obtiene una habitación específica con sus disponibilidades
+    """
+    room = get_object_or_404(
+        Room.objects.select_related("lodgment").prefetch_related("availabilities"),
+        id=id
+    )
+    
+    return serialize_room_with_availability(room)
+
+
+@products_router.patch("/rooms/{id}/", response=RoomOut)
+@transaction.atomic
+def update_room(request, id: int, data: RoomUpdate):
+    """
+    Actualiza una habitación existente
+    """
+    room = get_object_or_404(Room, id=id)
+    
+    # Obtener datos de actualización
+    update_data = data.dict(exclude_unset=True)
+    
+    # Manejar lodgment_id de forma especial
+    if 'lodgment_id' in update_data:
+        lodgment_id = update_data.pop('lodgment_id')
+        lodgment = get_object_or_404(Lodgments, id=lodgment_id, is_active=True)
+        room.lodgment = lodgment
+    
+    # Manejar conversiones de tipos específicos
+    if 'base_price_per_night' in update_data:
+        update_data['base_price_per_night'] = Decimal(str(update_data['base_price_per_night']))
+    
+    # Aplicar otros cambios
+    for attr, value in update_data.items():
+        if hasattr(room, attr):
+            setattr(room, attr, value)
+    
+    # Validar y guardar
+    try:
+        room.full_clean()
+        room.save()
+    except ValidationError as e:
+        error_messages = []
+        for field, errors in e.message_dict.items():
+            for error in errors:
+                error_messages.append(f"{field}: {error}")
+        error_detail = "; ".join(error_messages)
+        raise HttpError(422, error_detail)
+    
+    return serialize_room(room)
+
+
+@products_router.delete("/rooms/{id}/", response={204: None})
+@transaction.atomic
+def delete_room(request, id: int):
+    """
+    Elimina una habitación (soft delete - desactiva)
+    """
+    room = get_object_or_404(Room, id=id)
+    
+    # Verificar que no tenga reservas activas (esto se implementaría cuando tengas el sistema de reservas)
+    # Por ahora, solo desactivamos la habitación
+    
+    room.is_active = False
+    room.save(update_fields=['is_active'])
+    
+    return 204, None
+
+
+@products_router.get("/rooms/{id}/with-availability/", response=RoomWithAvailabilityOut)
+def get_room_with_availability(request, id: int):
+    """
+    Obtiene una habitación con información de disponibilidad y precio efectivo
+    """
+    room = get_object_or_404(
+        Room.objects.select_related("lodgment").prefetch_related("availabilities"),
+        id=id
+    )
+    
+    return serialize_room_with_availability(room)
+
+
+@products_router.get("/lodgments/{lodgment_id}/rooms/", response=List[RoomOut])
+def list_lodgment_rooms(request, lodgment_id: int, is_active: bool = None):
+    """
+    Lista todas las habitaciones de un alojamiento específico
+    """
+    lodgment = get_object_or_404(Lodgments, id=lodgment_id, is_active=True)
+    
+    rooms = lodgment.rooms.select_related("lodgment")
+    
+    # Aplicar filtro de estado si se especifica
+    if is_active is not None:
+        rooms = rooms.filter(is_active=is_active)
+    else:
+        # Por defecto, mostrar solo habitaciones activas
+        rooms = rooms.filter(is_active=True)
+    
+    rooms = rooms.order_by("room_type", "name")
+    
+    return [serialize_room(room) for room in rooms]

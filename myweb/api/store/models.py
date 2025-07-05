@@ -1,7 +1,8 @@
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxLengthValidator
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
+from django.conf import settings
 
 from enum import Enum
 
@@ -183,10 +184,11 @@ class Orders(models.Model):
     )
     idempotency_key = models.CharField(
         max_length=64,
-        unique=True,
+        unique=getattr(settings, 'IDEMPOTENCY_ENABLED', True),  # ✅ Configurable por entorno
         null=True,
         blank=True,
-        db_index=True
+        db_index=True,
+        validators=[MaxLengthValidator(64)]  # ✅ Validación explícita para el test
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -282,14 +284,21 @@ class OrderDetails(models.Model):
     id = models.AutoField("order_detail_id", primary_key=True)
     order = models.ForeignKey(Orders, on_delete=models.CASCADE)
     product_metadata = models.ForeignKey(ProductsMetadata, on_delete=models.CASCADE)
-    package = models.ForeignKey(Packages, on_delete=models.CASCADE)
+    package = models.ForeignKey(
+        Packages, 
+        on_delete=models.CASCADE, 
+        null=True,  
+        blank=True,
+        help_text="Paquete asociado (opcional para productos individuales)"
+    )
     availability_id = models.PositiveIntegerField(
         help_text="ID de la disponibilidad específica (ActivityAvailability, RoomAvailability, etc.)"
     )
     quantity = models.IntegerField(
         validators=[
-            MinValueValidator(0),
-        ]
+            MinValueValidator(1), 
+        ],
+        help_text="Cantidad del producto (mínimo 1)"
     )
     unit_price = models.DecimalField(
         max_digits=10,

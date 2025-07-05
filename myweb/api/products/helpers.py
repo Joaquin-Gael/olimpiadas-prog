@@ -1,11 +1,11 @@
-from ..schemas import (
+from .schemas import (
     ProductsMetadataOut,
     ActivityOut,
     FlightOut,
     LodgmentOut,
     TransportationOut
 )
-from ..models import ProductsMetadata
+from api.products.models import ProductsMetadata
 from typing import Dict, Any
 from api.products.models import Activities, Flights, Lodgments, Transportation
 from api.products.models import Location
@@ -162,4 +162,81 @@ def serialize_transportation_availability(availability) -> Dict[str, Any]:
         "price": float(availability.price),
         "currency": availability.currency,
         "state": availability.state,
+    }
+
+def serialize_room(room) -> Dict[str, Any]:
+    """Serializa una habitación"""
+    return {
+        "id": room.id,
+        "lodgment_id": room.lodgment_id,
+        "room_type": room.room_type,
+        "name": room.name,
+        "description": room.description,
+        "capacity": room.capacity,
+        "has_private_bathroom": room.has_private_bathroom,
+        "has_balcony": room.has_balcony,
+        "has_air_conditioning": room.has_air_conditioning,
+        "has_wifi": room.has_wifi,
+        "base_price_per_night": float(room.base_price_per_night),
+        "currency": room.currency,
+        "is_active": room.is_active,
+        "created_at": room.created_at,
+        "updated_at": room.updated_at,
+    }
+
+def serialize_room_with_availability(room) -> Dict[str, Any]:
+    """Serializa una habitación con sus disponibilidades"""
+    from django.utils import timezone
+    
+    room_data = serialize_room(room)
+    room_data["availabilities"] = [
+        {
+            "id": av.id,
+            "start_date": av.start_date,
+            "end_date": av.end_date,
+            "available_quantity": av.available_quantity,
+            "price_override": float(av.price_override) if av.price_override else None,
+            "currency": av.currency,
+            "is_blocked": av.is_blocked,
+            "minimum_stay": av.minimum_stay,
+            "effective_price": float(av.effective_price),
+            "created_at": av.created_at,
+            "updated_at": av.updated_at,
+        }
+        for av in room.availabilities.all()
+    ]
+    
+    # Agregar información de disponibilidad actual
+    today = timezone.localdate()
+    current_availability = room.availabilities.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+        is_blocked=False,
+        available_quantity__gt=0
+    ).first()
+    
+    if current_availability:
+        room_data["effective_price"] = float(current_availability.effective_price)
+        room_data["is_available_for_booking"] = True
+    else:
+        room_data["effective_price"] = float(room.base_price_per_night)
+        room_data["is_available_for_booking"] = False
+    
+    return room_data
+
+def serialize_room_availability(availability) -> Dict[str, Any]:
+    """Serializa una disponibilidad de habitación"""
+    return {
+        "id": availability.id,
+        "room_id": availability.room.id,
+        "start_date": availability.start_date,
+        "end_date": availability.end_date,
+        "available_quantity": availability.available_quantity,
+        "price_override": float(availability.price_override) if availability.price_override else None,
+        "currency": availability.currency,
+        "is_blocked": availability.is_blocked,
+        "minimum_stay": availability.minimum_stay,
+        "effective_price": float(availability.effective_price),
+        "created_at": availability.created_at,
+        "updated_at": availability.updated_at,
     }

@@ -132,7 +132,7 @@ class TestLocation:
             state="Buenos Aires",
             city="Buenos Aires",
             type="city",
-            parent=country
+            parent=countrye
         )
         
         assert city.parent == country

@@ -342,3 +342,38 @@ class AdvancedSearchFilter(Schema):
             if invalid_fields:
                 raise ValueError(f'Campos inválidos: {invalid_fields}. Campos válidos: {valid_fields}')
         return v 
+
+class RoomFilter(Schema):
+    """Filtros específicos para habitaciones"""
+    lodgment_id: Optional[int] = Field(None, description="ID del alojamiento")
+    room_type: Optional[Literal["single", "double", "triple", "quadruple", "suite", "family", "dormitory", "studio"]] = None
+    capacity_min: Optional[int] = Field(None, ge=1, le=20, description="Capacidad mínima")
+    capacity_max: Optional[int] = Field(None, ge=1, le=20, description="Capacidad máxima")
+    price_min: Optional[float] = Field(None, ge=0, description="Precio mínimo por noche")
+    price_max: Optional[float] = Field(None, ge=0, description="Precio máximo por noche")
+    has_private_bathroom: Optional[bool] = None
+    has_balcony: Optional[bool] = None
+    has_air_conditioning: Optional[bool] = None
+    has_wifi: Optional[bool] = None
+    is_active: Optional[bool] = Field(None, description="Solo habitaciones activas")
+    search: Optional[str] = Field(None, description="Búsqueda en nombre y descripción")
+    currency: Optional[str] = Field(None, max_length=3, description="Moneda")
+    
+    # Validaciones
+    @field_validator('capacity_max')
+    @classmethod
+    def validate_capacity_max(cls, v, info):
+        values = info.data
+        if v is not None and 'capacity_min' in values and values['capacity_min'] is not None:
+            if v < values['capacity_min']:
+                raise ValueError('La capacidad máxima no puede ser menor que la capacidad mínima')
+        return v
+    
+    @field_validator('price_max')
+    @classmethod
+    def validate_price_max(cls, v, info):
+        values = info.data
+        if v is not None and 'price_min' in values and values['price_min'] is not None:
+            if v < values['price_min']:
+                raise ValueError('El precio máximo no puede ser menor que el precio mínimo')
+        return v 

@@ -309,6 +309,7 @@ class ProductsMetadataUpdate(BaseSchema):
 
 class RoomUpdate(BaseSchema):
     """Schema to update a room"""
+    lodgment_id: Optional[int] = Field(None, description="ID del alojamiento")
     room_type: Optional[Literal[
         "single", "double", "triple", "quadruple",
         "suite", "family", "dormitory", "studio"
@@ -386,6 +387,7 @@ class RoomAvailabilityOut(BaseSchema):
     currency: str
     is_blocked: bool
     minimum_stay: int
+    effective_price: float
     created_at: datetime
     updated_at: datetime
 
@@ -404,7 +406,7 @@ class RoomDetailOut(RoomOut):
 class RoomWithAvailabilityOut(RoomOut):
     """Output schema for rooms with availability and effective price"""
     availabilities: List[RoomAvailabilityOut]
-    effective_price: Optional[float] = None
+    effective_price: float
     is_available_for_booking: bool = False
 
 
