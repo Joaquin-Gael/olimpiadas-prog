@@ -24,6 +24,21 @@ class ProductsMetadataQuerySet(ActiveQuerySet):
         today = timezone.now().date()
         return (
             self.active()
+            .select_related(
+                'supplier', 
+                'content_type_id'
+            )
+            .prefetch_related(
+                'activity__location',
+                'activity__availabilities',
+                'flights__origin',
+                'flights__destination',
+                'lodgment__location',
+                'lodgment__rooms__availabilities',
+                'transportation__origin',
+                'transportation__destination',
+                'transportation__availabilities'
+            )
             .filter(
                 Q(activity__isnull=False,
                   activity__availabilities__event_date__gte=today,
