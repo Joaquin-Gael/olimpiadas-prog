@@ -3,10 +3,9 @@ from ninja import Router
 from ninja.errors import HttpError
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.utils import timezone # Dependencia sin utilizar
 
 from .models import Cart, CartItem
-from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn
+from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn, UserBasicInfo
 from api.products.models import ProductsMetadata
 from .services import services_cart as cart_srv
 from .services import services_orders as order_srv
@@ -24,6 +23,20 @@ router = Router(
 
 # ── Helper: obtener (o crear) carrito OPEN del usuario ─────────
 def _get_open_cart(user, currency=None):
+    """
+    Obtiene o crea un carrito abierto para el usuario.
+    
+    Args:
+        user: Instancia del modelo Users
+        currency: Moneda del carrito (default: USD)
+    
+    Returns:
+        Cart: Instancia del carrito abierto
+    """
+    # Validar que el usuario esté activo
+    if not user.is_active:
+        raise HttpError(401, "Usuario inactivo")
+    
     cart = Cart.objects.filter(user=user, status="OPEN").first()
     if cart:
         return cart
@@ -46,7 +59,7 @@ def get_cart(request):
 
     ### Respuestas:
     - **200 OK**: Retorna un objeto JSON con la estructura del carrito.
-    - **401 Unauthorized**: Si el usuario no está autenticado o el token es inválido.
+    - **401 Unauthorized**: Si el usuario no está autenticado, el token es inválido, o el usuario está inactivo.
 
     ### Ejemplo de respuesta (200):
     ```json
@@ -55,9 +68,13 @@ def get_cart(request):
         "user_id": 123,
         "status": "OPEN",
         "currency": "USD",
+        "items_cnt": 2,
+        "total": 100.00,
+        "updated_at": "2024-01-15T10:30:00Z",
         "items": [
             {
                 "id": 1,
+                "availability_id": 100,
                 "product_metadata_id": 45,
                 "qty": 2,
                 "unit_price": 50.0,
@@ -66,9 +83,141 @@ def get_cart(request):
             }
         ]
     }
+    ```
     """
-    cart = _get_open_cart(request.user, "USD")
-    return CartOut.from_orm(cart)
+    try:
+        # Validar que el usuario esté autenticado
+        if not request.user:
+            raise HttpError(401, "Usuario no autenticado")
+        
+        # Obtener o crear carrito
+        cart = _get_open_cart(request.user, "USD")
+        
+        # Crear respuesta con información del usuario
+        try:
+            cart_data = CartOut.from_orm(cart)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error serializando carrito {cart.id}: {str(e)}")
+            raise HttpError(500, "Error al procesar carrito")
+        
+        # Manejar carrito vacío
+        if cart.items_cnt == 0:
+            cart_data.items = []
+            cart_data.total = 0.0
+        
+        # Agregar información básica del usuario con validación
+        if all([request.user.first_name, request.user.last_name, request.user.email]):
+            cart_data.user_info = UserBasicInfo(
+                id=request.user.id,
+                first_name=request.user.first_name,
+                last_name=request.user.last_name,
+                email=request.user.email
+            )
+        else:
+            cart_data.user_info = None
+        
+        return cart_data
+        
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error en get_cart: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
+
+# ───────────────────────────────────────────────────────────────
+# 1.1. Obtener carrito con información completa del usuario
+# ───────────────────────────────────────────────────────────────
+@router.get("/cart/user-info/", response=dict)
+def get_cart_with_user_info(request):
+    """
+    Recupera el carrito actual junto con información completa del usuario autenticado.
+
+    ### Descripción:
+    Este endpoint devuelve tanto la información del carrito como datos completos del usuario,
+    útil para mostrar información personalizada en el frontend.
+
+    ### Headers requeridos:
+    - **Authorization**: Proporciona el token de autenticación JWT del usuario. Es obligatorio.
+
+    ### Respuestas:
+    - **200 OK**: Retorna un objeto JSON con información del carrito y del usuario.
+    - **401 Unauthorized**: Si el usuario no está autenticado o está inactivo.
+
+    ### Ejemplo de respuesta (200):
+    ```json
+    {
+        "user": {
+            "id": 123,
+            "first_name": "Juan",
+            "last_name": "Pérez",
+            "email": "juan@example.com",
+            "telephone": "123456789",
+            "born_date": "1990-01-01",
+            "state": "active"
+        },
+        "cart": {
+            "id": 1,
+            "user_id": 123,
+            "status": "OPEN",
+            "currency": "USD",
+            "items_cnt": 2,
+            "total": 100.00,
+            "updated_at": "2024-01-15T10:30:00Z",
+            "items": [...]
+        }
+    }
+    ```
+    """
+    try:
+        # Validar que el usuario esté autenticado
+        if not request.user:
+            raise HttpError(401, "Usuario no autenticado")
+        
+        # Obtener o crear carrito
+        cart = _get_open_cart(request.user, "USD")
+        
+        # Preparar información del usuario con validación
+        user_info = {
+            "id": request.user.id,
+            "first_name": request.user.first_name or "",
+            "last_name": request.user.last_name or "",
+            "email": request.user.email or "",
+            "telephone": request.user.telephone or "",
+            "born_date": request.user.born_date.isoformat() if request.user.born_date else None,
+            "state": request.user.state or ""
+        }
+        
+        # Preparar información del carrito con manejo de errores
+        try:
+            cart_info = CartOut.from_orm(cart)
+            
+            # Manejar carrito vacío
+            if cart.items_cnt == 0:
+                cart_info.items = []
+                cart_info.total = 0.0
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error serializando carrito {cart.id}: {str(e)}")
+            raise HttpError(500, "Error al procesar carrito")
+        
+        return {
+            "user": user_info,
+            "cart": cart_info.dict()
+        }
+        
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error en get_cart_with_user_info: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
 
 # ───────────────────────────────────────────────────────────────
 # 2. Añadir ítem
@@ -110,11 +259,21 @@ def add_item(request, payload: ItemAddIn):
         "currency": "USD",
         "config": {}
     }
+    ```
     """
-    metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
-    cart = _get_open_cart(request.user, metadata.currency)
-
     try:
+        # Validar que el producto existe
+        metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
+        
+        # Validar datos de entrada
+        if payload.qty <= 0:
+            raise HttpError(400, "La cantidad debe ser mayor a 0")
+        
+        if payload.unit_price <= 0:
+            raise HttpError(400, "El precio unitario debe ser mayor a 0")
+        
+        cart = _get_open_cart(request.user, metadata.currency)
+
         item = cart_srv.add_item(
             cart,
             metadata,
@@ -125,7 +284,7 @@ def add_item(request, payload: ItemAddIn):
         )
 
         return 200, {
-            "id": item.cart.id,
+            "id": item.id,
             "availability_id": item.availability_id,
             "product_metadata_id": item.product_metadata.id,
             "qty": item.qty,
@@ -133,6 +292,13 @@ def add_item(request, payload: ItemAddIn):
             "currency": item.currency,
             "config": item.config
         }
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error agregando item al carrito: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
     except cart_srv.InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CurrencyMismatchError:
@@ -178,17 +344,33 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
         "currency": "USD",
         "config": {}
     }
+    ```
     """
-    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-
     try:
+        # Validar cantidad
+        if payload.qty <= 0:
+            raise HttpError(400, "La cantidad debe ser mayor a 0")
+        
+        # Buscar item y validar que pertenece al usuario
+        item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+        
+        # Actualizar cantidad
         item = cart_srv.update_qty(item, payload.qty)
+        
+        # Serializar respuesta
+        return CartItemOut.from_orm(item)
+        
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error actualizando cantidad del item {item_id}: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
     except cart_srv.InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
-
-    return CartItemOut.from_orm(item)
 
 # ───────────────────────────────────────────────────────────────
 # 4. Eliminar ítem
@@ -211,6 +393,7 @@ def delete_item(request, item_id: int):
     - **204 No Content**: El ítem fue eliminado exitosamente.
     - **409 Conflict**: Si el carrito ya está cerrado.
     - **401 Unauthorized**: Si el usuario no está autenticado.
+    ```
     """
     item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
     try:
@@ -252,12 +435,24 @@ def checkout(request):
         "order_id": 12345,
         "total": 150.75
     }
+    ```
     """
-    cart = _get_open_cart(request.user, "USD")
-    idemp_key = request.headers.get("Idempotency-Key") \
-                or request.headers.get("HTTP_IDEMPOTENCY_KEY")
-
     try:
+        # Obtener carrito
+        cart = _get_open_cart(request.user, "USD")
+        
+        # Validar que el carrito no esté vacío
+        if cart.items_cnt == 0:
+            raise HttpError(400, "El carrito está vacío")
+        
+        # Validar que el total sea mayor a 0
+        if cart.total <= 0:
+            raise HttpError(400, "El total del carrito debe ser mayor a 0")
+        
+        # Obtener idempotency key
+        idemp_key = request.headers.get("Idempotency-Key") \
+                    or request.headers.get("HTTP_IDEMPOTENCY_KEY")
+
         order = cart_srv.checkout(
             cart,
             lambda c: order_srv.create_order_from_cart(
@@ -266,6 +461,14 @@ def checkout(request):
         )
 
         return 201, {"order_id": order.id, "total": float(order.total)}
+
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error en checkout del carrito {cart.id}: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
 
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")

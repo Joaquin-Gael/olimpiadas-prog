@@ -6,6 +6,16 @@ from ninja import Schema
 from api.products.common.schemas import BaseSchema
 
 # ── Salidas ────────────────────────────────────────────────────
+class UserBasicInfo(Schema):
+    """Información básica del usuario para respuestas del carrito"""
+    id: int
+    first_name: str
+    last_name: str
+    email: str
+
+    class Meta:
+        from_attributes = True
+
 class CartItemOut(Schema):
     id: int
     availability_id: int
@@ -20,6 +30,8 @@ class CartItemOut(Schema):
 
 class CartOut(BaseSchema):
     id: int
+    user_id: int  # Agregado: ID del usuario propietario del carrito
+    user_info: Optional[UserBasicInfo] = None  # Agregado: Información básica del usuario
     status: str
     items_cnt: int
     total: float
