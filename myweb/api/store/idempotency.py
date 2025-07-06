@@ -10,6 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from rich import console
+import json
 
 console = console.Console()
 
@@ -66,7 +67,7 @@ def store_idempotent():
             status, resp = fn(request, *args, **kwargs)
 
             # Guardar resultado definitivo
-            record.status, record.response = status, resp
+            record.status, record.response = status, json.loads(json.dumps(resp, default=str))
             record.save(update_fields=["status", "response"])
             logger.info("idempotency_saved", extra=lookup)
 

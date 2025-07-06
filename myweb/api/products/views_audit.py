@@ -13,7 +13,7 @@ from api.products.schemas import (
     OperationSummaryOut
 )
 
-audit_router = Router()
+audit_router = Router(tags=["Audit"])
 
 
 @audit_router.get("/audit/logs/", response=List[AuditLogOut])

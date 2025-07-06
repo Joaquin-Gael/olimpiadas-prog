@@ -54,7 +54,7 @@ class OrderNotificationService:
                 "order_id": sale.order.id,
                 "sale_id": sale.id,
                 "amount": sale.amount,
-                "payment_method": sale.payment_method,
+                "payment_method": None, #sale.payment_method, TODO: asociar de manera correcta con el metodo de pago
                 "transaction_id": sale.transaction_id,
                 "user_name": sale.order.client.get_full_name() or sale.order.client.username,
                 "user_email": sale.order.client.email,

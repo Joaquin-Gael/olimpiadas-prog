@@ -415,7 +415,11 @@ class CartItem(models.Model):
     cart                = models.ForeignKey(Cart, on_delete=models.CASCADE,
                                             related_name="items")
     availability_id     = models.PositiveIntegerField()              # FK "manual" al servicio reserve_*
-    product_metadata_id = models.PositiveIntegerField()              # para info / precio
+    product_metadata = models.ForeignKey(
+        ProductsMetadata,
+        on_delete=models.CASCADE,
+        related_name="cart_items"  # Relación inversa opcional
+    )    # para info / precio
     qty                 = models.PositiveIntegerField()              # habitaciones / seats / etc.
     unit_price          = models.DecimalField(max_digits=12, decimal_places=2)  # precio TOTAL del ítem (ya multiplicado por noches si aplica)
     currency            = models.CharField(max_length=3)

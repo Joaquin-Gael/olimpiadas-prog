@@ -13,6 +13,8 @@ from .services import services_orders as order_srv
 from .idempotency import store_idempotent
 from api.products.services.stock_services import InsufficientStockError
 
+from api.products.services.helpers import serialize_product_metadata
+
 from api.core.auth import SyncJWTBearer
 
 router = Router(
@@ -57,7 +59,7 @@ def add_item(request, payload: ItemAddIn):
         return 200, {
                 "id": item.cart.id,
                 "availability_id": item.availability_id,
-                "product_metadata_id": item.product_metadata_id,
+                "product_metadata_id": item.product_metadata.id,
                 "qty": item.qty,
                 "unit_price": float(item.unit_price),
                 "currency": item.currency,

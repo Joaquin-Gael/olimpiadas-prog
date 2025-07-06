@@ -42,5 +42,5 @@ class OrderDetailsBulkCreateTestCase(TestCase):
         order = create_order_from_cart(self.cart.id, self.user.id, idempotency_key='test-key')
         details = OrderDetails.objects.filter(order=order)
         self.assertEqual(details.count(), 1)
-        self.assertEqual(details[0].product_metadata_id, self.metadata.id)
+        self.assertEqual(details[0].product_metadata, self.metadata.id)
         self.assertEqual(details[0].package_id, self.package.id) 

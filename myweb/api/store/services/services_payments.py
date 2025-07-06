@@ -120,7 +120,6 @@ class PaymentService:
                 total=order.total,
                 amount=order.total,
                 payment_status=PaymentStatus.PAID_ONLINE,
-                payment_method=payment_method,
                 payment_type=PaymentType.ONLINE,
                 sale_type=SaleType.ONLINE,
                 transaction_id= payment_intent_id,
@@ -213,14 +212,14 @@ class PaymentService:
 
         line_items = []
         for detail in detail_list:
-            model_orm = ContentType.objects.get_for_id(detail.product_metadata.content_type_id)
+            model_orm = ContentType.objects.get_for_id(detail.product_metadata.content_type_id.id)
             instance_orm = model_orm.model_class().objects.get(id=detail.product_metadata.object_id)
             line_items.append({
                 "price_data": {
                     "currency": "USD",
                     "unit_amount": int(round(detail.product_metadata.unit_price*100)),
                     "product_data": {
-                        "name": detail.product_metadata.name,
+                        "name": detail.product_metadata.product_name,
                         "description": instance_orm.description,
                     },
                 },
@@ -232,8 +231,8 @@ class PaymentService:
                 payment_method_types=[payment_method],
                 line_items=line_items,
                 mode="payment",
-                success_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
-                cancel_url=f"{DOMAIN}{settings.ID_PREFIX}/pay/cancel?order_id={payment_data.get('order_id')}",
+                success_url=f"{DOMAIN}{settings.ID_PREFIX}/orders/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
+                cancel_url=f"{DOMAIN}{settings.ID_PREFIX}/orders/pay/cancel?order_id={payment_data.get('order_id')}",
             )
 
             return session.url

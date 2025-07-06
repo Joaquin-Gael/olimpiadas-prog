@@ -51,11 +51,11 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
         idempotency_key=idempotency_key,
     )
     
-    # ✅ SOLUCIÓN: Mapear product_metadata_id a package_id usando ComponentPackages
+    # ✅ SOLUCIÓN: Mapear product_metadata a package_id usando ComponentPackages
     # Ahora package puede ser None para productos individuales
-    product_metadata_ids = [li.product_metadata_id for li in cart.items.all()]
+    product_metadata_ids = [li.product_metadata for li in cart.items.all()]
     component_map = {
-        cp.product_metadata_id: cp.package_id
+        cp.product_metadata: cp.package_id
         for cp in ComponentPackages.objects.filter(
             product_metadata_id__in=product_metadata_ids
         )
@@ -64,8 +64,8 @@ def create_order_from_cart(cart_id: int, user_id: int, idempotency_key: str):
     OrderDetails.objects.bulk_create([
         OrderDetails(
             order=order,
-            product_metadata_id=li.product_metadata_id,
-            package_id=component_map.get(li.product_metadata_id),  # ✅ Puede ser None
+            product_metadata_id=li.product_metadata.id,
+            package_id=component_map.get(li.product_metadata),  # ✅ Puede ser None
             availability_id=li.availability_id,
             quantity=li.qty,
             unit_price=li.unit_price,

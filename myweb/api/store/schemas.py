@@ -157,6 +157,9 @@ class ErrorResponse(BaseModel):
     error_code: Optional[str] = None
     details: Optional[dict] = None
 
+class StripeResponse(BaseSchema):
+    session_url: str
+
 class SuccessResponse(BaseModel):
     message: str
     data: Optional[dict] = None

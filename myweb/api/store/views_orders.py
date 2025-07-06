@@ -11,12 +11,13 @@ from uuid import uuid4
 
 from api.core.auth import SyncJWTBearer
 
+from .idempotency import console
 from .models import Orders, Sales
 from .schemas import (
     OrderListOut, OrderCancelIn,
     PaymentMethodIn, PaymentOut, PaymentStatusOut,
     RefundIn, RefundOut, ErrorResponse, SuccessResponse,
-    OrderFilterIn, SaleOut, SaleSummaryOut
+    OrderFilterIn, SaleOut, SaleSummaryOut, StripeResponse
 )
 from .services import services_orders as order_srv
 from .services.services_payments import PaymentService
@@ -68,7 +69,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
 
         OrderNotificationService.send_payment_confirmation(sale)
 
-        return 200, PaymentOut(
+        return PaymentOut(
             sale_id=sale.id,
             amount=float(sale.amount),
             payment_method=payment_method,
@@ -79,7 +80,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
         )
 
     except Orders.DoesNotExist:
-        return 404, ErrorResponse(
+        return ErrorResponse(
             message="Orden no encontrada",
             error_code="ORDER_NOT_FOUND"
         )
@@ -110,7 +111,7 @@ def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)
 
 @router.post(
     "/{order_id}/pay",
-    response={400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
+    response={200: StripeResponse, 400: ErrorResponse, 409: ErrorResponse, 500: ErrorResponse},
 )
 def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
     """
@@ -147,6 +148,7 @@ def pay_order(request: HttpRequest, order_id: int, payload: PaymentMethodIn):
             error_code="VALIDATION_ERROR"
         )
     except Exception as e:
+        console.print_exception(show_locals=True)
         return 500, ErrorResponse(
             message=f"Error interno: {str(e)}",
             error_code="INTERNAL_ERROR"
