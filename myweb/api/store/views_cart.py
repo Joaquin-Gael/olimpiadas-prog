@@ -12,7 +12,7 @@ from .services import services_orders as order_srv
 from .idempotency import store_idempotent
 from api.products.services.stock_services import InsufficientStockError
 
-from api.products.services.helpers import serialize_product_metadata
+
 
 from api.core.auth import SyncJWTBearer
 
@@ -121,10 +121,8 @@ def get_cart(request):
         return cart_data
         
     except HttpError:
-        raise
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
+        # Re-lanzar errores HTTP
+           # Log del error para debug  logger = logging.getLogger(__name__)
         logger.error(f"Error en get_cart: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
 
@@ -180,17 +178,19 @@ def get_cart_with_user_info(request):
         # Obtener o crear carrito
         cart = _get_open_cart(request.user, "USD")
         
-        # Preparar información del usuario con validación
+        # Preparar información del usuario
         user_info = {
-            "id": request.user.id,
+        # Preparar información del usuario con validación
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
             "first_name": request.user.first_name or "",
             "last_name": request.user.last_name or "",
             "email": request.user.email or "",
             "telephone": request.user.telephone or "",
-            "born_date": request.user.born_date.isoformat() if request.user.born_date else None,
-            "state": request.user.state or ""
         }
-        
+            "state": request.user.state or ""
+        # Preparar información del carrito
+        cart_info = CartOut.from_orm(cart)
         # Preparar información del carrito con manejo de errores
         try:
             cart_info = CartOut.from_orm(cart)
@@ -205,8 +205,6 @@ def get_cart_with_user_info(request):
             logger = logging.getLogger(__name__)
             logger.error(f"Error serializando carrito {cart.id}: {str(e)}")
             raise HttpError(500, "Error al procesar carrito")
-        
-        return {
             "user": user_info,
             "cart": cart_info.dict()
         }
@@ -261,6 +259,8 @@ def add_item(request, payload: ItemAddIn):
     }
     ```
     """
+    metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
+    cart = _get_open_cart(request.user, metadata.currency)
     try:
         # Validar que el producto existe
         metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
@@ -273,9 +273,7 @@ def add_item(request, payload: ItemAddIn):
             raise HttpError(400, "El precio unitario debe ser mayor a 0")
         
         cart = _get_open_cart(request.user, metadata.currency)
-
         item = cart_srv.add_item(
-            cart,
             metadata,
             payload.availability_id,
             payload.qty,
@@ -284,14 +282,16 @@ def add_item(request, payload: ItemAddIn):
         )
 
         return 200, {
-            "id": item.id,
+            "id": item.cart.id,
             "availability_id": item.availability_id,
-            "product_metadata_id": item.product_metadata.id,
+            "id": item.id,d": item.product_metadata.id,
             "qty": item.qty,
             "unit_price": float(item.unit_price),
             "currency": item.currency,
             "config": item.config
         }
+    except cart_srv.InsufficientStockError:
+        raise HttpError(409, "stock_insuficiente")
     except HttpError:
         raise
     except Exception as e:
@@ -303,8 +303,6 @@ def add_item(request, payload: ItemAddIn):
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CurrencyMismatchError:
         raise HttpError(422, "moneda_distinta")
-    except cart_srv.CartClosedError:
-        raise HttpError(409, "carrito_cerrado")
 
 # ───────────────────────────────────────────────────────────────
 # 3. Cambiar cantidad
@@ -346,6 +344,8 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
     }
     ```
     """
+    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+
     try:
         # Validar cantidad
         if payload.qty <= 0:
@@ -354,8 +354,8 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
         # Buscar item y validar que pertenece al usuario
         item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
         
-        # Actualizar cantidad
-        item = cart_srv.update_qty(item, payload.qty)
+        # Actualizar cantidadpt cart_srv.InsufficientStockError:
+        raise HttpError(409, "stock_insuficiente")
         
         # Serializar respuesta
         return CartItemOut.from_orm(item)
@@ -367,13 +367,11 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
         logger = logging.getLogger(__name__)
         logger.error(f"Error actualizando cantidad del item {item_id}: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
-    except cart_srv.InsufficientStockError:
-        raise HttpError(409, "stock_insuficiente")
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
 
-# ───────────────────────────────────────────────────────────────
-# 4. Eliminar ítem
+    return CartItemOut.from_orm(item)
+
 # ───────────────────────────────────────────────────────────────
 @router.delete("/cart/items/{item_id}/", response={204: None})
 def delete_item(request, item_id: int):
@@ -437,6 +435,8 @@ def checkout(request):
     }
     ```
     """
+    cart = _get_open_cart(request.user, "USD")
+    idemp_key = request.headers.get("Idempotency-Key") \
     try:
         # Obtener carrito
         cart = _get_open_cart(request.user, "USD")
@@ -452,9 +452,7 @@ def checkout(request):
         # Obtener idempotency key
         idemp_key = request.headers.get("Idempotency-Key") \
                     or request.headers.get("HTTP_IDEMPOTENCY_KEY")
-
         order = cart_srv.checkout(
-            cart,
             lambda c: order_srv.create_order_from_cart(
                 c.id, c.user_id, idempotency_key=idemp_key
             )
@@ -462,6 +460,8 @@ def checkout(request):
 
         return 201, {"order_id": order.id, "total": float(order.total)}
 
+    except cart_srv.CartClosedError:
+        raise HttpError(409, "carrito_cerrado")
     except HttpError:
         raise
     except Exception as e:
@@ -470,8 +470,6 @@ def checkout(request):
         logger.error(f"Error en checkout del carrito {cart.id}: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
 
-    except cart_srv.CartClosedError:
-        raise HttpError(409, "carrito_cerrado")
     except InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except order_srv.InvalidCartStateError:

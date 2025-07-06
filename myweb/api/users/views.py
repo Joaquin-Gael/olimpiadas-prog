@@ -1,16 +1,11 @@
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
-from django.conf import settings
 from django.utils import timezone
 
-from ninja import Router, Header
+from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError
-from typing import List
-
 from asgiref.sync import sync_to_async
-
-from rich.console import Console
 
 from api.core.auth import JWTBearer, gen_token
 
@@ -24,8 +19,6 @@ from .schemas import (
     SuccessResponseSchema,
     TokensResponseSchema
 )
-
-console = Console()
 
 user_private_router = Router(
     tags=["Users"],
@@ -124,13 +117,9 @@ async def login_user(request, payload: UserLoginSchema):
                 status=401
             )
 
-        console.print(user.last_login)
-
         user.last_login = timezone.now()
 
         await sync_to_async(user.save)()
-
-        console.print(await sync_to_async(user.get_all_permissions)())
 
         payload={
             "sub":str(user.id),
@@ -192,9 +181,6 @@ async def refresh_token(request):
     try:
         user = request.user
 
-        console.print(user)
-        console.print(request.scopes)
-
         if user is None:
             return Response(
                 {"message": "Credenciales inválidas", "detail": "Email o contraseña incorrectos"},
@@ -239,8 +225,6 @@ async def me_user(request):
     """
 
     try:
-        console.print(request.user)
-        console.print(request.scopes)
         if request.user is None:
             return Response(ErrorResponseSchema(message="We cannot find user in this session", detail="Request-User = None"), status=401)
 
@@ -256,7 +240,6 @@ async def me_user(request):
             is_staff=request.user.is_staff
         )
     except Exception as e:
-        console.print_exception(show_locals=True)
         return HttpError(500, f"Error al obtener usuarios: {str(e)}")
 
 
