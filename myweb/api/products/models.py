@@ -811,7 +811,7 @@ class ProductsMetadataManager(
     pass
 
 class ProductsMetadata(SoftDeleteModel):
-    id = models.AutoField("product_metadata_id", primary_key=True)
+    id = models.AutoField("product_metadata", primary_key=True)
     supplier = models.ForeignKey(Suppliers, on_delete=models.PROTECT)
     start_date = models.DateField(default=timezone.now)
     end_date = models.DateField(default=timezone.now)
@@ -827,6 +827,23 @@ class ProductsMetadata(SoftDeleteModel):
     )
     currency = models.CharField(max_length=3, default="USD")
     is_active = models.BooleanField(default=True)
+
+    @property
+    def product_name(self):
+        _model = ContentType.objects.get_for_id(self.content_type_id.id)
+        product_object = _model.model_class().objects.get(pk=self.object_id)
+
+        product_type = self.product_type
+
+        if product_type in ['activity', 'lodgment']:
+            return product_object.name
+        elif product_type in ['transportation']:
+            return f"{product_object.type}: {product_object.destination.name}"
+        elif product_type in ['flight']:
+            return f"{product_object.airline} - {product_object.departure_date} @ {product_object.departure_time}: {product_object.destination.name}"
+        else:
+            return None
+
     
     # Property to get the product type
     @property
@@ -986,7 +1003,7 @@ class ComponentPackages(models.Model):
     )
     product_metadata = models.ForeignKey(
         ProductsMetadata, 
-        verbose_name="product_metadata_id", 
+        verbose_name="product_metadata",
         on_delete=models.CASCADE
     )
 
@@ -1033,7 +1050,7 @@ class ComponentPackages(models.Model):
 
 class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)
-    product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.PROTECT)
+    product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata", on_delete=models.PROTECT)
     package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.CASCADE)
     user = models.ForeignKey(Users, verbose_name="user_id", on_delete=models.CASCADE)
     punctuation = models.DecimalField(
@@ -1050,7 +1067,7 @@ class Reviews(models.Model):
 
 class Promotions(models.Model):
     id = models.AutoField("promotion_id", primary_key=True)
-    product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata_id", on_delete=models.PROTECT)
+    product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata", on_delete=models.PROTECT)
     package = models.ForeignKey(Packages, verbose_name="package_id", on_delete=models.CASCADE)
     name = models.CharField(max_length=64)
     discount = models.DecimalField(

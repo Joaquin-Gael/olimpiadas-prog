@@ -170,7 +170,7 @@ class OrderBasicCreationTestCase(TestCase):
         
         self.assertIsNotNone(cart_item.id)
         self.assertEqual(cart_item.cart, cart)
-        self.assertEqual(cart_item.product_metadata_id, self.metadata.id)
+        self.assertEqual(cart_item.product_metadata, self.metadata.id)
         self.assertEqual(cart_item.qty, 1)
         self.assertEqual(cart_item.unit_price, Decimal('50.00'))
 

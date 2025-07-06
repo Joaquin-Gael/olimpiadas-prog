@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finalizar Compra</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Importar la librería de Stripe -->
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+<div class="container mx-auto p-6 max-w-4xl">
+    <!-- Encabezado -->
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Finalizar Compra</h1>
+
+    <!-- Resumen del carrito -->
+    <div class="max-w-4xl mx-auto p-4">
+        <div id="order-card" class="order-card bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">
+                Orden #<span id="order-id" class="text-blue-600">–</span>
+            </h2>
+
+            <div class="order-info grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg mb-6">
+                <p class="text-center md:text-left">
+                    <strong class="block text-sm text-gray-600 font-medium mb-1">Estado:</strong>
+                    <span id="order-status" class="inline-flex items-center px-2 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">–</span>
+                </p>
+                <p class="text-center md:text-left">
+                    <strong class="block text-sm text-gray-600 font-medium mb-1">Items:</strong>
+                    <span id="order-items-cnt" class="text-lg font-semibold text-gray-900">–</span>
+                </p>
+                <p class="text-center md:text-left">
+                    <strong class="block text-sm text-gray-600 font-medium mb-1">Total:</strong>
+                    <span id="order-total" class="text-lg font-semibold text-gray-900">–</span>
+                    <span id="order-currency" class="text-sm text-gray-600">–</span>
+                </p>
+                <p class="text-center md:text-left">
+                    <strong class="block text-sm text-gray-600 font-medium mb-1">Última actualización:</strong>
+                    <span id="order-updated" class="text-sm text-gray-900">–</span>
+                </p>
+            </div>
+
+            <table class="items-table w-full rounded-lg border border-gray-200 overflow-hidden">
+                <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold text-gray-900 uppercase tracking-wider">Cantidad</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-900 uppercase tracking-wider">Precio unitario</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold text-gray-900 uppercase tracking-wider">Subtotal</th>
+                </tr>
+                </thead>
+                <tbody id="items-body" class="bg-white divide-y divide-gray-200">
+                <!-- Aquí irán las filas de items -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Formulario de pago con Stripe Elements -->
+    <div class="bg-white shadow-md rounded-lg p-6">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Información de Pago</h2>
+        <button id="submit-button" class="mt-4 bg-blue-600 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300" disabled>
+            Pagar
+        </button>
+    </div>
+</div>
+
+<!-- Modal de Login -->
+<div id="login-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4">Iniciar Sesión</h2>
+        <div id="login-error" class="text-red-500 mb-4"></div>
+        <input id="email" type="email" placeholder="Correo electrónico" class="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <input id="password" type="password" placeholder="Contraseña" class="w-full p-3 mb-4 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button id="login-button" class="w-full bg-blue-600 hover:bg-blue-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300">
+            Iniciar Sesión
+        </button>
+        <button id="close-login" class="mt-2 w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition duration-300">
+            Cancelar
+        </button>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Inicializar Stripe con la clave pública
+        const stripe = Stripe('{{secret_public}}'); // Reemplaza con tu clave pública de Stripe
+        const elements = stripe.elements();
+
+        // Función para obtener el token CSRF
+        function getCsrfToken() {
+            const name = 'csrftoken';
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [key, value] = cookie.trim().split('=');
+                if (key === name) return value;
+            }
+            return '';
+        }
+
+        function generateUUIDv4() {
+            return crypto.randomUUID();
+        }
+
+        // Obtener el id_prefix de la API
+        let idPrefix = '';
+        let isLoggedIn = false;
+        async function fetchIdPrefix() {
+            try {
+                console.log('Obteniendo id_prefix desde /id_prefix_api_secret/');
+                const response = await fetch('/id_prefix_api_secret/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!response.ok) {
+                    throw new Error(`Error al obtener id_prefix: ${response.status} - ${await response.text()}`);
+                }
+                const data = await response.json();
+                if (!data.id_prefix_api_secret) {
+                    throw new Error('No se recibió id_prefix_api_secret en la respuesta');
+                }
+                idPrefix = data.id_prefix_api_secret;
+                console.log('id_prefix recibido:', idPrefix);
+                // Mostrar el modal de login después de obtener el id_prefix
+                document.getElementById('login-modal').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error al obtener id_prefix:', error.message);
+                document.getElementById('card-errors').textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Manejo del login
+        document.getElementById('login-button').addEventListener('click', async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const loginError = document.getElementById('login-error');
+
+            if (!email || !password) {
+                loginError.textContent = 'Por favor, ingresa correo y contraseña';
+                return;
+            }
+
+            try {
+                console.log('Iniciando solicitud a /users/login');
+                const loginResponse = await fetch(`/${idPrefix}/users/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+                if (!loginResponse.ok) {
+                    const errorText = await loginResponse.text();
+                    throw new Error(`Error en /users/login: ${loginResponse.status} - ${errorText}`);
+                }
+                const loginData = await loginResponse.json();
+                console.log('Login exitoso:', loginData);
+                localStorage.setItem('access_token', loginData.data.access_token);
+                isLoggedIn = true;
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('submit-button').disabled = false; // Habilitar el botón de pago
+                await loadOrder();
+            } catch (error) {
+                console.error('Error durante el login:', error.message);
+                loginError.textContent = `Error: ${error.message}`;
+            }
+        });
+
+        // Cerrar el modal de login
+        document.getElementById('close-login').addEventListener('click', () => {
+            document.getElementById('login-modal').classList.add('hidden');
+        });
+
+        // Iniciar el flujo al cargar la página
+        fetchIdPrefix();
+
+        async function loadOrder() {
+            try {
+                const resp = await fetch(
+                    `/${idPrefix}/store/cart/`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken(),
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                        },
+                    }
+                ); // Ajusta la URL a tu endpoint
+                if (!resp.ok) throw new Error(`Error HTTP ${resp.status}`);
+                const o = await resp.json();
+
+                // Volcar datos principales
+                document.getElementById('order-id').textContent          = o.id;
+                document.getElementById('order-status').textContent      = o.status;
+                document.getElementById('order-items-cnt').textContent   = o.items_cnt;
+                document.getElementById('order-total').textContent       = o.total.toFixed(2);
+                document.getElementById('order-currency').textContent    = o.currency;
+                document.getElementById('order-updated').textContent     = new Date(o.updated_at).toLocaleString();
+
+                // Limpiar tabla de items y rellenar
+                const tbody = document.getElementById('items-body');
+                tbody.innerHTML = '';
+                o.items.forEach(item => {
+                    const tr = document.createElement('tr');
+                    const subtotal = (item.qty * item.unit_price).toFixed(2);
+                    tr.innerHTML = `
+            <td>${item.id}</td>
+            <td>${item.qty}</td>
+            <td>${item.unit_price.toFixed(2)} ${item.currency}</td>
+            <td>${subtotal} ${item.currency}</td>
+          `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (err) {
+                console.error('No se pudo cargar la orden:', err);
+                // Aquí podrías mostrar un mensaje de error al usuario
+            }
+        }
+
+        document.getElementById('submit-button').addEventListener('click', async () => {
+            if (!isLoggedIn) {
+                document.getElementById('card-errors').textContent = 'Debes iniciar sesión primero';
+                document.getElementById('login-modal').classList.remove('hidden');
+                return;
+            }
+
+            if (!idPrefix) {
+                document.getElementById('card-errors').textContent = 'No se pudo obtener el prefijo de la API. Por favor, recarga la página.';
+                return;
+            }
+
+            try {
+                // Paso 1: Llamar a /{id_prefix}/cart/checkout/ para obtener el order_id
+                console.log(`Iniciando solicitud a /${idPrefix}/cart/checkout/`);
+                const checkoutResponse = await fetch(`/${idPrefix}/store/cart/checkout/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                        'Referer': `https://localhost:8080/${idPrefix}/store/cart/`,
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                        'Idempotency-Key': generateUUIDv4(),
+                    },
+                });
+                if (!checkoutResponse.ok) {
+                    const errorText = await checkoutResponse.text();
+                    throw new Error(`Error en /${idPrefix}/cart/checkout/: ${checkoutResponse.status} - ${errorText}`);
+                }
+                const checkoutData = await checkoutResponse.json();
+                if (!checkoutData.order_id) {
+                    throw new Error('No se recibió order_id en la respuesta de /cart/checkout/');
+                }
+                const orderId = checkoutData.order_id;
+                console.log('Order ID recibido:', orderId);
+
+                // Paso 2: Llamar a /{id_prefix}/orders/{order_id}/pay para obtener el client_secret
+                console.log(`Iniciando solicitud a /${idPrefix}/orders/${orderId}/pay`);
+                const payResponse = await fetch(`/${idPrefix}/orders/${orderId}/pay`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken(),
+                        'Idempotency-Key': generateUUIDv4(),
+                    },
+                    body: JSON.stringify({payment_method: 'card'})
+                });
+                if (!payResponse.ok) {
+                    const errorText = await payResponse.text();
+                    throw new Error(`Error en /${idPrefix}/orders/${orderId}/pay: ${payResponse.status} - ${errorText}`);
+                }
+                const payData = await payResponse.json();
+                if (!payData.session_url) {
+                    throw new Error('No se recibió session_url en la respuesta de /orders/{order_id}/pay');
+                }
+                const stripeUrl = payData.session_url;
+                console.log('Stripe URL Obtenida:', stripeUrl);
+
+                window.location.href = stripeUrl;
+
+            } catch (error) {
+                console.error('Error durante el proceso de pago:', error.message);
+                document.getElementById('card-errors').textContent = `Error: ${error.message}`;
+            }
+        });
+    })
+</script>
+</body>
+</html>

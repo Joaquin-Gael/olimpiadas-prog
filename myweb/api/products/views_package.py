@@ -132,7 +132,7 @@ def get_package(request, package_id: int):
             try:
                 component_data.append({
                     "id": comp.id,
-                    "product_metadata_id": comp.product_metadata_id,
+                    "product_metadata": comp.product_metadata,
                     "order": comp.order,
                     "quantity": comp.quantity,
                     "title": comp.title,
@@ -207,7 +207,7 @@ def create_package(request, data: PackageCompleteCreate):
                 # Validate product metadata exists
                 product_metadata = get_object_or_404(
                     ProductsMetadata, 
-                    id=component_data['product_metadata_id']
+                    id=component_data['product_metadata']
                 )
                 
                 # Validate order is unique within package
@@ -351,7 +351,7 @@ def add_package_component(request, package_id: int, data: ComponentPackageCreate
         # Validate product metadata exists
         product_metadata = get_object_or_404(
             ProductsMetadata, 
-            id=component_data['product_metadata_id']
+            id=component_data['product_metadata']
         )
         
         # Validate order is unique within package

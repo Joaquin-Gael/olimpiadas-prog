@@ -190,7 +190,7 @@ class OrderCartFlowTestCase(TestCase):
         self.assertEqual(order_details.count(), 2)
         
         # Verificar que ambos productos están en los detalles
-        product_metadata_ids = [detail.product_metadata_id for detail in order_details]
+        product_metadata_ids = [detail.product_metadata for detail in order_details]
         self.assertIn(self.metadata.id, product_metadata_ids)
         self.assertIn(metadata2.id, product_metadata_ids)
 

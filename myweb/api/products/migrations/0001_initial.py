@@ -318,7 +318,7 @@ class Migration(migrations.Migration):
             name='ProductsMetadata',
             fields=[
                 ('deleted_at', models.DateTimeField(blank=True, null=True)),
-                ('id', models.AutoField(primary_key=True, serialize=False, verbose_name='product_metadata_id')),
+                ('id', models.AutoField(primary_key=True, serialize=False, verbose_name='product_metadata')),
                 ('start_date', models.DateField(default=django.utils.timezone.now)),
                 ('end_date', models.DateField(default=django.utils.timezone.now)),
                 ('object_id', models.PositiveIntegerField()),
@@ -341,7 +341,7 @@ class Migration(migrations.Migration):
                 ('start_date', models.DateField(blank=True, help_text='Start date of component usage', null=True)),
                 ('end_date', models.DateField(blank=True, help_text='End date of component usage', null=True)),
                 ('package', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='componentpackages', to='products.packages', verbose_name='package_id')),
-                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.productsmetadata', verbose_name='product_metadata_id')),
+                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.productsmetadata', verbose_name='product_metadata')),
             ],
         ),
         migrations.CreateModel(
@@ -354,7 +354,7 @@ class Migration(migrations.Migration):
                 ('end_date', models.DateField()),
                 ('is_active', models.BooleanField()),
                 ('package', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.packages', verbose_name='package_id')),
-                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='products.productsmetadata', verbose_name='product_metadata_id')),
+                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='products.productsmetadata', verbose_name='product_metadata')),
             ],
         ),
         migrations.CreateModel(
@@ -365,7 +365,7 @@ class Migration(migrations.Migration):
                 ('comment', models.TextField()),
                 ('date', models.DateField()),
                 ('package', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.packages', verbose_name='package_id')),
-                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='products.productsmetadata', verbose_name='product_metadata_id')),
+                ('product_metadata', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='products.productsmetadata', verbose_name='product_metadata')),
             ],
         ),
     ]

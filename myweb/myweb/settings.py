@@ -15,7 +15,8 @@ from env import (
     EMAIL_USE_TLS,
     EMAIL_HOST_USER,
     EMAIL_HOST_PASSWORD,
-    STRIPE_KEY
+    STRIPE_KEY,
+    STRIPE_PUBLISHABLE_KEY
 )
 
 import os
@@ -26,6 +27,7 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = SECRET_KEY
 STRIPE_KEY = STRIPE_KEY
+STRIPE_PUBLISHABLE_KEY = STRIPE_PUBLISHABLE_KEY
 ID_PREFIX = uuid4()
 
 DEBUG = DEBUG
@@ -85,7 +87,9 @@ ROOT_URLCONF = 'myweb.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR / 'templates',
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

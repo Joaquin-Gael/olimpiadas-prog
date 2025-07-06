@@ -43,7 +43,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('availability_id', models.PositiveIntegerField()),
-                ('product_metadata_id', models.PositiveIntegerField()),
+                ('product_metadata', models.PositiveIntegerField()),
                 ('qty', models.PositiveIntegerField()),
                 ('unit_price', models.DecimalField(decimal_places=2, max_digits=12)),
                 ('currency', models.CharField(max_length=3)),
