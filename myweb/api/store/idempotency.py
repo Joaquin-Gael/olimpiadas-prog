@@ -25,6 +25,7 @@ def store_idempotent():
     def decorator(fn):
         @wraps(fn)
         def wrapper(request, *args, **kwargs):
+            console.print(request.headers)
             key = (
                 request.headers.get("Idempotency-Key")
                 or request.headers.get("HTTP_IDEMPOTENCY_KEY")

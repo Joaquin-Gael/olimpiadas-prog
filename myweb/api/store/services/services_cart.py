@@ -169,7 +169,7 @@ def remove_item(item: CartItem):
         raise CartClosedError("El carrito no está abierto")
 
     # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
-    metadata = ProductsMetadata.objects.get(id=item.product_metadata)
+    metadata = ProductsMetadata.objects.get(id=item.product_metadata.id)
     _, release_fn = _get_stock_funcs(metadata.product_type)
 
     release_fn(item.availability_id, item.qty)

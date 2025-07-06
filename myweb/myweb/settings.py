@@ -6,6 +6,8 @@ from uuid import uuid4
 import dj_database_url
 from datetime import timedelta
 
+from corsheaders.defaults import default_headers
+
 from env import (
     DEBUG,
     DATABASE_URL,
@@ -38,6 +40,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:4200",
     "http://127.0.0.1:8080",
+]
+
+APPEND_SLASH = True
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "idempotency-key",
 ]
 
 API_TITLE = "TITLE-API"
