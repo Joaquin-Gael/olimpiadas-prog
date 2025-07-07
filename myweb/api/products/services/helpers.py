@@ -59,7 +59,20 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "difficulty_level": activity.difficulty_level,
                 "language": activity.language,
                 "available_slots": activity.available_slots,
-                "availability_id": [serialize_activity_availability(i) for i in activity.availabilities.all()],
+                "availabilities": [
+                    {
+                        "id": av.id,
+                        "event_date": av.event_date,
+                        "start_time": av.start_time,
+                        "total_seats": av.total_seats,
+                        "reserved_seats": av.reserved_seats,
+                        "available_seats": av.total_seats - av.reserved_seats,
+                        "price": float(av.price),
+                        "currency": av.currency,
+                        "state": av.state,
+                    }
+                    for av in availabilities
+                ]
             }
         elif metadata.product_type == "flight":
             flight = metadata.content
@@ -93,7 +106,6 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "terminal": flight.terminal,
                 "gate": flight.gate,
                 "notes": flight.notes,
-                "availability_id": 1,
             }
         elif metadata.product_type == "lodgment":
             lodgment = metadata.content
@@ -149,7 +161,6 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             base_data["product"] = {
                 "id": lodgment.id,
                 "name": lodgment.name,
-                "availability_id": [serialize_lodgment_availability(i) for i in lodgment.availabilities.all()],
                 "description": lodgment.description,
                 "location": {
                     "country": lodgment.location.country if lodgment.location else "",
@@ -216,7 +227,6 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "description": transportation.description,
                 "notes": transportation.notes,
                 "capacity": transportation.capacity,
-                "availability_id": [serialize_transportation_availability(i) for i in transportation.availabilities.all()],
                 "is_active": transportation.is_active,
                 "availabilities": [
                     {
