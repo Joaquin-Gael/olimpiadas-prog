@@ -20,6 +20,8 @@ center() {
   printf '%*s%s%*s\n' "$left" '' "$text" "$right" '' | tr ' ' '-'
 }
 
+
+
 # Muestra los banners
 center "$msg"
 center "$instruction"
