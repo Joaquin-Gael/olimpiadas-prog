@@ -684,6 +684,11 @@ class ProductsMetadataOut(BaseSchema):
     product_type: str
     product: dict[str, Any]
 
+class ItemsPaginationOut(BaseSchema):
+    """Output schema for items pagination"""
+    count: int
+    items: List[ProductsMetadataOut]
+
 class SerializedHelperMetadata(BaseSchema):
     id: int
     unit_price: float

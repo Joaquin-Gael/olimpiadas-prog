@@ -1,4 +1,4 @@
-from ninja import Router
+from ninja import Router, Query
 from .schemas import (
     ProductsMetadataOut, ProductsMetadataCreate, ProductsMetadataUpdate,
     ActivityUpdate, FlightUpdate, LodgmentUpdate, TransportationUpdate,
@@ -8,7 +8,8 @@ from .schemas import (
     TransportationAvailabilityCreate, TransportationAvailabilityOut, TransportationAvailabilityUpdate,
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
-    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, RoomCreate, RoomUpdate, RoomOut, RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata
+    RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, RoomCreate, RoomUpdate, RoomOut,
+    RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata, ItemsPaginationOut
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from .helpers import serialize_room, serialize_room_with_availability
@@ -565,9 +566,9 @@ def list_all_products(request):
     return serialized_list
 
 
-@products_router.get("/", response={200: List[ProductsMetadataOut]})
-@paginate(DefaultPagination)
-def list_products(request):
+@products_router.get("/", response={200: ItemsPaginationOut})
+#@paginate(DefaultPagination)
+def list_products(request, limit: int = Query(100), offset: int = Query(0)):
     """
     Lists all products with advanced filters and pagination
     """
@@ -596,7 +597,8 @@ def list_products(request):
             continue
     
     console.print(f"Productos serializados: {len(serialized_list)}")
-    return serialized_list
+    filtered_serialized_list = serialized_list[offset:limit]
+    return {"items": filtered_serialized_list, "count": len(filtered_serialized_list)}
 
 
 @products_router.get("/{id}/", response=ProductsMetadataOut)

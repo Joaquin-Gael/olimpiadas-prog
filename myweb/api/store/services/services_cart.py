@@ -87,7 +87,7 @@ def _recalculate_cart(cart: Cart):
 def add_item(
     cart: Cart,
     metadata: ProductsMetadata,
-    availability_id: int,
+    availability_id: int | None,
     qty: int,
     unit_price: Decimal,
     config: dict | None = None,
@@ -114,7 +114,7 @@ def add_item(
     console.print(f"Product Object: {metadata.get_content_object}")
 
     # 1) Reservar stock
-    if metadata.product_type in ["flights", "flight"]:
+    if metadata.product_type in ["flights", "flight"] or availability_id is None:
         _object = metadata.get_content_object
         reserve_fn(_object.id, qty)
     else:
@@ -139,8 +139,10 @@ def add_item(
         old_item.save(update_fields=["qty", "updated_at"])
 
         _recalculate_cart(cart)
+        console.print("Item already exists, updated qty")
         return old_item
     except CartItem.DoesNotExist:
+        console.print_exception(show_locals=True)
         item = CartItem.objects.create(
             cart=cart,
             availability_id=availability_id,
