@@ -829,6 +829,13 @@ class ProductsMetadata(SoftDeleteModel):
     is_active = models.BooleanField(default=True)
 
     @property
+    def get_content_object(self):
+        _model = ContentType.objects.get_for_id(self.content_type_id.id)
+        product_object = _model.model_class().objects.get(pk=self.object_id)
+
+        return product_object
+
+    @property
     def product_name(self):
         _model = ContentType.objects.get_for_id(self.content_type_id.id)
         product_object = _model.model_class().objects.get(pk=self.object_id)

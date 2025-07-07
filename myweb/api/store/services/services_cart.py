@@ -25,6 +25,9 @@ from api.products.services.stock_services import (
     InsufficientStockError,
 )
 
+from rich.console import Console
+console = Console()
+
 # ──────────────────────────────────────────────────────────────
 # 1. EXCEPCIONES DE DOMINIO
 # ──────────────────────────────────────────────────────────────
@@ -44,6 +47,9 @@ _STOCK_MAP = {
     "transportation": (reserve_transportation, release_transportation),
     "lodgment":       (reserve_room_availability, release_room_availability),
     "flight":         (reserve_flight,   release_flight),
+    "flights":        (reserve_flight,   release_flight),
+    "lodgments":      (reserve_room_availability, release_room_availability),
+    "activities":     (reserve_activity, release_activity),
 }
 
 def _get_stock_funcs(product_type: str):
@@ -67,6 +73,7 @@ def _recalculate_cart(cart: Cart):
         items_cnt=models.Sum("qty"),
         total=models.Sum(price_expr),
     )
+    console.print(agg)
     cart.items_cnt = agg["items_cnt"] or 0
     cart.total     = (agg["total"] or Decimal("0.00")).quantize(Decimal("0.01"))
     cart.updated_at = timezone.now()
@@ -103,15 +110,22 @@ def add_item(
 
     reserve_fn, _ = _get_stock_funcs(metadata.product_type)
 
+    console.print(f"product_type: {metadata.product_type} | availability_id: {availability_id} | qty: {qty} | unit_price: {unit_price} | config: {config}")
+    console.print(f"Product Object: {metadata.get_content_object}")
+
     # 1) Reservar stock
-    reserve_fn(availability_id, qty)
+    if metadata.product_type in ["flights", "flight"]:
+        _object = metadata.get_content_object
+        reserve_fn(_object.id, qty)
+    else:
+        reserve_fn(availability_id, qty)
 
     # 2) Insertar o actualizar línea
     item, created = CartItem.objects.select_for_update().get_or_create(
         cart=cart,
         availability_id=availability_id,
+        product_metadata=metadata,
         defaults=dict(
-            product_metadata_id=metadata.id,
             qty=qty,
             unit_price=unit_price,
             currency=metadata.currency,
