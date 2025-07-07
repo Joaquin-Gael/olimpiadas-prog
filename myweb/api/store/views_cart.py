@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 
 from .models import Cart, CartItem
-from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn, UserBasicInfo
+from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn, UserBasicInfo, PackageAddIn
 from api.products.models import ProductsMetadata
 from .services import services_cart as cart_srv
 from .services import services_orders as order_srv
@@ -306,6 +306,109 @@ def add_item(request, payload: ItemAddIn):
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error agregando item al carrito: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
+
+# ───────────────────────────────────────────────────────────────
+# 2.1. Añadir paquete al carrito
+# ───────────────────────────────────────────────────────────────
+@router.post("/cart/packages/", response={200: list[CartItemOut]})
+#@store_idempotent()
+def add_package(request, payload: PackageAddIn):
+    """
+    Añade un paquete completo al carrito del usuario autenticado.
+
+    ### Descripción:
+    Este endpoint permite agregar paquetes completos al carrito en estado `OPEN` del usuario. 
+    Un paquete puede contener múltiples componentes (actividades, vuelos, alojamientos, etc.).
+    Valida la disponibilidad de todos los componentes y reserva stock antes de agregar el paquete.
+
+    ### Headers requeridos:
+    - **Authorization**: Proporciona el token de autenticación JWT del usuario. Es obligatorio.
+    - **Idempotency-Key**: Clave opcional para garantizar la idempotencia de la solicitud.
+
+    ### Parámetros en el cuerpo de la solicitud:
+    - **package_id**: ID del paquete a agregar.
+    - **qty**: Cantidad de paquetes a agregar.
+    - **config**: Configuración opcional del paquete (ejemplo: fechas, preferencias).
+
+    ### Respuestas:
+    - **200 OK**: Retorna una lista JSON con la información de todos los componentes agregados.
+    - **404 Not Found**: Si el paquete no existe o no está activo.
+    - **409 Conflict**: Si el stock es insuficiente o el carrito está cerrado.
+    - **422 Unprocessable Entity**: Si ocurre un conflicto de moneda diferente.
+    - **401 Unauthorized**: Si el usuario no está autenticado.
+
+    ### Ejemplo de respuesta (200):
+    ```json
+    [
+        {
+            "id": 1,
+            "availability_id": 100,
+            "product_metadata_id": 45,
+            "qty": 2,
+            "unit_price": 50.0,
+            "currency": "USD",
+            "config": {}
+        },
+        {
+            "id": 2,
+            "availability_id": 101,
+            "product_metadata_id": 46,
+            "qty": 1,
+            "unit_price": 75.0,
+            "currency": "USD",
+            "config": {}
+        }
+    ]
+    ```
+    """
+    try:
+        # Validar datos de entrada
+        if payload.qty <= 0:
+            raise HttpError(400, "La cantidad debe ser mayor a 0")
+        
+        # Obtener carrito abierto
+        cart = _get_open_cart(request.user, "USD")  # Moneda por defecto para paquetes
+        
+        # Agregar paquete al carrito usando el servicio
+        created_items = cart_srv.add_package(
+            cart=cart,
+            package_id=payload.package_id,
+            qty=payload.qty,
+            config=payload.config
+        )
+        
+        # Convertir items a formato de respuesta
+        response_items = []
+        for item in created_items:
+            response_items.append({
+                "id": item.id,
+                "availability_id": item.availability_id,
+                "product_metadata_id": item.product_metadata.id,
+                "qty": item.qty,
+                "unit_price": float(item.unit_price),
+                "currency": item.currency,
+                "config": item.config
+            })
+        
+        return response_items
+        
+    except cart_srv.PackageNotFoundError as e:
+        raise HttpError(404, str(e))
+    except cart_srv.PackageComponentsError as e:
+        raise HttpError(422, str(e))
+    except cart_srv.InsufficientStockError:
+        raise HttpError(409, "stock_insuficiente")
+    except cart_srv.CurrencyMismatchError:
+        raise HttpError(422, "moneda_distinta")
+    except cart_srv.CartClosedError:
+        raise HttpError(409, "carrito_cerrado")
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error agregando paquete al carrito: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
 
 # ───────────────────────────────────────────────────────────────

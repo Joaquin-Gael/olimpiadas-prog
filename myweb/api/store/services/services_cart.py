@@ -16,7 +16,7 @@ from django.db import transaction, models
 from django.utils import timezone
 
 from ..models import Cart, CartItem
-from api.products.models import ProductsMetadata
+from api.products.models import ProductsMetadata, Packages, ComponentPackages
 from api.products.services.stock_services import (
     reserve_activity,       release_activity,
     reserve_transportation, release_transportation,
@@ -36,7 +36,13 @@ class CartClosedError(Exception):
     """El carrito no está en estado OPEN."""
 
 class CurrencyMismatchError(Exception):
-    """Se intenta añadir un ítem con moneda distinta al carrito."""
+    """La moneda del ítem no coincide con la del carrito."""
+
+class PackageNotFoundError(Exception):
+    """El paquete no existe o no está activo."""
+
+class PackageComponentsError(Exception):
+    """Error al procesar los componentes del paquete."""
 
 # ──────────────────────────────────────────────────────────────
 # 2. MAPA PRODUCTO → FUNCIÓN DE STOCK
@@ -157,6 +163,148 @@ def add_item(
 
     # 3) Recalcular totales
 
+
+@transaction.atomic
+def add_package(
+    cart: Cart,
+    package_id: int,
+    qty: int,
+    config: dict | None = None,
+) -> list[CartItem]:
+    """
+    Añade un paquete completo al carrito.
+    
+    • Valida que el paquete existe y está activo
+    • Obtiene todos los componentes del paquete
+    • Reserva stock para cada componente
+    • Crea items en el carrito para cada componente
+    • Actualiza totales del carrito
+    
+    Args:
+        cart: Instancia del carrito
+        package_id: ID del paquete a agregar
+        qty: Cantidad de paquetes a agregar
+        config: Configuración adicional del paquete
+        
+    Returns:
+        List[CartItem]: Lista de items creados en el carrito
+        
+    Raises:
+        PackageNotFoundError: Si el paquete no existe o no está activo
+        PackageComponentsError: Si hay error al procesar componentes
+        CartClosedError: Si el carrito no está abierto
+        InsufficientStockError: Si no hay stock suficiente
+    """
+    if cart.status != "OPEN":
+        raise CartClosedError("El carrito no está abierto")
+    
+    if qty <= 0:
+        raise ValueError("qty debe ser positivo")
+    
+    # 1) Validar que el paquete existe y está activo
+    try:
+        package = Packages.objects.get(id=package_id, is_active=True)
+    except Packages.DoesNotExist:
+        raise PackageNotFoundError(f"Paquete {package_id} no encontrado o inactivo")
+    
+    # 2) Obtener componentes del paquete ordenados
+    components = ComponentPackages.objects.filter(
+        package=package
+    ).select_related('product_metadata').order_by('order')
+    
+    if not components.exists():
+        raise PackageComponentsError(f"Paquete {package_id} no tiene componentes")
+    
+    # 3) Validar moneda del paquete
+    package_currency = package.currency if hasattr(package, 'currency') else 'USD'
+    if cart.currency != package_currency:
+        raise CurrencyMismatchError(f"Moneda del paquete ({package_currency}) no coincide con la del carrito ({cart.currency})")
+    
+    created_items = []
+    
+    try:
+        # 4) Procesar cada componente del paquete
+        for component in components:
+            metadata = component.product_metadata
+            
+            # Validar que el metadata está activo
+            if not metadata.is_active:
+                raise PackageComponentsError(f"Componente {metadata.id} del paquete no está activo")
+            
+            # Calcular cantidad total para este componente
+            component_qty = qty * (component.quantity or 1)
+            
+            # Determinar availability_id según el tipo de producto
+            availability_id = None
+            if hasattr(component, 'available_id') and component.available_id:
+                availability_id = component.available_id
+            
+            # 5) Reservar stock para el componente
+            reserve_fn, _ = _get_stock_funcs(metadata.product_type)
+            
+            if metadata.product_type in ["flights", "flight"] or availability_id is None:
+                product_object = metadata.get_content_object
+                reserve_fn(product_object.id, component_qty)
+            else:
+                reserve_fn(availability_id, component_qty)
+            
+            # 6) Crear o actualizar item en el carrito
+            try:
+                existing_item = CartItem.objects.get(
+                    cart=cart, 
+                    availability_id=availability_id, 
+                    product_metadata=metadata
+                )
+                # Actualizar cantidad existente
+                existing_item.qty += component_qty
+                existing_item.save(update_fields=["qty", "updated_at"])
+                created_items.append(existing_item)
+                console.print(f"Item existente actualizado: {existing_item.id}")
+                
+            except CartItem.DoesNotExist:
+                # Crear nuevo item
+                item = CartItem.objects.create(
+                    cart=cart,
+                    availability_id=availability_id,
+                    product_metadata=metadata,
+                    qty=component_qty,
+                    unit_price=metadata.unit_price,
+                    currency=metadata.currency,
+                    config=config or {},
+                )
+                created_items.append(item)
+                console.print(f"Nuevo item creado: {item.id}")
+        
+        # 7) Recalcular totales del carrito
+        _recalculate_cart(cart)
+        
+        return created_items
+        
+    except (InsufficientStockError, PackageComponentsError, CartClosedError):
+        # Si hay error, liberar stock reservado
+        for component in components:
+            try:
+                metadata = component.product_metadata
+                component_qty = qty * (component.quantity or 1)
+                availability_id = getattr(component, 'available_id', None)
+                
+                release_fn, _ = _get_stock_funcs(metadata.product_type)
+                
+                if metadata.product_type in ["flights", "flight"] or availability_id is None:
+                    product_object = metadata.get_content_object
+                    release_fn(product_object.id, component_qty)
+                else:
+                    release_fn(availability_id, component_qty)
+            except Exception as e:
+                console.print(f"Error liberando stock: {e}")
+        
+        # Re-lanzar la excepción original
+        raise
+
+
+# ──────────────────────────────────────────────────────────────
+# 5. FUNCIONES DE STOCK
+# ──────────────────────────────────────────────────────────────
 
 @transaction.atomic
 def update_qty(item: CartItem, new_qty: int):
