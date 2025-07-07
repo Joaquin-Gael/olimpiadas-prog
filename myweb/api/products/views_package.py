@@ -130,16 +130,83 @@ def get_package(request, package_id: int):
         component_data = []
         for comp in components:
             try:
+                # Obtener el available_id y datos de disponibilidad según el tipo de producto
+                available_id = None
+                availability_data = None
+                
+                if comp.product_metadata.content:
+                    product = comp.product_metadata.content
+                    product_type = comp.product_metadata.product_type
+                    
+                    if product_type == "activity":
+                        # Para actividades, obtener la primera disponibilidad
+                        availabilities = product.availabilities.all().order_by('event_date', 'start_time')
+                        if availabilities.exists():
+                            first_av = availabilities.first()
+                            available_id = first_av.id
+                            availability_data = {
+                                "total_seats": first_av.total_seats,
+                                "reserved_seats": first_av.reserved_seats,
+                                "available_seats": first_av.total_seats - first_av.reserved_seats,
+                                "price": float(first_av.price),
+                                "currency": first_av.currency,
+                                "state": first_av.state,
+                            }
+                    
+                    elif product_type == "flight":
+                        # Para vuelos, usar los datos del vuelo
+                        available_id = product.id
+                        availability_data = {
+                            "capacity": product.capacity,
+                            "available_seats": product.available_seats,
+                            "reserved_seats": product.capacity - product.available_seats,
+                        }
+                    
+                    elif product_type == "lodgment":
+                        # Para alojamientos, obtener la primera disponibilidad de habitación
+                        rooms = product.rooms.all()
+                        for room in rooms:
+                            room_availabilities = room.availabilities.all().order_by('start_date')
+                            if room_availabilities.exists():
+                                first_av = room_availabilities.first()
+                                available_id = first_av.id
+                                availability_data = {
+                                    "available_quantity": first_av.available_quantity,
+                                    "max_quantity": first_av.max_quantity,
+                                    "effective_price": float(first_av.effective_price),
+                                    "currency": first_av.currency,
+                                    "is_blocked": first_av.is_blocked,
+                                    "minimum_stay": first_av.minimum_stay,
+                                }
+                                break
+                    
+                    elif product_type == "transportation":
+                        # Para transporte, obtener la primera disponibilidad
+                        availabilities = product.availabilities.all().order_by('departure_date', 'departure_time')
+                        if availabilities.exists():
+                            first_av = availabilities.first()
+                            available_id = first_av.id
+                            availability_data = {
+                                "total_seats": first_av.total_seats,
+                                "reserved_seats": first_av.reserved_seats,
+                                "available_seats": first_av.total_seats - first_av.reserved_seats,
+                                "price": float(first_av.price),
+                                "currency": first_av.currency,
+                                "state": first_av.state,
+                            }
+                
                 component_data.append({
                     "id": comp.id,
-                    "product_metadata": comp.product_metadata,
+                    "product_metadata_id": comp.product_metadata.id,
                     "order": comp.order,
                     "quantity": comp.quantity,
                     "title": comp.title,
                     "start_date": comp.start_date,
                     "end_date": comp.end_date,
                     "product_type": comp.product_metadata.product_type,
-                    "product_name": str(comp.product_metadata.content)
+                    "product_name": str(comp.product_metadata.content),
+                    "available_id": available_id,
+                    "availability_data": availability_data
                 })
             except Exception as e:
                 # Log error but continue with other components

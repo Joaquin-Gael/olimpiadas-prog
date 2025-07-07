@@ -12,8 +12,6 @@ from .services import services_orders as order_srv
 from .idempotency import store_idempotent
 from api.products.services.stock_services import InsufficientStockError
 
-from api.products.services.helpers import serialize_product_metadata
-
 from api.core.auth import SyncJWTBearer
 
 from .services.services_cart import console
@@ -296,20 +294,19 @@ def add_item(request, payload: ItemAddIn):
             "currency": item.currency,
             "config": item.config
         }
-    except HttpError:
-        raise
-    except InsufficientStockError:
+    except cart_srv.InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CurrencyMismatchError:
         raise HttpError(422, "moneda_distinta")
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
+    except HttpError:
+        raise
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error agregando item al carrito: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
-
 
 # ───────────────────────────────────────────────────────────────
 # 3. Cambiar cantidad
@@ -365,6 +362,10 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
         # Serializar respuesta
         return CartItemOut.from_orm(item)
         
+    except cart_srv.InsufficientStockError:
+        raise HttpError(409, "stock_insuficiente")
+    except cart_srv.CartClosedError:
+        raise HttpError(409, "carrito_cerrado")
     except HttpError:
         raise
     except Exception as e:
@@ -372,10 +373,6 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
         logger = logging.getLogger(__name__)
         logger.error(f"Error actualizando cantidad del item {item_id}: {str(e)}")
         raise HttpError(500, "Error interno del servidor")
-    except cart_srv.InsufficientStockError:
-        raise HttpError(409, "stock_insuficiente")
-    except cart_srv.CartClosedError:
-        raise HttpError(409, "carrito_cerrado")
 
 # ───────────────────────────────────────────────────────────────
 # 4. Eliminar ítem
@@ -398,7 +395,6 @@ def delete_item(request, item_id: int):
     - **204 No Content**: El ítem fue eliminado exitosamente.
     - **409 Conflict**: Si el carrito ya está cerrado.
     - **401 Unauthorized**: Si el usuario no está autenticado.
-    ```
     """
     item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
     try:
@@ -467,14 +463,6 @@ def checkout(request):
 
         return 201, {"order_id": order.id, "total": float(order.total)}
 
-    except HttpError:
-        raise
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error en checkout del carrito {cart.id}: {str(e)}")
-        raise HttpError(500, "Error interno del servidor")
-
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
     except InsufficientStockError:
@@ -483,3 +471,10 @@ def checkout(request):
         raise HttpError(409, "carrito_cerrado")
     except order_srv.OrderCreationError as e:
         raise HttpError(500, f"error_creacion_orden: {str(e)}")
+    except HttpError:
+        raise
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error en checkout del carrito {cart.id}: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")

@@ -921,7 +921,7 @@ class Packages(SoftDeleteModel):
     # Package category
     category = models.ForeignKey(
         Category, 
-        on_delete=models.PROTECT, 
+        on_delete=models.PROTECT,
         null=True, 
         blank=True,
         help_text="Tour package category"

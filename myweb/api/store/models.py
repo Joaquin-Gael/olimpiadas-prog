@@ -428,7 +428,7 @@ class CartItem(models.Model):
     updated_at          = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ["cart", "product_metadata"]                # evita duplicar línea
+        unique_together = ["cart", "availability_id"]                # evita duplicar línea
 
 class StoreIdempotencyRecord(models.Model):
 

@@ -17,6 +17,7 @@ class UserBasicInfo(Schema):
         from_attributes = True
 
 class CartItemOut(Schema):
+    id: int
     availability_id: int
     product_metadata_id: int
     qty: PositiveInt

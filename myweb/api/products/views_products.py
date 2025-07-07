@@ -765,7 +765,6 @@ def get_filter_stats(request):
     
     return stats
 
-
 # ──────────────────────────────────────────────────────────────
 # ENDPOINTS TO MANAGE FLIGHT AVAILABILITY
 # ──────────────────────────────────────────────────────────────
