@@ -10,6 +10,7 @@ from ninja.errors import HttpError
 from uuid import uuid4
 
 from api.core.auth import SyncJWTBearer
+from api.clients.models import Clients, IdentityDocumentType, Addresses, AddressType
 
 from .idempotency import console
 from .models import Orders, Sales
@@ -67,7 +68,18 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
             idempotency_key=str(uuid4())
         )
 
-        OrderNotificationService.send_payment_confirmation(sale)
+        try:
+            _client = Clients.objects.filter(user_id=order.user_id).first()
+
+        except Clients.DoesNotExist:
+            Clients.objects.create(
+                user=order.user,
+                identity_document_type=IdentityDocumentType.DNI,
+                identity_document="None",
+                state=order.user.state
+            )
+
+        OrderNotificationService.send_payment_confirmation(sale, payment_method)
 
         return PaymentOut(
             sale_id=sale.id,
@@ -97,12 +109,12 @@ def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)
     try:
         order = Orders.objects.get(id=order_id)
         PaymentService.cancel_payment(order)
-        return 200, SuccessResponse(
+        return SuccessResponse(
             message="Orden cancelada exitosamente",
             data={"order_id": order.id, "state": order.state}
         )
     except Orders.DoesNotExist:
-        return 404, ErrorResponse(
+        return ErrorResponse(
             message="Orden no encontrada",
             error_code="ORDER_NOT_FOUND"
         )

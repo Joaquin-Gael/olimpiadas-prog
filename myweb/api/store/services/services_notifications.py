@@ -38,7 +38,7 @@ class OrderNotificationService:
                 "created_at": order.created_at.strftime("%d/%m/%Y %H:%M"),
             }
             return NotificationService.send_email(
-                template_name=tpl, to_email=order.client.email,
+                template_name=f"emails/{tpl}", to_email=order.client.email,
                 context=context, subject=subj
             )
         except Exception:
@@ -47,21 +47,21 @@ class OrderNotificationService:
 
     # -----------------------------------------------------------
     @staticmethod
-    def send_payment_confirmation(sale: Sales) -> bool:
+    def send_payment_confirmation(sale: Sales, payment_method) -> bool:
         try:
             tpl, subj = TPL_PAYMENT_CONF
             context = {
                 "order_id": sale.order.id,
                 "sale_id": sale.id,
                 "amount": sale.amount,
-                "payment_method": None, #sale.payment_method, TODO: asociar de manera correcta con el metodo de pago
+                "payment_method": payment_method, #sale.payment_method, TODO: asociar de manera correcta con el metodo de pago
                 "transaction_id": sale.transaction_id,
-                "user_name": sale.order.client.get_full_name() or sale.order.client.username,
-                "user_email": sale.order.client.email,
+                "user_name": sale.order.user.full_name,
+                "user_email": sale.order.user.email,
                 "paid_at": sale.created_at.strftime("%d/%m/%Y %H:%M"),
             }
             return NotificationService.send_email(
-                template_name=tpl, to_email=sale.order.client.email,
+                template_name=f"emails/{tpl}", to_email=sale.order.user.email,
                 context=context, subject=subj
             )
         except Exception:
@@ -82,7 +82,7 @@ class OrderNotificationService:
                 "reason": reason or "Cancelación solicitada por el usuario",
             }
             return NotificationService.send_email(
-                template_name=tpl, to_email=order.client.email,
+                template_name=f"emails/{tpl}", to_email=order.client.email,
                 context=context, subject=subj
             )
         except Exception:

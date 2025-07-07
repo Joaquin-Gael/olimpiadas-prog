@@ -1,16 +1,16 @@
 {% extends "emails/base.html" %}
 
-{% block title %}Reserva Pendiente - Orden #{{ order_id }} - Turismo{% endblock %}
+{% block title %}Reserva Pendiente de Pago - Orden #{{ order_id }} - Turismo{% endblock %}
 
-{% block header_title %}Reserva Pendiente ⏳{% endblock %}
-{% block header_subtitle %}Tu reserva está esperando confirmación{% endblock %}
+{% block header_title %}Reserva Pendiente de Pago 💳{% endblock %}
+{% block header_subtitle %}Tu reserva está esperando confirmación de pago{% endblock %}
 
 {% block content %}
 <div class="greeting">
     Hola {{ user_name }}, 👋
 </div>
 
-<p>Hemos recibido tu solicitud de reserva y actualmente está siendo procesada por nuestro equipo.</p>
+<p>¡Excelente! Hemos recibido tu solicitud de reserva. Tu orden está lista y solo falta completar el pago para confirmarla definitivamente.</p>
 
 <div class="info-card">
     <div class="info-row">
@@ -22,51 +22,106 @@
         <span class="info-value">{{ created_at }}</span>
     </div>
     <div class="info-row">
-        <span class="info-label">Total Estimado:</span>
-        <span class="info-value" style="font-size: 18px; color: #ffc107; font-weight: bold;">${{ total }}</span>
+        <span class="info-label">Total a Pagar:</span>
+        <span class="info-value" style="font-size: 18px; color: #dc3545; font-weight: bold;">${{ total }}</span>
     </div>
 </div>
 
 <div class="highlight" style="background-color: #fff3cd; border-color: #ffeaa7;">
-    <strong style="color: #856404;">Estado: Pendiente de Confirmación ⏳</strong>
+    <strong style="color: #856404;">Estado: Pendiente de Pago 💳</strong>
     <p style="margin-top: 10px; color: #856404;">
-        Estamos verificando la disponibilidad y preparando tu propuesta personalizada.
+        Tu reserva está confirmada pero necesita el pago para ser procesada completamente.
     </p>
 </div>
 
-<div class="divider"></div>
-
-<h3 style="color: #2c3e50; margin-bottom: 15px;">¿Qué está pasando ahora?</h3>
-<div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
-    <ul style="color: #1565c0; padding-left: 20px; margin: 0;">
-        <li style="margin-bottom: 10px;">🔍 Verificando disponibilidad de fechas y servicios</li>
-        <li style="margin-bottom: 10px;">💰 Calculando precios finales y ofertas especiales</li>
-        <li style="margin-bottom: 10px;">📋 Preparando tu itinerario personalizado</li>
-        <li>📧 Te contactaremos en las próximas 24-48 horas</li>
-    </ul>
-</div>
-
-<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
-    <h4 style="color: #495057; margin-bottom: 10px;">Tiempo estimado de respuesta</h4>
-    <div style="font-size: 24px; color: #007bff; font-weight: bold;">24-48 horas</div>
-    <p style="color: #6c757d; margin-top: 10px;">Te notificaremos tan pronto como tengamos novedades</p>
-</div>
-
-<div style="text-align: center; margin-top: 30px;">
-    <a href="#" class="button">Ver Estado de Reserva</a>
+<div style="text-align: center; margin: 40px 0;">
+    <a href="#" class="button" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); font-size: 18px; padding: 16px 32px;">
+        💳 Pagar Desde Mi Carrito
+    </a>
 </div>
 
 <div class="divider"></div>
 
-<h3 style="color: #2c3e50; margin-bottom: 15px;">Mientras tanto...</h3>
-<p style="color: #495057; margin-bottom: 15px;">Puedes:</p>
-<ul style="color: #495057; padding-left: 20px;">
-    <li style="margin-bottom: 8px;">Revisar nuestras <a href="#" style="color: #667eea;">recomendaciones de viaje</a></li>
-    <li style="margin-bottom: 8px;">Explorar <a href="#" style="color: #667eea;">actividades adicionales</a> en tu destino</li>
-    <li style="margin-bottom: 8px;">Contactarnos si tienes preguntas específicas</li>
-</ul>
+<h3 style="color: #2c3e50; margin-bottom: 15px;">¿Cómo completar tu reserva?</h3>
+<div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+    <ol style="color: #155724; padding-left: 20px; margin: 0;">
+        <li style="margin-bottom: 12px; font-weight: 600;">🛒 <strong>Ve a tu carrito</strong> - Haz clic en el botón de arriba</li>
+        <li style="margin-bottom: 12px; font-weight: 600;">💳 <strong>Selecciona tu método de pago</strong> - Tarjeta, PayPal o transferencia</li>
+        <li style="margin-bottom: 12px; font-weight: 600;">✅ <strong>Confirma el pago</strong> - Revisa los detalles y procede</li>
+        <li style="font-weight: 600;">🎉 <strong>¡Listo!</strong> - Recibirás confirmación inmediata</li>
+    </ol>
+</div>
+
+<div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center;">
+    <h4 style="color: #495057; margin-bottom: 15px;">⏰ Tiempo para completar el pago</h4>
+    <div style="font-size: 32px; color: #dc3545; font-weight: bold; margin-bottom: 10px;">48 horas</div>
+    <p style="color: #6c757d; margin: 0;">Después de este tiempo, tu reserva será cancelada automáticamente</p>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="color: #2c3e50; margin-bottom: 20px;">¿Por qué completar tu pago ahora?</h3>
+
+<div style="display: grid; gap: 15px;">
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+        <h4 style="color: #2c3e50; margin-bottom: 10px;">🔒 Precio Bloqueado</h4>
+        <p style="color: #495057; margin: 0;">Tu precio está garantizado y no cambiará, incluso si los precios suben.</p>
+    </div>
+
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+        <h4 style="color: #2c3e50; margin-bottom: 10px;">📅 Fechas Aseguradas</h4>
+        <p style="color: #495057; margin: 0;">Tus fechas están reservadas y no las perderás por disponibilidad.</p>
+    </div>
+
+    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+        <h4 style="color: #2c3e50; margin-bottom: 10px;">⚡ Confirmación Inmediata</h4>
+        <p style="color: #495057; margin: 0;">Una vez pagado, recibirás tu confirmación y detalles al instante.</p>
+    </div>
+</div>
+
+<div style="background-color: #e3f2fd; padding: 25px; border-radius: 8px; margin: 25px 0; text-align: center;">
+    <h4 style="color: #1565c0; margin-bottom: 15px;">💡 Consejo</h4>
+    <p style="color: #1976d2; margin-bottom: 15px;">
+        Si tienes problemas con el pago o preguntas sobre tu reserva,
+        nuestro equipo de soporte está disponible 24/7.
+    </p>
+    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <a href="#" style="
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+        ">📞 Llamar</a>
+        <a href="#" style="
+            display: inline-block;
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+        ">💬 Chat</a>
+        <a href="#" style="
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+        ">📧 Email</a>
+    </div>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="#" class="button" style="margin-right: 15px;">Ver Detalles de la Reserva</a>
+    <a href="#" class="button" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Cancelar Reserva</a>
+</div>
 
 <p style="margin-top: 30px; color: #6c757d; font-style: italic;">
-    Gracias por elegir Turismo. Estamos trabajando para crear la experiencia perfecta para ti. ¡Pronto tendrás noticias nuestras!
+    ¡Estamos emocionados de ser parte de tu próxima aventura! Solo falta un paso más para confirmar tu experiencia perfecta.
 </p>
 {% endblock %}

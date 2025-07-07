@@ -198,7 +198,7 @@ class NotificationService:
         }
         
         return NotificationService.send_email(
-            template_name='order_confirmation',
+            template_name='emails/order_confirmation',
             to_email=user_email,
             context=context,
             subject=f'Confirmación de Orden #{order_id}'
@@ -242,7 +242,7 @@ class NotificationService:
         }
         
         return NotificationService.send_email(
-            template_name='payment_confirmation',
+            template_name='emails/payment_confirmation',
             to_email=user_email,
             context=context,
             subject=f'Confirmación de Pago - Orden #{order_id}'
