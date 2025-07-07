@@ -1,0 +1,60 @@
+{% extends "emails/base.html" %}
+
+{% block title %}¡Bienvenido a Turismo! - {{ user_name }}{% endblock %}
+
+{% block header_title %}¡Bienvenido a Turismo! 🌟{% endblock %}
+{% block header_subtitle %}Tu aventura comienza aquí{% endblock %}
+
+{% block content %}
+<div class="greeting">
+  ¡Hola {{ user_name }}! 🎉
+</div>
+
+<p>¡Nos emociona tenerte como parte de la familia Turismo! Estás a punto de descubrir un mundo de experiencias increíbles.</p>
+
+<div class="highlight" style="background-color: #e8f5e8; border-color: #c3e6cb;">
+  <strong style="color: #155724;">¡Tu cuenta está lista! ✅</strong>
+  <p style="margin-top: 10px; color: #155724;">
+    Ya puedes empezar a explorar y reservar tus próximas aventuras.
+  </p>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="color: #2c3e50; margin-bottom: 20px;">¿Qué puedes hacer ahora?</h3>
+
+<div style="display: grid; gap: 15px;">
+  <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+    <h4 style="color: #2c3e50; margin-bottom: 10px;">🗺️ Explorar Destinos</h4>
+    <p style="color: #495057; margin: 0;">Descubre lugares increíbles y experiencias únicas alrededor del mundo.</p>
+  </div>
+
+  <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+    <h4 style="color: #2c3e50; margin-bottom: 10px;">💰 Ofertas Especiales</h4>
+    <p style="color: #495057; margin: 0;">Accede a descuentos exclusivos y promociones para miembros.</p>
+  </div>
+
+  <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
+    <h4 style="color: #2c3e50; margin-bottom: 10px;">📱 Mi Cuenta</h4>
+    <p style="color: #495057; margin: 0;">Gestiona tus reservas, preferencias y historial de viajes.</p>
+  </div>
+</div>
+
+<div style="text-align: center; margin: 40px 0;">
+  <a href="#" class="button">Explorar Destinos</a>
+  <a href="#" class="button" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-left: 10px;">Ver Ofertas</a>
+</div>
+
+<div style="background-color: #e3f2fd; padding: 25px; border-radius: 8px; text-align: center;">
+  <h4 style="color: #1565c0; margin-bottom: 15px;">🎁 Regalo de Bienvenida</h4>
+  <p style="color: #1976d2; margin-bottom: 15px;">Como nuevo miembro, tienes un <strong>10% de descuento</strong> en tu primera reserva.</p>
+  <div style="background-color: #bbdefb; padding: 10px; border-radius: 5px; display: inline-block;">
+    <strong style="color: #0d47a1; font-size: 18px;">Código: BIENVENIDO10</strong>
+  </div>
+  <p style="color: #1976d2; margin-top: 10px; font-size: 14px;">Válido por 30 días</p>
+</div>
+
+<p style="margin-top: 30px; color: #6c757d; font-style: italic;">
+  Si tienes alguna pregunta, nuestro equipo de soporte está disponible 24/7 para ayudarte. ¡Esperamos ser parte de tus mejores aventuras!
+</p>
+{% endblock %}

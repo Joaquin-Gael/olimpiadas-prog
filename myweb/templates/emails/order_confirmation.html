@@ -1,0 +1,57 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Confirmación de Orden #{{ order_id }} - Turismo{% endblock %}
+
+{% block header_title %}¡Orden Confirmada!{% endblock %}
+{% block header_subtitle %}Tu reserva ha sido procesada exitosamente{% endblock %}
+
+{% block content %}
+<div class="greeting">
+  ¡Hola {{ user_name }}! 👋
+</div>
+
+<p>Nos complace confirmar que hemos recibido tu orden. A continuación encontrarás los detalles de tu reserva:</p>
+
+<div class="info-card">
+  <div class="info-row">
+    <span class="info-label">Número de Orden:</span>
+    <span class="info-value">#{{ order_id }}</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Fecha de Orden:</span>
+    <span class="info-value">{{ created_at }}</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Cantidad de Items:</span>
+    <span class="info-value">{{ items_count }} item{{ items_count|pluralize }}</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Total:</span>
+    <span class="info-value" style="font-size: 18px; color: #28a745; font-weight: bold;">${{ total }}</span>
+  </div>
+</div>
+
+<div class="highlight">
+  <strong>Estado: Orden Confirmada ✅</strong>
+  <p style="margin-top: 10px; color: #495057;">
+    Tu orden está siendo procesada. Te notificaremos cuando esté lista para el siguiente paso.
+  </p>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="color: #2c3e50; margin-bottom: 15px;">¿Qué sigue?</h3>
+<ul style="color: #495057; padding-left: 20px;">
+  <li style="margin-bottom: 8px;">Procesaremos tu orden en las próximas 24 horas</li>
+  <li style="margin-bottom: 8px;">Te enviaremos un email con los detalles de pago</li>
+  <li style="margin-bottom: 8px;">Una vez confirmado el pago, recibirás tu itinerario completo</li>
+</ul>
+
+<div style="text-align: center; margin-top: 30px;">
+  <a href="#" class="button">Ver Detalles de la Orden</a>
+</div>
+
+<p style="margin-top: 30px; color: #6c757d; font-style: italic;">
+  Si tienes alguna pregunta sobre tu orden, no dudes en contactarnos. ¡Estamos aquí para ayudarte a crear la experiencia de viaje perfecta!
+</p>
+{% endblock %}
