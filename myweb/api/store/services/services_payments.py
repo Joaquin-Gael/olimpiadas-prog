@@ -13,7 +13,6 @@ from django.db import transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 
 from rich import console
 
@@ -212,15 +211,15 @@ class PaymentService:
 
         line_items = []
         for detail in detail_list:
-            model_orm = ContentType.objects.get_for_id(detail.product_metadata.content_type_id.id)
-            instance_orm = model_orm.model_class().objects.get(id=detail.product_metadata.object_id)
+            instance_orm = detail.product_metadata.get_content_object
             line_items.append({
                 "price_data": {
                     "currency": "USD",
                     "unit_amount": int(round(detail.product_metadata.unit_price*100)),
                     "product_data": {
                         "name": detail.product_metadata.product_name,
-                        "description": instance_orm.description,
+                        "description": getattr(instance_orm, "description", "No description"),
+                        "images": getattr(instance_orm, "images", [])
                     },
                 },
                 "quantity": detail.quantity,
