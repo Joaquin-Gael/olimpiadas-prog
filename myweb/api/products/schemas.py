@@ -995,6 +995,7 @@ class TransportationMetadataCreate(BaseSchema):
 class ComponentPackageCreate(BaseSchema):
     """Schema to create a package component"""
     product_metadata_id: int
+    availability_id: int  # <-- NUEVO CAMPO
     order: int = Field(..., ge=0, json_schema_extra={"help_text": "Display order within the package"})
     quantity: Optional[int] = Field(None, ge=1, json_schema_extra={"help_text": "Number of times this product is included"})
     title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Visible name of the component"})
