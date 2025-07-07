@@ -5,6 +5,8 @@ set -euo pipefail
 msg="para produccion ejecutar uv remove psycopg y psycopg2"
 instruction="al agregar dependencias especificas para el desarrollo especificar arriba"
 
+cd myweb
+
 # Ancho de la terminal
 width=$(tput cols)
 
