@@ -57,7 +57,7 @@ class SalesOut(Schema):
 
 # ── Entradas ───────────────────────────────────────────────────
 class ItemAddIn(BaseSchema):
-    availability_id: int
+    availability_id: Optional[int] = None
     product_metadata_id: int
     qty: PositiveInt
     unit_price: float                   # precio final por "unidad"

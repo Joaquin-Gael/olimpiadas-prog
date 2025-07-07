@@ -5,10 +5,13 @@ from ..schemas import (
     LodgmentOut,
     TransportationOut
 )
-from ..models import ProductsMetadata
+from ..models import ProductsMetadata, RoomAvailability
 from typing import Dict, Any
 from api.products.models import Activities, Flights, Lodgments, Transportation
 from api.products.models import Location
+
+from rich.console import Console
+console = Console()
 
 def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
     """Serializa un objeto ProductsMetadata a un diccionario"""
@@ -56,20 +59,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "difficulty_level": activity.difficulty_level,
                 "language": activity.language,
                 "available_slots": activity.available_slots,
-                "availabilities": [
-                    {
-                        "id": av.id,
-                        "event_date": av.event_date,
-                        "start_time": av.start_time,
-                        "total_seats": av.total_seats,
-                        "reserved_seats": av.reserved_seats,
-                        "available_seats": av.total_seats - av.reserved_seats,
-                        "price": float(av.price),
-                        "currency": av.currency,
-                        "state": av.state,
-                    }
-                    for av in availabilities
-                ]
+                "availability_id": [serialize_activity_availability(i) for i in activity.availabilities.all()],
             }
         elif metadata.product_type == "flight":
             flight = metadata.content
@@ -103,6 +93,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "terminal": flight.terminal,
                 "gate": flight.gate,
                 "notes": flight.notes,
+                "availability_id": 1,
             }
         elif metadata.product_type == "lodgment":
             lodgment = metadata.content
@@ -158,6 +149,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             base_data["product"] = {
                 "id": lodgment.id,
                 "name": lodgment.name,
+                "availability_id": [serialize_lodgment_availability(i) for i in lodgment.availabilities.all()],
                 "description": lodgment.description,
                 "location": {
                     "country": lodgment.location.country if lodgment.location else "",
@@ -224,6 +216,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "description": transportation.description,
                 "notes": transportation.notes,
                 "capacity": transportation.capacity,
+                "availability_id": [serialize_transportation_availability(i) for i in transportation.availabilities.all()],
                 "is_active": transportation.is_active,
                 "availabilities": [
                     {
@@ -246,6 +239,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             # Tipo de producto desconocido
             base_data["product"] = None
     except Exception as e:
+        console.print_exception(show_locals=True)
         # En caso de error, devolver datos básicos
         base_data["product"] = None
         base_data["error"] = str(e)
@@ -280,4 +274,19 @@ def serialize_transportation_availability(availability) -> Dict[str, Any]:
         "price": float(availability.price),
         "currency": availability.currency,
         "state": availability.state,
+    }
+
+def serialize_lodgment_availability(availability: RoomAvailability) -> Dict[str, Any]:
+    """Serializa una disponibilidad de lodgmento"""
+    return {
+        "id": availability.id,
+        "room_id": availability.room.id,
+        "available_quantity": availability.available_quantity,
+        "start_date": availability.start_date,
+        "end_date": availability.end_date,
+        "max_quantity": availability.max_quantity,
+        "price_override": float(availability.price_override),
+        "currency": availability.currency,
+        "minimum_stay": availability.minimum_stay,
+        "is_blocked": availability.is_blocked,
     }
