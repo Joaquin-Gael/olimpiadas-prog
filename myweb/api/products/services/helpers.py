@@ -17,6 +17,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
         "unit_price": float(metadata.unit_price) if metadata.unit_price else 0.0,
         "currency": metadata.currency,
         "product_type": metadata.product_type,
+        "available_id": None,  # Se establecerá según el tipo de producto
     }
     
     # Verificar que el contenido existe antes de acceder
@@ -28,6 +29,16 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
     try:
         if metadata.product_type == "activity":
             activity = metadata.content
+            # Obtener las disponibilidades de la actividad
+            availabilities = activity.availabilities.all().order_by('event_date', 'start_time')
+            
+            # Para actividades, el available_id es el ID de la primera disponibilidad disponible
+            available_id = None
+            if availabilities.exists():
+                first_availability = availabilities.first()
+                available_id = first_availability.id
+            
+            base_data["available_id"] = available_id
             base_data["product"] = {
                 "id": activity.id,
                 "name": activity.name,
@@ -45,9 +56,25 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "difficulty_level": activity.difficulty_level,
                 "language": activity.language,
                 "available_slots": activity.available_slots,
+                "availabilities": [
+                    {
+                        "id": av.id,
+                        "event_date": av.event_date,
+                        "start_time": av.start_time,
+                        "total_seats": av.total_seats,
+                        "reserved_seats": av.reserved_seats,
+                        "available_seats": av.total_seats - av.reserved_seats,
+                        "price": float(av.price),
+                        "currency": av.currency,
+                        "state": av.state,
+                    }
+                    for av in availabilities
+                ]
             }
         elif metadata.product_type == "flight":
             flight = metadata.content
+            # Para vuelos, el available_id es el ID del vuelo (que maneja su propia disponibilidad)
+            base_data["available_id"] = flight.id
             base_data["product"] = {
                 "id": flight.id,
                 "airline": flight.airline,
@@ -68,7 +95,9 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "arrival_time": flight.arrival_time,
                 "duration_hours": flight.duration_hours,
                 "class_flight": flight.class_flight,
+                "capacity": flight.capacity,
                 "available_seats": flight.available_seats,
+                "reserved_seats": flight.capacity - flight.available_seats,
                 "luggage_info": flight.luggage_info,
                 "aircraft_type": flight.aircraft_type,
                 "terminal": flight.terminal,
@@ -89,6 +118,43 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                     'base_price_per_night', 'currency', 'is_active', 'created_at', 'updated_at'
                 ))
             
+            # Obtener disponibilidades de habitaciones
+            room_availabilities = {}
+            for room in rooms:
+                room_id = room.id if hasattr(room, 'id') else room['id']
+                # Obtener disponibilidades para esta habitación
+                if hasattr(room, 'availabilities'):
+                    availabilities = room.availabilities.all().order_by('start_date')
+                else:
+                    # Si no está prefetcheado, hacer consulta
+                    from api.products.models import RoomAvailability
+                    availabilities = RoomAvailability.objects.filter(room_id=room_id).order_by('start_date')
+                
+                room_availabilities[room_id] = [
+                    {
+                        "id": av.id,
+                        "start_date": av.start_date,
+                        "end_date": av.end_date,
+                        "available_quantity": av.available_quantity,
+                        "max_quantity": av.max_quantity,
+                        "price_override": float(av.price_override) if av.price_override else None,
+                        "currency": av.currency,
+                        "is_blocked": av.is_blocked,
+                        "minimum_stay": av.minimum_stay,
+                        "effective_price": float(av.effective_price),
+                        "is_available_for_booking": av.is_available_for_booking,
+                    }
+                    for av in availabilities
+                ]
+            
+            # Para alojamientos, el available_id es el ID de la primera disponibilidad de habitación disponible
+            available_id = None
+            for room_id, availabilities in room_availabilities.items():
+                if availabilities:
+                    available_id = availabilities[0]['id']
+                    break
+            
+            base_data["available_id"] = available_id
             base_data["product"] = {
                 "id": lodgment.id,
                 "name": lodgment.name,
@@ -125,12 +191,23 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                         "is_active": room.is_active if hasattr(room, 'is_active') else room['is_active'],
                         "created_at": room.created_at if hasattr(room, 'created_at') else room['created_at'],
                         "updated_at": room.updated_at if hasattr(room, 'updated_at') else room['updated_at'],
+                        "availabilities": room_availabilities.get(room.id if hasattr(room, 'id') else room['id'], [])
                     }
                     for room in rooms
                 ]
             }
         elif metadata.product_type == "transportation":
             transportation = metadata.content
+            # Obtener las disponibilidades del transporte
+            availabilities = transportation.availabilities.all().order_by('departure_date', 'departure_time')
+            
+            # Para transporte, el available_id es el ID de la primera disponibilidad disponible
+            available_id = None
+            if availabilities.exists():
+                first_availability = availabilities.first()
+                available_id = first_availability.id
+            
+            base_data["available_id"] = available_id
             base_data["product"] = {
                 "id": transportation.id,
                 "origin": {
@@ -148,6 +225,22 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "notes": transportation.notes,
                 "capacity": transportation.capacity,
                 "is_active": transportation.is_active,
+                "availabilities": [
+                    {
+                        "id": av.id,
+                        "departure_date": av.departure_date,
+                        "departure_time": av.departure_time,
+                        "arrival_date": av.arrival_date,
+                        "arrival_time": av.arrival_time,
+                        "total_seats": av.total_seats,
+                        "reserved_seats": av.reserved_seats,
+                        "available_seats": av.total_seats - av.reserved_seats,
+                        "price": float(av.price),
+                        "currency": av.currency,
+                        "state": av.state,
+                    }
+                    for av in availabilities
+                ]
             }
         else:
             # Tipo de producto desconocido

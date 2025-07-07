@@ -1118,6 +1118,8 @@ class ComponentPackageOut(BaseSchema):
     product_type: str
     product_name: str
     currency: str
+    available_id: Optional[int] = None
+    availability_data: Optional[dict] = None
 
 
 class PackageOut(BaseSchema):

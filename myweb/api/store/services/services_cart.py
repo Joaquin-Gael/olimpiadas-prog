@@ -121,24 +121,39 @@ def add_item(
         reserve_fn(availability_id, qty)
 
     # 2) Insertar o actualizar línea
-    item, created = CartItem.objects.select_for_update().get_or_create(
-        cart=cart,
-        availability_id=availability_id,
-        product_metadata=metadata,
-        defaults=dict(
+    try:
+        old_item = CartItem.objects.get(cart=cart, availability_id=availability_id, product_metadata_id=metadata.id)
+
+        #item, created = CartItem.objects.select_for_update().get_or_create(
+        #    cart=cart,
+        #    availability_id=availability_id,
+        #    product_metadata=metadata,
+        #    defaults=dict(
+        #        qty=qty,
+        #        unit_price=unit_price,
+        #        currency=metadata.currency,
+        #        config=config or {},
+        #    ),
+        #)
+        old_item.qty += qty
+        old_item.save(update_fields=["qty", "updated_at"])
+
+        _recalculate_cart(cart)
+        return old_item
+    except CartItem.DoesNotExist:
+        item = CartItem.objects.create(
+            cart=cart,
+            availability_id=availability_id,
+            product_metadata=metadata,
             qty=qty,
-            unit_price=unit_price,
+            unit_price=metadata.unit_price,
             currency=metadata.currency,
             config=config or {},
-        ),
-    )
-    if not created:
-        item.qty += qty
-        item.save(update_fields=["qty", "updated_at"])
+        )
+        _recalculate_cart(cart)
+        return item
 
     # 3) Recalcular totales
-    _recalculate_cart(cart)
-    return item
 
 
 @transaction.atomic
