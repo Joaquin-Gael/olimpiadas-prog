@@ -176,3 +176,7 @@ PAYMENT_GATEWAY = os.getenv("PAYMENT_GATEWAY", "dummy")
 
 # Configuración de idempotencia
 IDEMPOTENCY_ENABLED = os.getenv('IDEMPOTENCY_ENABLED', 'True').lower() == 'true'
+
+# Configuración para archivos media (imágenes, uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'

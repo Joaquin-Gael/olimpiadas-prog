@@ -674,15 +674,21 @@ class SupplierOut(BaseSchema):
 # ──────────────────────────────────────────────────────────────
 
 # ── OUTPUT ────────────────────────────────────────────────────
+class ProductImageOut(BaseSchema):
+    id: int
+    image: str
+    description: Optional[str]
+    uploaded_at: datetime
+    is_cover: bool
+
 class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""
     id: int
     unit_price: float
     currency: str
-    #product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    #product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
     product_type: str
     product: dict[str, Any]
+    images: Optional[List[ProductImageOut]] = None
 
 class ItemsPaginationOut(BaseSchema):
     """Output schema for items pagination"""
@@ -1127,6 +1133,13 @@ class ComponentPackageOut(BaseSchema):
     available_id: Optional[int] = None
     availability_data: Optional[dict] = None
 
+class PackageImageOut(BaseSchema):
+    id: int
+    image: str
+    description: Optional[str]
+    uploaded_at: datetime
+    is_cover: bool
+
 
 class PackageOut(BaseSchema):
     """Output schema for packages"""
@@ -1134,6 +1147,7 @@ class PackageOut(BaseSchema):
     name: str
     description: str
     cover_image: Optional[str]
+    images: Optional[List[PackageImageOut]] = None
     
     # Prices
     base_price: Optional[float]

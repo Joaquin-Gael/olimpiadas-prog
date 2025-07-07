@@ -1390,3 +1390,23 @@ class StockMetrics(models.Model):
             metrics.save()
         
         return metrics
+
+class ProductImage(models.Model):
+    product_metadata = models.ForeignKey(ProductsMetadata, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='products/images/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_cover = models.BooleanField(default=False, help_text="¿Es la imagen principal del producto?")
+
+    def __str__(self):
+        return f"Imagen de producto {self.product_metadata.id} ({self.id})"
+
+class PackageImage(models.Model):
+    package = models.ForeignKey(Packages, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='packages/images/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    is_cover = models.BooleanField(default=False, help_text="¿Es la imagen principal del paquete?")
+
+    def __str__(self):
+        return f"Imagen de {self.package.name} ({self.id})"

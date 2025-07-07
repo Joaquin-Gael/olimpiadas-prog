@@ -10,12 +10,12 @@ from django.db import transaction
 from ninja.errors import HttpError
 from .pagination import PaginationParams, paginate_response, DefaultPagination
 from ninja.pagination import paginate
-
-from .models import Packages, ComponentPackages, ProductsMetadata, Category
+from ninja.files import UploadedFile
+from .models import Packages, ComponentPackages, ProductsMetadata, Category, PackageImage
 from .schemas import (
     PackageCreate, PackageUpdate, PackageOut, PackageDetailOut, PackageSearchParams,
     ComponentPackageCreate, ComponentPackageUpdate, ComponentPackageOut,
-    PackageCompleteCreate, CategoryCreate, CategoryUpdate, CategoryOut
+    PackageCompleteCreate, CategoryCreate, CategoryUpdate, CategoryOut, PackageImageOut
 )
 
 package_router = Router(tags=["Packages"])
@@ -81,12 +81,21 @@ def list_packages(
         # Serialize the queryset for response
         serialized_list: List[PackageOut] = []
         for pkg in queryset:
+            images = [
+                PackageImageOut(
+                    id=img.id,
+                    image=request.build_absolute_uri(img.image.url),
+                    description=img.description,
+                    uploaded_at=img.uploaded_at
+                ) for img in pkg.images.all()
+            ]
             serialized_list.append(
                 PackageOut(
                     id=pkg.id,
                     name=pkg.name,
                     description=pkg.description,
                     cover_image=pkg.cover_image or None,
+                    images=images,
 
                     base_price=float(pkg.base_price) if pkg.base_price is not None else None,
                     taxes=float(pkg.taxes)         if pkg.taxes      is not None else None,
@@ -229,10 +238,20 @@ def get_package(request, package_id: int):
             except Exception as e:
                 print(f"Error processing category: {e}")
         
+        images = [
+            PackageImageOut(
+                id=img.id,
+                image=request.build_absolute_uri(img.image.url),
+                description=img.description,
+                uploaded_at=img.uploaded_at
+            ) for img in package.images.all()
+        ]
+
         return {
             **PackageOut.from_orm(package).dict(),
             "category": category_data,
-            "components": component_data
+            "components": component_data,
+            "images": images
         }
         
     except Packages.DoesNotExist:
@@ -856,3 +875,41 @@ def get_packages_by_category(request, category_id: int):
         raise HttpError(404, "Categoría no encontrada")
     except Exception as e:
         raise HttpError(500, f"Error al obtener paquetes de categoría: {str(e)}")
+
+
+@package_router.post("/{package_id}/upload-image", response=PackageImageOut)
+def upload_package_image(request, package_id: int, file: UploadedFile, description: str = ""):
+    package = get_object_or_404(Packages, id=package_id)
+    image_instance = PackageImage.objects.create(
+        package=package,
+        image=file,
+        description=description
+    )
+    return PackageImageOut(
+        id=image_instance.id,
+        image=request.build_absolute_uri(image_instance.image.url),
+        description=image_instance.description,
+        uploaded_at=image_instance.uploaded_at
+    )
+
+@package_router.delete("/images/{image_id}/", response={204: None})
+def delete_package_image(request, image_id: int):
+    image = get_object_or_404(PackageImage, id=image_id)
+    image.image.delete(save=False)  # Borra el archivo físico
+    image.delete()                  # Borra el registro en la base de datos
+    return 204, None
+
+@package_router.post("/images/{image_id}/set-cover/", response=PackageImageOut)
+def set_package_image_cover(request, image_id: int):
+    image = get_object_or_404(PackageImage, id=image_id)
+    # Desmarcar otras imágenes como cover para este paquete
+    PackageImage.objects.filter(package=image.package).update(is_cover=False)
+    image.is_cover = True
+    image.save()
+    return PackageImageOut(
+        id=image.id,
+        image=request.build_absolute_uri(image.image.url),
+        description=image.description,
+        uploaded_at=image.uploaded_at,
+        is_cover=image.is_cover
+    )
