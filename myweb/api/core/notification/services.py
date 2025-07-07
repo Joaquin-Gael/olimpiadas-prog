@@ -287,4 +287,73 @@ def send_notification(order, notif_type: NotificationType, subject: str, body: s
         notification_type = notif_type,
         shipping_state    = order.state,
     )
-    send_mail(subject, body, None, [order.client.email]) 
+    send_mail(subject, body, None, [order.client.email])
+
+def test_email_templates() -> None:
+    # -----------------------
+    # Envíos de prueba para cada template
+    # -----------------------
+
+    # Dummy classes para simulación de orden y usuario
+    class DummyUser:
+        def __init__(self):
+            self.first_name = 'Test'
+            self.last_name = 'User'
+            self.email = 'guzmanantonio867@gmail.com'
+
+    class DummyOrder:
+        def __init__(self):
+            self.id = 1
+            self.user = DummyUser()
+            self.total = 150.0
+            self.date = timezone.now()
+
+    dummy_order = DummyOrder()
+
+    dummy_user = DummyUser()
+
+    # 1. booking_pending
+    NotificationService.booking_pending(dummy_order)
+
+    # 2. order_confirmation
+    NotificationService.send_order_confirmation_email(
+        order_id=2,
+        user_name='Test User',
+        user_email=dummy_user.email,
+        total=200.0,
+        items_count=3,
+        created_at=timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+    )
+
+    # 3. password_reset
+    NotificationService.send_email(
+        template_name='password_reset',
+        to_email=dummy_user.email,
+        context={
+            'user_name': 'Test User',
+            'reset_link': 'https://example.com/reset?token=abc123'
+        },
+        subject='Restablecer contraseña'
+    )
+
+    # 4. payment_confirmation
+    NotificationService.send_payment_confirmation_email(
+        order_id=3,
+        sale_id=101,
+        user_name='Test User',
+        user_email=dummy_user.email,
+        amount=250.0,
+        payment_method='Credit Card',
+        transaction_id='txn_12345',
+        paid_at=timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+    )
+
+    # 5. welcome
+    NotificationService.send_email(
+        template_name='welcome',
+        to_email=dummy_user.email,
+        context={ 'user_name': 'Test User' },
+        subject='¡Bienvenido!'
+    )
+
+    logger.info("Envíos de prueba completados.")

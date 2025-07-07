@@ -1,0 +1,72 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Reserva Pendiente - Orden #{{ order_id }} - Turismo{% endblock %}
+
+{% block header_title %}Reserva Pendiente ⏳{% endblock %}
+{% block header_subtitle %}Tu reserva está esperando confirmación{% endblock %}
+
+{% block content %}
+<div class="greeting">
+    Hola {{ user_name }}, 👋
+</div>
+
+<p>Hemos recibido tu solicitud de reserva y actualmente está siendo procesada por nuestro equipo.</p>
+
+<div class="info-card">
+    <div class="info-row">
+        <span class="info-label">Número de Orden:</span>
+        <span class="info-value">#{{ order_id }}</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">Fecha de Solicitud:</span>
+        <span class="info-value">{{ created_at }}</span>
+    </div>
+    <div class="info-row">
+        <span class="info-label">Total Estimado:</span>
+        <span class="info-value" style="font-size: 18px; color: #ffc107; font-weight: bold;">${{ total }}</span>
+    </div>
+</div>
+
+<div class="highlight" style="background-color: #fff3cd; border-color: #ffeaa7;">
+    <strong style="color: #856404;">Estado: Pendiente de Confirmación ⏳</strong>
+    <p style="margin-top: 10px; color: #856404;">
+        Estamos verificando la disponibilidad y preparando tu propuesta personalizada.
+    </p>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="color: #2c3e50; margin-bottom: 15px;">¿Qué está pasando ahora?</h3>
+<div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
+    <ul style="color: #1565c0; padding-left: 20px; margin: 0;">
+        <li style="margin-bottom: 10px;">🔍 Verificando disponibilidad de fechas y servicios</li>
+        <li style="margin-bottom: 10px;">💰 Calculando precios finales y ofertas especiales</li>
+        <li style="margin-bottom: 10px;">📋 Preparando tu itinerario personalizado</li>
+        <li>📧 Te contactaremos en las próximas 24-48 horas</li>
+    </ul>
+</div>
+
+<div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+    <h4 style="color: #495057; margin-bottom: 10px;">Tiempo estimado de respuesta</h4>
+    <div style="font-size: 24px; color: #007bff; font-weight: bold;">24-48 horas</div>
+    <p style="color: #6c757d; margin-top: 10px;">Te notificaremos tan pronto como tengamos novedades</p>
+</div>
+
+<div style="text-align: center; margin-top: 30px;">
+    <a href="#" class="button">Ver Estado de Reserva</a>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="color: #2c3e50; margin-bottom: 15px;">Mientras tanto...</h3>
+<p style="color: #495057; margin-bottom: 15px;">Puedes:</p>
+<ul style="color: #495057; padding-left: 20px;">
+    <li style="margin-bottom: 8px;">Revisar nuestras <a href="#" style="color: #667eea;">recomendaciones de viaje</a></li>
+    <li style="margin-bottom: 8px;">Explorar <a href="#" style="color: #667eea;">actividades adicionales</a> en tu destino</li>
+    <li style="margin-bottom: 8px;">Contactarnos si tienes preguntas específicas</li>
+</ul>
+
+<p style="margin-top: 30px; color: #6c757d; font-style: italic;">
+    Gracias por elegir Turismo. Estamos trabajando para crear la experiencia perfecta para ti. ¡Pronto tendrás noticias nuestras!
+</p>
+{% endblock %}

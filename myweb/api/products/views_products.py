@@ -12,7 +12,6 @@ from .schemas import (
     RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata, ItemsPaginationOut
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
-from .helpers import serialize_room, serialize_room_with_availability
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from .models import (

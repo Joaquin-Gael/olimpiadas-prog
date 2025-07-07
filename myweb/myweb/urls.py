@@ -21,6 +21,8 @@ from api.store.views_orders import router as orders_router
 from api.store.views_sales import router as sales_router
 from api.clients.views import router as clients_router
 
+from api.core.notification.services import test_email_templates
+
 id_prefix = settings.ID_PREFIX
 
 main_router = Router()
@@ -387,6 +389,10 @@ api = NinjaAPI(
 @api.get("/test/stripe", include_in_schema=False)
 async def stripe_html(request):
     return render(request, "stripe_test.html", {"secret_public":settings.STRIPE_PUBLISHABLE_KEY})
+
+@api.get("/test/email", include_in_schema=False)
+def email_html(request):
+    test_email_templates()
 
 @api.get("/id_prefix_api_secret/", include_in_schema=settings.DEBUG)
 async def get_secret(request):
