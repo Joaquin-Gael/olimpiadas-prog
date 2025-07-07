@@ -2,6 +2,8 @@ from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from typing import List
+
 from ninja import Router
 from ninja.responses import Response
 from ninja.errors import HttpError

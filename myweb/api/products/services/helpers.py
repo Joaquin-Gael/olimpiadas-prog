@@ -20,7 +20,6 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
         "unit_price": float(metadata.unit_price) if metadata.unit_price else 0.0,
         "currency": metadata.currency,
         "product_type": metadata.product_type,
-        "available_id": None,  # Se establecerá según el tipo de producto
     }
     
     # Verificar que el contenido existe antes de acceder
@@ -34,14 +33,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             activity = metadata.content
             # Obtener las disponibilidades de la actividad
             availabilities = activity.availabilities.all().order_by('event_date', 'start_time')
-            
-            # Para actividades, el available_id es el ID de la primera disponibilidad disponible
-            available_id = None
-            if availabilities.exists():
-                first_availability = availabilities.first()
-                available_id = first_availability.id
-            
-            base_data["available_id"] = available_id
+
             base_data["product"] = {
                 "id": activity.id,
                 "name": activity.name,
@@ -76,10 +68,9 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             }
         elif metadata.product_type == "flight":
             flight = metadata.content
-            # Para vuelos, el available_id es el ID del vuelo (que maneja su propia disponibilidad)
-            base_data["available_id"] = flight.id
             base_data["product"] = {
                 "id": flight.id,
+                "availability_id": flight.id,
                 "airline": flight.airline,
                 "flight_number": flight.flight_number,
                 "origin": {
@@ -203,14 +194,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
             transportation = metadata.content
             # Obtener las disponibilidades del transporte
             availabilities = transportation.availabilities.all().order_by('departure_date', 'departure_time')
-            
-            # Para transporte, el available_id es el ID de la primera disponibilidad disponible
-            available_id = None
-            if availabilities.exists():
-                first_availability = availabilities.first()
-                available_id = first_availability.id
-            
-            base_data["available_id"] = available_id
+
             base_data["product"] = {
                 "id": transportation.id,
                 "origin": {
@@ -229,19 +213,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "capacity": transportation.capacity,
                 "is_active": transportation.is_active,
                 "availability_id": [
-                    {
-                        "id": av.id,
-                        "departure_date": av.departure_date,
-                        "departure_time": av.departure_time,
-                        "arrival_date": av.arrival_date,
-                        "arrival_time": av.arrival_time,
-                        "total_seats": av.total_seats,
-                        "reserved_seats": av.reserved_seats,
-                        "available_seats": av.total_seats - av.reserved_seats,
-                        "price": float(av.price),
-                        "currency": av.currency,
-                        "state": av.state,
-                    }
+                    serialize_transportation_availability(av)
                     for av in availabilities
                 ]
             }
