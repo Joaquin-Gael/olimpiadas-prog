@@ -6,6 +6,7 @@ load_dotenv(find_dotenv())
 DEBUG = os.getenv("DEBUG") == "True"
 SECRET_KEY = os.getenv("SECRET_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
+DOMAIN = os.getenv("DOMAIN")
 
 #SMPT Server
 EMAIL_HOST = os.getenv("EMAIL_HOST")

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from ninja import Router
 from ninja.errors import HttpError
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, get_list_or_404
 from django.db import transaction
 
 from .models import Cart, CartItem
@@ -499,12 +499,14 @@ def delete_item(request, item_id: int):
     - **409 Conflict**: Si el carrito ya está cerrado.
     - **401 Unauthorized**: Si el usuario no está autenticado.
     """
-    item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+    items: list[CartItem] = get_list_or_404(CartItem, product_metadata_id=item_id, cart__user=request.user)
     try:
-        cart_srv.remove_item(item)
+        for item in items:
+            cart_srv.remove_item(item, item.cart)
     except cart_srv.CartClosedError:
+        console.print_exception(show_locals=True)
         raise HttpError(409, "carrito_cerrado")
-    return 204, None
+    return None
 
 # ───────────────────────────────────────────────────────────────
 # 5. Checkout  → crea Order

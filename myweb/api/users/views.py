@@ -1,12 +1,17 @@
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.conf import settings
 
 from typing import List
 
-from ninja import Router
+from ninja import Router, Query, Schema, Form
 from ninja.responses import Response
 from ninja.errors import HttpError
+
 from asgiref.sync import sync_to_async
 
 from api.core.auth import JWTBearer, gen_token
@@ -19,8 +24,9 @@ from .schemas import (
     UserLoginSchema,
     ErrorResponseSchema,
     SuccessResponseSchema,
-    TokensResponseSchema
+    TokensResponseSchema, PasswordRecovery
 )
+from .services.services_notifications import UserNotificationsService
 
 user_private_router = Router(
     tags=["Users"],
@@ -31,8 +37,53 @@ user_public_router = Router(
     tags=["Users"],
 )
 
+@user_public_router.post("/forgot-password", summary="Solicitar recuperación de contraseña")
+async def forgot_password(request, payload: PasswordRecovery):
+    try:
+        user = await sync_to_async(Users.objects.get)(email=payload.email)
+    except Exception as e:
+        return Response(status=200, content=True)
+
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+
+    reset_link = f"{settings.DOMAIN}/reset-password?uid={uid}&token={token}"
+
+    await UserNotificationsService.send_recovery_password(
+        email=user.email,
+        user=user,
+        reset_url=reset_link
+    )
+
+    return Response(status=200, data=True)
+
+@user_public_router.post("/reset-password", summary="Confirmar recuperación de contraseña")
+async def reset_password(request, password1: str = Form(), password2: str = Form(), token: str = Query(), uid: str = Query()):
+    from django.utils.http import urlsafe_base64_decode
+
+    try:
+        uid = urlsafe_base64_decode(uid).decode()
+        user = Users.objects.get(pk=uid)
+    except Exception:
+        return {"ok": False, "detail": "Enlace inválido o expirado."}
+
+    # 2. Verificar token
+    if not default_token_generator.check_token(user, token):
+        return {"ok": False, "detail": "Token inválido o expirado."}
+
+    # 3. Validar y setear nueva contraseña
+    if password1 != password2:
+        return {"ok": False, "detail": "Las contraseñas no coinciden."}
+
+    from django.contrib.auth.password_validation import validate_password
+    try:
+        validate_password(password1, user=user)
+    except Exception as e:
+        return {"ok": False, "detail": e.messages}
+
+
 @user_public_router.post("/register", response={201: UserResponseSchema, 400: ErrorResponseSchema})
-def register_user(request, payload: UserRegistrationSchema):
+async def register_user(request, payload: UserRegistrationSchema):
     """
    Registra un nuevo usuario en el sistema.
 
@@ -42,21 +93,21 @@ def register_user(request, payload: UserRegistrationSchema):
    """
     try:
         # Verificar si el email ya existe
-        if Users.objects.filter(email=payload.email).exists():
+        if await sync_to_async(Users.objects.filter(email=payload.email).exists)():
             return Response(
                 {"message": "El email ya está registrado", "detail": "Email duplicado"},
                 status=400
             )
         
         # Verificar si el teléfono ya existe
-        if Users.objects.filter(telephone=payload.telephone).exists():
+        if await sync_to_async(Users.objects.filter(telephone=payload.telephone).exists)():
             return Response(
                 {"message": "El teléfono ya está registrado", "detail": "Teléfono duplicado"},
                 status=400
             )
         
         # Crear el usuario
-        user = Users.objects.create_user(
+        user = await sync_to_async(Users.objects.create_user)(
             email=payload.email,
             first_name=payload.first_name,
             last_name=payload.last_name,
@@ -64,6 +115,11 @@ def register_user(request, payload: UserRegistrationSchema):
             password=payload.password,
             born_date=payload.born_date,
             state=payload.state
+        )
+
+        await UserNotificationsService.send_welcome(
+            user=user,
+            email=user.email,
         )
         
         # Retornar el usuario creado (sin password) y sin seguir el schema acordado

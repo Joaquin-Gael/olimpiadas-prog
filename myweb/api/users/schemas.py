@@ -46,6 +46,8 @@ class UserLoginSchema(Schema):
     email: EmailStr
     password: str
 
+class PasswordRecovery(Schema):
+    email: EmailStr
 
 class ErrorResponseSchema(Schema):
     """Schema para respuestas de error"""

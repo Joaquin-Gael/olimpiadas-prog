@@ -340,21 +340,27 @@ def update_qty(item: CartItem, new_qty: int):
 
 
 @transaction.atomic
-def remove_item(item: CartItem):
+def remove_item(item: CartItem, cart: Cart):
     """
     Elimina una línea del carrito y libera todo su stock.
     """
-    if item.cart.status != "OPEN":
-        raise CartClosedError("El carrito no está abierto")
+    try:
+        if item.cart.status != "OPEN":
+            console.print(item.cart.status)
+            console.print(item.cart.id)
+            raise CartClosedError("El carrito no está abierto")
 
-    # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
-    metadata = ProductsMetadata.objects.get(id=item.product_metadata.id)
-    _, release_fn = _get_stock_funcs(metadata.product_type)
+        # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
+        metadata = ProductsMetadata.objects.get(id=item.product_metadata.id)
+        _, release_fn = _get_stock_funcs(metadata.product_type)
 
-    release_fn(item.availability_id, item.qty)
-    cart = item.cart   # guardamos antes de borrar
-    item.delete()
-    _recalculate_cart(cart)
+        release_fn(item.availability_id, item.qty)
+        #cart = item.cart   # guardamos antes de borrar
+        item.delete()
+    except CartItem.DoesNotExist:
+        pass
+    finally:
+        _recalculate_cart(cart)
 
 @transaction.atomic
 def expire_cart(cart: Cart):
