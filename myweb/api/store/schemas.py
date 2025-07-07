@@ -17,6 +17,7 @@ class UserBasicInfo(Schema):
         from_attributes = True
 
 class CartItemOut(Schema):
+    id: int
     availability_id: int
     product_metadata_id: int
     qty: PositiveInt
@@ -61,6 +62,12 @@ class ItemAddIn(BaseSchema):
     qty: PositiveInt
     unit_price: float                   # precio final por "unidad"
     config: dict = Field(default_factory=dict)
+
+class PackageAddIn(BaseSchema):
+    """Schema para agregar un paquete completo al carrito"""
+    package_id: int = Field(..., description="ID del paquete a agregar")
+    qty: PositiveInt = Field(..., description="Cantidad de paquetes a agregar")
+    config: dict = Field(default_factory=dict, description="Configuración adicional del paquete")
 
 class ItemQtyPatchIn(BaseModel):
     qty: PositiveInt

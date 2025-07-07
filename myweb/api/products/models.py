@@ -1013,6 +1013,7 @@ class ComponentPackages(models.Model):
         verbose_name="product_metadata",
         on_delete=models.CASCADE
     )
+    availability_id = models.IntegerField()
 
     # Extra management fields
     order = models.IntegerField(help_text="Display order within the package")

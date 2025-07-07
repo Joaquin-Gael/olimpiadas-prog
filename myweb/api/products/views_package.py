@@ -244,66 +244,99 @@ def get_package(request, package_id: int):
 @package_router.post("/", response=PackageDetailOut)
 @transaction.atomic
 def create_package(request, data: PackageCompleteCreate):
-    """
-    Creates a new package with its components in a single atomic transaction.
-    Validates all data before creation and handles component relationships.
-    """
     try:
-        # Validate package data
+        # 1. Validar datos generales del paquete
         package_data = data.dict(exclude={'components'})
-        
-        # Handle cover_image field if None
-        if package_data.get('cover_image') is None:
-            package_data['cover_image'] = ""
-        
-        # Validate final price
+        if not package_data.get('name'):
+            raise HttpError(422, "El nombre del paquete es obligatorio")
+        if not package_data.get('currency'):
+            raise HttpError(422, "La moneda es obligatoria")
         if package_data.get('final_price', 0) <= 0:
             raise HttpError(422, "El precio final debe ser mayor a 0")
-        
-        # Create the package with validation
+        if 'country' in package_data and not package_data['country']:
+            raise HttpError(422, "El país es obligatorio para el paquete")
+
+        # 2. Validar componentes
+        orders_seen = set()
+        countries_seen = set()
+        fechas = {}
+        for i, comp_data in enumerate(data.components):
+            # Validar product_metadata_id existe y está activo
+            product_metadata = ProductsMetadata.objects.filter(id=comp_data.product_metadata_id, is_active=True).first()
+            if not product_metadata:
+                raise HttpError(422, f"El producto (metadata) {comp_data.product_metadata_id} no existe o está inactivo (componente {i+1})")
+
+            availability_id = getattr(comp_data, 'availability_id', None)
+            if not availability_id:
+                raise HttpError(422, f"Falta availability_id para el componente {i+1}")
+
+            # Validación por tipo de producto
+            if product_metadata.product_type == "activity":
+                from api.products.models import ActivityAvailability
+                av = ActivityAvailability.objects.filter(id=availability_id, activity_id=product_metadata.object_id).first()
+                if not av:
+                    raise HttpError(422, f"La disponibilidad {availability_id} no corresponde a la actividad {product_metadata.object_id} (componente {i+1})")
+                fechas[f"actividad_{i+1}"] = av.event_date
+                countries_seen.add(getattr(av, 'country', None))
+            elif product_metadata.product_type == "lodgment":
+                from api.products.models import RoomAvailability
+                av = RoomAvailability.objects.filter(id=availability_id, room__lodgment_id=product_metadata.object_id).first()
+                if not av:
+                    raise HttpError(422, f"La disponibilidad {availability_id} no corresponde al hotel {product_metadata.object_id} (componente {i+1})")
+                fechas[f"hotel_{i+1}_inicio"] = av.start_date
+                fechas[f"hotel_{i+1}_fin"] = av.end_date
+                countries_seen.add(getattr(av, 'country', None))
+            elif product_metadata.product_type == "flight":
+                from api.products.models import Flights
+                av = Flights.objects.filter(id=availability_id).first()
+                if not av or av.id != product_metadata.object_id:
+                    raise HttpError(422, f"El vuelo {availability_id} no corresponde al producto {product_metadata.object_id} (componente {i+1})")
+                fechas[f"vuelo_{i+1}_fecha"] = av.departure_date
+                countries_seen.add(getattr(av, 'destination', None))
+            elif product_metadata.product_type == "transportation":
+                from api.products.models import TransportationAvailability
+                av = TransportationAvailability.objects.filter(id=availability_id, transportation_id=product_metadata.object_id).first()
+                if not av:
+                    raise HttpError(422, f"La disponibilidad {availability_id} no corresponde al transporte {product_metadata.object_id} (componente {i+1})")
+                fechas[f"transporte_{i+1}_salida"] = av.departure_date
+                countries_seen.add(getattr(av, 'origin', None))
+            else:
+                raise HttpError(422, f"Tipo de producto no soportado para validación de disponibilidad (componente {i+1})")
+
+            # Validar cantidad positiva
+            if comp_data.quantity is not None and comp_data.quantity <= 0:
+                raise HttpError(422, f"La cantidad debe ser positiva (componente {i+1})")
+
+            # Validar order único
+            if comp_data.order in orders_seen:
+                raise HttpError(422, f"El orden {comp_data.order} está repetido (componente {i+1})")
+            orders_seen.add(comp_data.order)
+
+        # 3. Validar coherencia de países
+        countries_seen = {c for c in countries_seen if c}
+        if len(countries_seen) > 1:
+            raise HttpError(422, f"Todos los componentes deben pertenecer al mismo país. Países detectados: {', '.join(str(c) for c in countries_seen)}")
+
+        # 4. Validar coherencia de fechas (ejemplo simple)
+        # if 'vuelo_1_fecha' in fechas and 'hotel_1_inicio' in fechas:
+        #     if fechas['vuelo_1_fecha'] > fechas['hotel_1_inicio']:
+        #         raise HttpError(422, "El check-in del hotel debe ser después de la llegada del vuelo")
+
+        # 5. Crear el paquete y los componentes
         package = Packages(**package_data)
         package.full_clean()
         package.save()
-        
-        # Create the components with validation
         for i, comp_data in enumerate(data.components):
-            try:
-                # Validate component data
-                component_data = comp_data.dict()
-                
-                # Validate product metadata exists
-                product_metadata = get_object_or_404(
-                    ProductsMetadata, 
-                    id=component_data['product_metadata']
-                )
-                
-                # Validate order is unique within package
-                if ComponentPackages.objects.filter(
-                    package=package, 
-                    order=component_data.get('order', i)
-                ).exists():
-                    raise HttpError(422, f"El orden {component_data.get('order', i)} ya existe en este paquete")
-                
-                component = ComponentPackages.objects.create(
-                    package=package,
-                    **component_data
-                )
-                component.full_clean()
-                component.save()
-                
-            except ValidationError as e:
-                error_messages = []
-                for field, errors in e.message_dict.items():
-                    for error in errors:
-                        error_messages.append(f"{field}: {error}")
-                error_detail = "; ".join(error_messages)
-                raise HttpError(422, f"Error en componente {i+1}: {error_detail}")
-            except Exception as e:
-                raise HttpError(422, f"Error al crear componente {i+1}: {str(e)}")
-        
-        # Return the created package with its components
+            component_data = comp_data.dict()
+            if ComponentPackages.objects.filter(package=package, order=component_data.get('order', i)).exists():
+                raise HttpError(422, f"El orden {component_data.get('order', i)} ya existe en este paquete")
+            component = ComponentPackages.objects.create(
+                package=package,
+                **component_data
+            )
+            component.full_clean()
+            component.save()
         return get_package(request, package.id)
-        
     except HttpError:
         raise
     except ValidationError as e:
