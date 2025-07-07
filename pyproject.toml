@@ -11,6 +11,7 @@ dependencies = [
     "django-cors-headers>=4.7.0",
     "django-extensions>=4.1",
     "django-ninja>=1.4.3",
+    "pillow>=11.3.0",
     "psycopg>=3.2.9",
     "psycopg2>=2.9.10",
     "pydantic[email]>=2.11.5",

@@ -287,6 +287,7 @@ def add_item(request, payload: ItemAddIn):
         )
 
         return {
+            "id": item.id,
             "availability_id": item.availability_id,
             "product_metadata_id": item.product_metadata.id,
             "qty": item.qty,

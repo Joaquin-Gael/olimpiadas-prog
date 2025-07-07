@@ -679,7 +679,11 @@ class ProductImageOut(BaseSchema):
     image: str
     description: Optional[str]
     uploaded_at: datetime
-    is_cover: bool
+    #is_cover: bool
+
+    class Config:
+        from_attributes = True
+        validate_by_name = True
 
 class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""

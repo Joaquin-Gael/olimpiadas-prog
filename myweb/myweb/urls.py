@@ -1,11 +1,12 @@
 from django.contrib import admin
-from django.urls import path
-from django.http import HttpResponse
+from django.urls import path, re_path
+from django.http import HttpResponse, FileResponse, JsonResponse
 from django.conf import settings
 from django.shortcuts import render
 from django.conf.urls.static import static
 
 import json
+import os
 from enum import Enum
 from typing_extensions import Annotated, Doc
 
@@ -26,30 +27,35 @@ from api.core.notification.services import test_email_templates
 
 id_prefix = settings.ID_PREFIX
 
-main_router = Router()
+api = NinjaAPI(
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION,
+    docs_url=None
+)
 
 # Agregar las rutas de usuarios
-main_router.add_router("/users/", user_router)
+api.add_router("/users/", user_router)
 # Agregar las rutas de products
-main_router.add_router("/products/", products_router)
+api.add_router("/products/", products_router)
 # Agregar las rutas de package
-main_router.add_router("/packages/", package_router)
+api.add_router("/packages/", package_router)
 # Agregar las rutas de categorías
-main_router.add_router("/categories/", category_router)
+api.add_router("/categories/", category_router)
 # Agregar las rutas de suppliers
-main_router.add_router("/suppliers/", suppliers_router)
+api.add_router("/suppliers/", suppliers_router)
 # Agregar las rutas de employees
-main_router.add_router("/employees/", employees_router)
+api.add_router("/employees/", employees_router)
 # Agregar las rutas de store
-main_router.add_router("/store/", store_router)
+api.add_router("/store/", store_router)
 # Agregar las rutas de orders
-main_router.add_router("/orders/", orders_router)
+api.add_router("/orders/", orders_router)
 # Agregar las rutas de sales
-main_router.add_router("/sales/", sales_router)
+api.add_router("/sales/", sales_router)
 # Agregar las rutas de auditoría
-main_router.add_router("/audit/", audit_router)
+api.add_router("/audit/", audit_router)
 # Agregar las rutas de clients
-main_router.add_router("/clients/", clients_router)
+api.add_router("/clients/", clients_router)
 
 class Layout(Enum):
     MODERN = "modern"
@@ -369,7 +375,7 @@ def get_scalar_api_reference(
     """
     return HttpResponse(html)
 
-@main_router.get("/scalar", include_in_schema=False)
+@api.get("/scalar", include_in_schema=False)
 async def scalar_html(request):
     return get_scalar_api_reference(
         openapi_url=api.openapi_url,
@@ -380,12 +386,7 @@ async def scalar_html(request):
         scalar_favicon_url="/assets/img/logo-rest-doc.png"
     )
 
-api = NinjaAPI(
-    title=settings.API_TITLE,
-    description=settings.API_DESCRIPTION,
-    version=settings.API_VERSION,
-    docs_url=None
-)
+
 
 @api.get("/test/stripe", include_in_schema=False)
 async def stripe_html(request):
@@ -395,15 +396,19 @@ async def stripe_html(request):
 def email_html(request):
     test_email_templates()
 
-@api.get("/id_prefix_api_secret/", include_in_schema=settings.DEBUG)
-async def get_secret(request):
-    return {"id_prefix_api_secret": str(id_prefix)}
 
-api.add_router(f"/{str(id_prefix)}/", main_router)
+def get_secret(request):
+    return JsonResponse({"id_prefix_api_secret": str(id_prefix)})
+
+def index_view(request):
+    return render(request, "index.csr.html")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', api.urls)
+    path('id_prefix_api_secret/', get_secret),
+    path(f'{str(id_prefix)}/', api.urls),
+    path('', index_view, name="index"),
+    re_path(r'^.*', index_view)
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
