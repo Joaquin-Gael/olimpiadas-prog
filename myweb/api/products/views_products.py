@@ -9,7 +9,7 @@ from .schemas import (
     TransportationCompleteCreate, TransportationMetadataCreate, TransportationAvailabilityCreateNested,
     ProductsMetadataOutLodgmentDetail, RoomAvailabilityCreate, RoomAvailabilityOut, RoomAvailabilityUpdate,
     RoomQuoteOut, CheckAvailabilityOut, FlightOut, LocationListOut, RoomCreate, RoomUpdate, RoomOut,
-    RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata, ItemsPaginationOut
+    RoomDetailOut, RoomWithAvailabilityOut, SerializedHelperMetadata, ItemsPaginationOut, ProductImageOut
 )
 from .services.helpers import serialize_product_metadata, serialize_activity_availability, serialize_transportation_availability
 from django.shortcuts import get_object_or_404
@@ -17,7 +17,7 @@ from ninja.errors import HttpError
 from .models import (
     ProductsMetadata, Suppliers,
     Activities, Flights, Lodgments, Transportation, ActivityAvailability, TransportationAvailability,
-    RoomAvailability, Room, Location
+    RoomAvailability, Room, Location, ProductImage
 )
 from django.db.models import Q, F
 from ninja.pagination import paginate
@@ -32,6 +32,7 @@ from django.contrib.contenttypes.models import ContentType
 from decimal import Decimal
 
 from rich import console
+from ninja.files import UploadedFile
 
 console = console.Console()
 
@@ -79,7 +80,7 @@ def create_product(request, data: ProductsMetadataCreate):
         currency=getattr(data, 'currency', 'USD')
     )
 
-    return serialize_product_metadata(metadata)
+    return serialize_product_metadata(metadata, request)
 
 
 @products_router.post("/activity-complete/", response=ProductsMetadataOut)
@@ -151,7 +152,7 @@ def create_complete_activity(request, data: ActivityCompleteCreate, metadata: Ac
         except ValidationError as e:
             raise HttpError(422, ", ".join(e.messages))
     
-    return serialize_product_metadata(metadata_obj)
+    return serialize_product_metadata(metadata_obj, request)
 
 
 @products_router.post("/lodgment-complete/", response=ProductsMetadataOutLodgmentDetail)
@@ -240,7 +241,7 @@ def create_complete_lodgment(request, data: LodgmentCompleteCreate, metadata: Lo
                 raise HttpError(422, ", ".join(e.messages))
         RoomAvailability.objects.bulk_create(avail_objs)
     
-    return serialize_product_metadata(metadata_obj)
+    return serialize_product_metadata(metadata_obj, request)
 
 
 @products_router.post("/transport-complete/", response=ProductsMetadataOut)
@@ -309,7 +310,7 @@ def create_complete_transport(request, data: TransportationCompleteCreate, metad
         except ValidationError as e:
             raise HttpError(422, ", ".join(e.messages))
     
-    return serialize_product_metadata(metadata_obj)
+    return serialize_product_metadata(metadata_obj, request)
 
 
 @products_router.post("/{id}/transportation-availability/", response=TransportationAvailabilityOut)
@@ -503,7 +504,7 @@ def test_products_endpoint(request):
         products_with_issues = []
         for metadata in ProductsMetadata.objects.active()[:5]:  # Solo los primeros 5
             try:
-                serialize_product_metadata(metadata)
+                serialize_product_metadata(metadata, request)
             except Exception as e:
                 products_with_issues.append({
                     "id": metadata.id,
@@ -555,7 +556,7 @@ def list_all_products(request):
     serialized_list = []
     for metadata in data:
         try:
-            serialized_data = serialize_product_metadata(metadata)
+            serialized_data = serialize_product_metadata(metadata, request)
             serialized_list.append(serialized_data)
         except Exception as e:
             console.print(f"Error serializando producto {metadata.id}: {str(e)}")
@@ -587,7 +588,7 @@ def list_products(request, limit: int = Query(100), offset: int = Query(0)):
     serialized_list = []
     for metadata in data:
         try:
-            serialized_data = serialize_product_metadata(metadata)
+            serialized_data = serialize_product_metadata(metadata, request)
             # No duplicar unit_price ya que ya está en serialized_data
             serialized_list.append(serialized_data)
         except Exception as e:
@@ -603,7 +604,7 @@ def list_products(request, limit: int = Query(100), offset: int = Query(0)):
 @products_router.get("/{id}/", response=ProductsMetadataOut)
 def get_product(request, id: int):
     metadata = get_object_or_404(ProductsMetadata.objects.active().select_related("content_type_id"), id=id)
-    return serialize_product_metadata(metadata)
+    return serialize_product_metadata(metadata, request)
 
 
 @products_router.patch("/{id}/", response=ProductsMetadataOut)
@@ -680,7 +681,7 @@ def update_product(request, id: int, data: ProductsMetadataUpdate):
             t.save()
 
     metadata.save(update_fields=["unit_price", "supplier_id"])
-    return serialize_product_metadata(metadata)
+    return serialize_product_metadata(metadata, request)
 
 
 @products_router.delete("/{id}/", response={204: None})
@@ -804,7 +805,7 @@ def update_flight_availability(request, id: int, available_seats: int):
         error_detail = "; ".join(error_messages)
         raise HttpError(422, error_detail)
 
-    return serialize_product_metadata(metadata)
+    return serialize_product_metadata(metadata, request)
 
 
 @products_router.get("/{id}/flight-availability/")
@@ -1458,5 +1459,21 @@ def list_lodgment_rooms(request, lodgment_id: int, is_active: bool = None):
     rooms = rooms.order_by("room_type", "name")
     
     return [serialize_room(room) for room in rooms]
+
+
+@products_router.post("/{metadata_id}/upload-image", response=ProductImageOut)
+def upload_product_image(request, metadata_id: int, file: UploadedFile, description: str = ""):
+    metadata = get_object_or_404(ProductsMetadata, id=metadata_id)
+    image_instance = ProductImage.objects.create(
+        product_metadata=metadata,
+        image=file,
+        description=description
+    )
+    return ProductImageOut(
+        id=image_instance.id,
+        image=request.build_absolute_uri(image_instance.image.url),
+        description=image_instance.description,
+        uploaded_at=image_instance.uploaded_at
+    )
 
 

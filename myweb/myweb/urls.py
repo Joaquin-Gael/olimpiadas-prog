@@ -3,6 +3,7 @@ from django.urls import path
 from django.http import HttpResponse
 from django.conf import settings
 from django.shortcuts import render
+from django.conf.urls.static import static
 
 import json
 from enum import Enum
@@ -404,3 +405,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', api.urls)
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

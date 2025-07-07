@@ -1056,6 +1056,15 @@ class ComponentPackages(models.Model):
         
         return f"{self.product_metadata.product_type.title()}{date_info}: {self.title or self.product_metadata.content}"
 
+class PackageImage(models.Model):
+    package = models.ForeignKey(Packages, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='packages/images/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Imagen de {self.package.name} ({self.id})"
+
 class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)
     product_metadata = models.ForeignKey(ProductsMetadata, verbose_name="product_metadata", on_delete=models.PROTECT)
@@ -1390,3 +1399,13 @@ class StockMetrics(models.Model):
             metrics.save()
         
         return metrics
+
+
+class ProductImage(models.Model):
+    product_metadata = models.ForeignKey(ProductsMetadata, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='products/images/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Imagen de producto {self.product_metadata.id} ({self.id})"
