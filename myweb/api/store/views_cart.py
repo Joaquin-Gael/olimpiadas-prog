@@ -16,6 +16,8 @@ from api.products.services.helpers import serialize_product_metadata
 
 from api.core.auth import SyncJWTBearer
 
+from .services.services_cart import console
+
 router = Router(
     tags=["Cart"],
     auth=SyncJWTBearer()
@@ -176,6 +178,7 @@ def get_cart_with_user_info(request):
         # Validar que el usuario esté autenticado
         if not request.user:
             raise HttpError(401, "Usuario no autenticado")
+        # TODO: manejar permisos porque de esto ya se encarga en autenticador
         
         # Obtener o crear carrito
         cart = _get_open_cart(request.user, "USD")
@@ -223,7 +226,7 @@ def get_cart_with_user_info(request):
 # 2. Añadir ítem
 # ───────────────────────────────────────────────────────────────
 @router.post("/cart/items/", response={200: CartItemOut})
-@store_idempotent()
+#@store_idempotent()
 def add_item(request, payload: ItemAddIn):
     """
     Añade un ítem al carrito del usuario autenticado.
@@ -264,6 +267,8 @@ def add_item(request, payload: ItemAddIn):
     try:
         # Validar que el producto existe
         metadata = get_object_or_404(ProductsMetadata, id=payload.product_metadata_id)
+
+        console.print(f"metadata: {metadata}")
         
         # Validar datos de entrada
         if payload.qty <= 0:
@@ -275,16 +280,15 @@ def add_item(request, payload: ItemAddIn):
         cart = _get_open_cart(request.user, metadata.currency)
 
         item = cart_srv.add_item(
-            cart,
-            metadata,
-            payload.availability_id,
-            payload.qty,
-            Decimal(str(payload.unit_price)),
-            payload.config
+            cart=cart,
+            metadata=metadata,
+            availability_id=payload.availability_id,
+            qty=payload.qty,
+            unit_price=Decimal(str(payload.unit_price)),
+            config=payload.config
         )
 
-        return 200, {
-            "id": item.id,
+        return {
             "availability_id": item.availability_id,
             "product_metadata_id": item.product_metadata.id,
             "qty": item.qty,
@@ -294,17 +298,18 @@ def add_item(request, payload: ItemAddIn):
         }
     except HttpError:
         raise
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error agregando item al carrito: {str(e)}")
-        raise HttpError(500, "Error interno del servidor")
-    except cart_srv.InsufficientStockError:
+    except InsufficientStockError:
         raise HttpError(409, "stock_insuficiente")
     except cart_srv.CurrencyMismatchError:
         raise HttpError(422, "moneda_distinta")
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error agregando item al carrito: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
+
 
 # ───────────────────────────────────────────────────────────────
 # 3. Cambiar cantidad
