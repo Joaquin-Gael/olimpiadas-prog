@@ -674,6 +674,13 @@ class SupplierOut(BaseSchema):
 # ──────────────────────────────────────────────────────────────
 
 # ── OUTPUT ────────────────────────────────────────────────────
+class ProductImageOut(BaseSchema):
+    id: int
+    image: str
+    description: Optional[str]
+    uploaded_at: datetime
+    is_cover: bool
+
 class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""
     id: int
@@ -1131,6 +1138,7 @@ class PackageImageOut(BaseSchema):
     image: str
     description: Optional[str]
     uploaded_at: datetime
+    is_cover: bool
 
 
 class PackageOut(BaseSchema):

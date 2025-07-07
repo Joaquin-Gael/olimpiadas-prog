@@ -1476,4 +1476,26 @@ def upload_product_image(request, metadata_id: int, file: UploadedFile, descript
         uploaded_at=image_instance.uploaded_at
     )
 
+@products_router.delete("/images/{image_id}/", response={204: None})
+def delete_product_image(request, image_id: int):
+    image = get_object_or_404(ProductImage, id=image_id)
+    image.image.delete(save=False)  # Borra el archivo físico
+    image.delete()                  # Borra el registro en la base de datos
+    return 204, None
+
+@products_router.post("/images/{image_id}/set-cover/", response=ProductImageOut)
+def set_product_image_cover(request, image_id: int):
+    image = get_object_or_404(ProductImage, id=image_id)
+    # Desmarcar otras imágenes como cover para este producto
+    ProductImage.objects.filter(product_metadata=image.product_metadata).update(is_cover=False)
+    image.is_cover = True
+    image.save()
+    return ProductImageOut(
+        id=image.id,
+        image=request.build_absolute_uri(image.image.url),
+        description=image.description,
+        uploaded_at=image.uploaded_at,
+        is_cover=image.is_cover
+    )
+
 
