@@ -480,7 +480,7 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
 # ───────────────────────────────────────────────────────────────
 # 4. Eliminar ítem
 # ───────────────────────────────────────────────────────────────
-@router.delete("/cart/items/{item_id}/", response={204: None})
+@router.delete("/cart/items/{item_id}/", response={204: None, 200: dict})
 def delete_item(request, item_id: int):
     """
     Elimina un ítem del carrito.
@@ -503,10 +503,14 @@ def delete_item(request, item_id: int):
     try:
         for item in items:
             cart_srv.remove_item(item, item.cart)
+        return 204, None
     except cart_srv.CartClosedError:
-        console.print_exception(show_locals=True)
-        raise HttpError(409, "carrito_cerrado")
-    return None
+        return 200, {"message": "El carrito ya fue ordenado y no se puede modificar."}
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error eliminando item del carrito: {str(e)}")
+        raise HttpError(500, "Error interno del servidor")
 
 # ───────────────────────────────────────────────────────────────
 # 5. Checkout  → crea Order
