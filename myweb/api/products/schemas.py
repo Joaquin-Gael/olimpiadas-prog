@@ -674,15 +674,21 @@ class SupplierOut(BaseSchema):
 # ──────────────────────────────────────────────────────────────
 
 # ── OUTPUT ────────────────────────────────────────────────────
+class ProductImageOut(BaseSchema):
+    id: int
+    image: str
+    description: Optional[str]
+    uploaded_at: datetime
+    is_cover: bool
+
 class ProductsMetadataOut(BaseSchema):
     """Output schema for product metadata"""
     id: int
     unit_price: float
     currency: str
-    #product_type: Literal["activity", "flight", "lodgment", "transportation"]
-    #product: Union[ActivityOut, FlightOut, LodgmentOut, TransportationOut]
     product_type: str
     product: dict[str, Any]
+    images: Optional[List[ProductImageOut]] = None
 
 class ItemsPaginationOut(BaseSchema):
     """Output schema for items pagination"""
@@ -995,6 +1001,7 @@ class TransportationMetadataCreate(BaseSchema):
 class ComponentPackageCreate(BaseSchema):
     """Schema to create a package component"""
     product_metadata_id: int
+    availability_id: int  # <-- NUEVO CAMPO
     order: int = Field(..., ge=0, json_schema_extra={"help_text": "Display order within the package"})
     quantity: Optional[int] = Field(None, ge=1, json_schema_extra={"help_text": "Number of times this product is included"})
     title: Optional[str] = Field(None, max_length=128, json_schema_extra={"help_text": "Visible name of the component"})
@@ -1126,6 +1133,13 @@ class ComponentPackageOut(BaseSchema):
     available_id: Optional[int] = None
     availability_data: Optional[dict] = None
 
+class PackageImageOut(BaseSchema):
+    id: int
+    image: str
+    description: Optional[str]
+    uploaded_at: datetime
+    is_cover: bool
+
 
 class PackageOut(BaseSchema):
     """Output schema for packages"""
@@ -1133,6 +1147,7 @@ class PackageOut(BaseSchema):
     name: str
     description: str
     cover_image: Optional[str]
+    images: Optional[List[PackageImageOut]] = None
     
     # Prices
     base_price: Optional[float]

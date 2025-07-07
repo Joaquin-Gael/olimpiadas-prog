@@ -3,7 +3,8 @@ from ..schemas import (
     ActivityOut,
     FlightOut,
     LodgmentOut,
-    TransportationOut
+    TransportationOut,
+    ProductImageOut
 )
 from ..models import ProductsMetadata, RoomAvailability
 from typing import Dict, Any
@@ -13,7 +14,7 @@ from api.products.models import Location
 from rich.console import Console
 console = Console()
 
-def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
+def serialize_product_metadata(metadata: ProductsMetadata, request=None) -> Dict[str, Any]:
     """Serializa un objeto ProductsMetadata a un diccionario"""
     base_data = {
         "id": metadata.id,
@@ -21,12 +22,26 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
         "currency": metadata.currency,
         "product_type": metadata.product_type,
     }
-    
+
+    # Serializar imágenes
+    images = []
+    for img in metadata.images.all():
+        url = img.image.url
+        if request:
+            url = request.build_absolute_uri(url)
+        images.append(ProductImageOut(
+            id=img.id,
+            image=url,
+            description=img.description,
+            uploaded_at=img.uploaded_at
+        ))
+    base_data["images"] = images
+
     # Verificar que el contenido existe antes de acceder
     if not hasattr(metadata, 'content') or metadata.content is None:
         base_data["product"] = None
         return base_data
-    
+
     # Agregar datos específicos del producto según su tipo
     try:
         if metadata.product_type == "activity":
@@ -111,7 +126,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                     'has_private_bathroom', 'has_balcony', 'has_air_conditioning', 'has_wifi',
                     'base_price_per_night', 'currency', 'is_active', 'created_at', 'updated_at'
                 ))
-            
+
             # Obtener disponibilidades de habitaciones
             room_availabilities = {}
             for room in rooms:
@@ -123,7 +138,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                     # Si no está prefetcheado, hacer consulta
                     from api.products.models import RoomAvailability
                     availabilities = RoomAvailability.objects.filter(room_id=room_id).order_by('start_date')
-                
+
                 room_availabilities[room_id] = [
                     {
                         "id": av.id,
@@ -140,14 +155,14 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                     }
                     for av in availabilities
                 ]
-            
+
             # Para alojamientos, el available_id es el ID de la primera disponibilidad de habitación disponible
             available_id = None
             for room_id, availabilities in room_availabilities.items():
                 if availabilities:
                     available_id = availabilities[0]['id']
                     break
-            
+
             base_data["available_id"] = available_id
             base_data["product"] = {
                 "id": lodgment.id,
@@ -225,7 +240,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
         # En caso de error, devolver datos básicos
         base_data["product"] = None
         base_data["error"] = str(e)
-    
+
     return base_data
 
 def serialize_activity_availability(availability) -> Dict[str, Any]:
