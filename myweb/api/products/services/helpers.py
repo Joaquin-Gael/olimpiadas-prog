@@ -59,7 +59,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "difficulty_level": activity.difficulty_level,
                 "language": activity.language,
                 "available_slots": activity.available_slots,
-                "availabilities": [
+                "availability_id": [
                     {
                         "id": av.id,
                         "event_date": av.event_date,
@@ -194,7 +194,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                         "is_active": room.is_active if hasattr(room, 'is_active') else room['is_active'],
                         "created_at": room.created_at if hasattr(room, 'created_at') else room['created_at'],
                         "updated_at": room.updated_at if hasattr(room, 'updated_at') else room['updated_at'],
-                        "availabilities": room_availabilities.get(room.id if hasattr(room, 'id') else room['id'], [])
+                        "availability_id": room_availabilities.get(room.id if hasattr(room, 'id') else room['id'], [])
                     }
                     for room in rooms
                 ]
@@ -228,7 +228,7 @@ def serialize_product_metadata(metadata: ProductsMetadata) -> Dict[str, Any]:
                 "notes": transportation.notes,
                 "capacity": transportation.capacity,
                 "is_active": transportation.is_active,
-                "availabilities": [
+                "availability_id": [
                     {
                         "id": av.id,
                         "departure_date": av.departure_date,
