@@ -411,6 +411,7 @@ class Cart(models.Model):
         return f"Cart {self.id} ({self.user}) – {self.status}"
 
 class CartItem(models.Model):
+    id = models.AutoField(primary_key=True)
     """Un ítem del carrito vinculado a una Availability concreta."""
     cart                = models.ForeignKey(Cart, on_delete=models.CASCADE,
                                             related_name="items")

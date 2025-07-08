@@ -500,7 +500,7 @@ def delete_item(request, item_id: int):
     - **409 Conflict**: Si el carrito ya está cerrado.
     - **401 Unauthorized**: Si el usuario no está autenticado.
     """
-    items: list[CartItem] = get_list_or_404(CartItem, product_metadata_id=item_id, cart__user=request.user)
+    items: list[CartItem] = get_list_or_404(CartItem, id=item_id, cart__user=request.user)
     try:
         for item in items:
             cart_srv.remove_item(item, item.cart)
