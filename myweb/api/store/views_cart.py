@@ -5,7 +5,8 @@ from django.shortcuts import get_object_or_404, get_list_or_404
 from django.db import transaction
 
 from .models import Cart, CartItem
-from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn, UserBasicInfo, PackageAddIn
+from .schemas import CartOut, CartItemOut, ItemAddIn, ItemQtyPatchIn, UserBasicInfo, PackageAddIn, \
+    OrderCheckoutResponseSchema
 from api.products.models import ProductsMetadata
 from .services import services_cart as cart_srv
 from .services import services_orders as order_srv
@@ -106,17 +107,7 @@ def get_cart(request):
         if cart.items_cnt == 0:
             cart_data.items = []
             cart_data.total = 0.0
-        
-        # Agregar información básica del usuario con validación
-        if all([request.user.first_name, request.user.last_name, request.user.email]):
-            cart_data.user_info = UserBasicInfo(
-                id=request.user.id,
-                first_name=request.user.first_name,
-                last_name=request.user.last_name,
-                email=request.user.email
-            )
-        else:
-            cart_data.user_info = None
+
         
         return cart_data
         
@@ -416,7 +407,7 @@ def add_package(request, payload: PackageAddIn):
 # 3. Cambiar cantidad
 # ───────────────────────────────────────────────────────────────
 @router.patch("/cart/items/{item_id}/", response=CartItemOut)
-@store_idempotent()
+#@store_idempotent()
 def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
     """
     Modifica la cantidad de un producto en el carrito.
@@ -473,6 +464,7 @@ def patch_item_qty(request, item_id: int, payload: ItemQtyPatchIn):
     except HttpError:
         raise
     except Exception as e:
+        console.print_exception(show_locals=True)
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error actualizando cantidad del item {item_id}: {str(e)}")
@@ -514,7 +506,7 @@ def delete_item(request, item_id: int):
 # ───────────────────────────────────────────────────────────────
 @router.post(
     "/cart/checkout/",
-    response={201: dict},
+    response={201: OrderCheckoutResponseSchema},
     summary="Checkout del carrito",
     description="Convierte el carrito actual en una orden. Es idempotente y revalida stock. Requiere header Idempotency-Key."
 )
@@ -567,7 +559,10 @@ def checkout(request):
             )
         )
 
-        return 201, {"order_id": order.id, "total": float(order.total)}
+        return 201, OrderCheckoutResponseSchema(
+            order_id=order.id,
+            total=float(order.total)
+        )
 
     except cart_srv.CartClosedError:
         raise HttpError(409, "carrito_cerrado")

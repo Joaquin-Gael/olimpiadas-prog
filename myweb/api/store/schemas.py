@@ -406,3 +406,11 @@ class SalesReportOut(BaseModel):
     average_order_value: float
     top_products: List[dict]
     payment_methods_breakdown: List[dict] 
+
+class OrderCheckoutResponseSchema(Schema):
+    """Schema para la respuesta del checkout de una orden"""
+    order_id: int = Field(..., description="ID de la orden creada")
+    total: float = Field(..., description="Monto total de la orden")
+
+    class Config:
+        from_attributes = True

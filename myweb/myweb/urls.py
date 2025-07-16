@@ -1,9 +1,12 @@
 from django.contrib import admin
+#from django.http.response import StreamingHttpResponse
 from django.urls import path, re_path
-from django.http import HttpResponse, FileResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from django.shortcuts import render
-from django.conf.urls.static import static
+#from django.conf.urls.static import static
+from django.http import FileResponse
+from pathlib import Path
 
 import json
 import os
@@ -404,12 +407,41 @@ def get_secret(request):
 def index_view(request):
     return render(request, "index.csr.html")
 
+async def media_controller(request, path_to_file: str):
+    try:
+        # Construir la ruta completa del archivo
+        file_path = Path(os.path.join(settings.MEDIA_ROOT, path_to_file))
+        
+        # Verificar que el archivo existe
+        if not file_path.exists():
+            return HttpResponse(f"Archivo no encontrado: {file_path}", status=404)
+            
+        # Obtener el tipo de contenido basado en la extensión
+        content_type = f"image/{file_path.suffix.lstrip('.')}"
+        
+        # Abrir y retornar el archivo de manera asíncrona
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type=content_type,
+            as_attachment=False  # Mostrar en el navegador en lugar de descargar
+        )
+        
+        # Configurar headers adicionales
+        response['Content-Disposition'] = f'inline; filename="{file_path.name}"'
+        
+        return response
+        
+    except Exception as e:
+        return HttpResponse(f"Error al acceder al archivo: {str(e)}", status=500)
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('id_prefix_api_secret/', get_secret),
     path(f'{str(id_prefix)}/', api.urls),
     path('', index_view, name="index"),
+    path('media/<str:path_to_file>', media_controller),
     re_path(r'^.*', index_view)
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+#urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

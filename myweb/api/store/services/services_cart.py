@@ -324,7 +324,7 @@ def update_qty(item: CartItem, new_qty: int):
         return item  # sin cambios
 
     # ✅ OPTIMIZACIÓN: Obtener product_type en una sola consulta
-    metadata = ProductsMetadata.objects.get(id=item.product_metadata)
+    metadata = ProductsMetadata.objects.get(id=item.product_metadata.id)
     reserve_fn, release_fn = _get_stock_funcs(metadata.product_type)
 
     # Reservar o liberar según el signo
@@ -357,6 +357,7 @@ def remove_item(item: CartItem, cart: Cart):
         release_fn(item.availability_id, item.qty)
         #cart = item.cart   # guardamos antes de borrar
         item.delete()
+        _recalculate_cart(cart)
     except CartItem.DoesNotExist:
         pass
     finally:

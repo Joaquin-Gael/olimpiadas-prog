@@ -43,13 +43,13 @@ class SyncJWTBearer(HttpBearer):
         self.permissions = permissions if not permissions is None else []
 
     def __call__(self, request: HttpRequest):
-        console.print(f"access_token: {request.headers.get('Authorization')}")
+        #console.print(f"access_token: {request.headers.get('Authorization')}")
         return super().__call__(request)
 
     def authenticate(self, request: HttpRequest, token: str) -> Users:
-        console.rule("Token")
-        console.print(token)
-        console.rule("Token arriba")
+        #console.rule("Token")
+        #console.print(token)
+        #console.rule("Token arriba")
 
         try:
             payload = decode_token(token)
@@ -98,13 +98,13 @@ class JWTBearer(HttpBearer):
         self.permissions = permissions if not permissions is None else []
 
     def __call__(self, request: HttpRequest):
-        console.print(f"access_token: {request.headers.get('Authorization')}")
+        #console.print(f"access_token: {request.headers.get('Authorization')}")
         return super().__call__(request)
 
     async def authenticate(self, request: HttpRequest, token: str) -> Users:
-        console.rule("Token")
-        console.print(token)
-        console.rule("Token arriba")
+        #console.rule("Token")
+        #console.print(token)
+        #console.rule("Token arriba")
 
         try:
             payload = decode_token(token)
