@@ -2,7 +2,7 @@
 Vistas para manejo de órdenes
 """
 from typing import List, Optional
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponseRedirect
 from django.core.exceptions import ValidationError
 from ninja import Router, Query
 from ninja.errors import HttpError
@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from api.core.auth import SyncJWTBearer
 from api.clients.models import Clients, IdentityDocumentType, Addresses, AddressType
+#from whitenoise.responders import Redirect
 
 from .idempotency import console
 from .models import Orders, Sales
@@ -49,7 +50,7 @@ router = Router(
 
 @router.get(
     "/pay/success",
-    response={200: PaymentOut, 404: ErrorResponse, 500: ErrorResponse},
+    response={404: ErrorResponse, 500: ErrorResponse},
     summary="Verifica el estado de un pago exitoso"
 )
 def pay_success(request, session_id: str = Query(...), order_id: int = Query(...), payment_method: str = Query(...)):
@@ -81,7 +82,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
 
         OrderNotificationService.send_payment_confirmation(sale, payment_method)
 
-        return PaymentOut(
+        result = PaymentOut(
             sale_id=sale.id,
             amount=float(sale.amount),
             payment_method=payment_method,
@@ -90,6 +91,8 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
             created_at=sale.created_at,
             order_id=order_id,
         )
+
+        return HttpResponseRedirect(f"/checkout/success")
 
     except Orders.DoesNotExist:
         return ErrorResponse(
