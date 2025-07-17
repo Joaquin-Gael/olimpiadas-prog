@@ -80,7 +80,9 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
                 state=order.user.state
             )
 
+        console.rule("Payment confirmation")
         OrderNotificationService.send_payment_confirmation(sale, payment_method)
+        console.rule("Payment confirmation sended")
 
         result = PaymentOut(
             sale_id=sale.id,
