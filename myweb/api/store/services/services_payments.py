@@ -30,7 +30,7 @@ console = console.Console()
 
 stripe.api_key = settings.STRIPE_KEY
 
-DOMAIN = f"http://localhost:8080/"
+DOMAIN = settings.DOMAIN
 
 # -------------------------------------------------------------------
 #  Ayudas internas
