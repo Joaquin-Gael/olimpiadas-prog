@@ -39,7 +39,7 @@ class OrderNotificationService:
                 "created_at": order.created_at.strftime("%d/%m/%Y %H:%M"),
             }
             return NotificationService.send_email(
-                template_name=f"emails/{tpl}", to_email=order.client.email,
+                template_name=f"{tpl}", to_email=order.client.email,
                 context=context, subject=subj
             )
         except Exception:
@@ -62,7 +62,7 @@ class OrderNotificationService:
                 "paid_at": sale.created_at.strftime("%d/%m/%Y %H:%M"),
             }
             return NotificationService.send_email(
-                template_name=f"emails/{tpl}", to_email=sale.order.user.email,
+                template_name=f"{tpl}", to_email=sale.order.user.email,
                 context=context, subject=subj
             )
         except Exception:
@@ -83,7 +83,7 @@ class OrderNotificationService:
                 "reason": reason or "Cancelación solicitada por el usuario",
             }
             return NotificationService.send_email(
-                template_name=f"emails/{tpl}", to_email=order.client.email,
+                template_name=f"{tpl}", to_email=order.client.email,
                 context=context, subject=subj
             )
         except Exception:
