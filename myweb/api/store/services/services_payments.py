@@ -230,8 +230,8 @@ class PaymentService:
                 payment_method_types=[payment_method],
                 line_items=line_items,
                 mode="payment",
-                success_url=f"{DOMAIN}{settings.ID_PREFIX}/orders/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
-                cancel_url=f"{DOMAIN}{settings.ID_PREFIX}/orders/pay/cancel?order_id={payment_data.get('order_id')}",
+                success_url=f"{DOMAIN}/{settings.ID_PREFIX}/orders/pay/success?session_id={{CHECKOUT_SESSION_ID}}&order_id={payment_data.get('order_id')}&payment_method={payment_method}",
+                cancel_url=f"{DOMAIN}/{settings.ID_PREFIX}/orders/pay/cancel?order_id={payment_data.get('order_id')}",
             )
 
             return session.url
