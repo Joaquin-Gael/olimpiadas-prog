@@ -19,6 +19,7 @@ dependencies = [
     "pytest>=8.4.1",
     "python-dotenv>=1.1.0",
     "rich>=14.0.0",
+    "starlette>=0.47.1",
     "stripe>=12.3.0",
     "uvicorn>=0.34.3",
     "whitenoise>=6.9.0",
