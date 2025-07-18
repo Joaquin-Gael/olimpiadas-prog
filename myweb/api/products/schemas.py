@@ -1142,7 +1142,7 @@ class PackageImageOut(BaseSchema):
     image: str
     description: Optional[str]
     uploaded_at: datetime
-    is_cover: bool
+    #is_cover: bool
 
 
 class PackageOut(BaseSchema):

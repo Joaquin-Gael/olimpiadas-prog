@@ -18,6 +18,10 @@ from .schemas import (
     PackageCompleteCreate, CategoryCreate, CategoryUpdate, CategoryOut, PackageImageOut
 )
 
+from rich.console import Console
+
+console = Console()
+
 package_router = Router(tags=["Packages"])
 category_router = Router(tags=["Categories"])
 
@@ -120,6 +124,7 @@ def list_packages(
     except HttpError:
         raise
     except Exception as e:
+        console.print_exception(show_locals=True)
         raise HttpError(500, f"Error al listar paquetes: {str(e)}")
 
 
