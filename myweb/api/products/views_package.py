@@ -128,7 +128,7 @@ def list_packages(
         raise HttpError(500, f"Error al listar paquetes: {str(e)}")
 
 
-@package_router.get("/{package_id}", response=PackageDetailOut)
+@package_router.get("/{package_id}", response={200: PackageDetailOut})
 def get_package(request, package_id: int):
     """
     Gets a specific package with all its components and detailed information.
@@ -262,6 +262,7 @@ def get_package(request, package_id: int):
     except Packages.DoesNotExist:
         raise HttpError(404, "Paquete no encontrado")
     except Exception as e:
+        console.print_exception(show_locals=True)
         raise HttpError(500, f"Error al obtener paquete: {str(e)}")
 
 

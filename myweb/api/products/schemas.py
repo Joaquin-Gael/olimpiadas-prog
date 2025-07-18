@@ -5,6 +5,14 @@ from enum import Enum
 from datetime import date, time, datetime
 from api.products.common.schemas import BaseSchema
 
+class CategoryOut(BaseSchema):
+    id: int
+    name: str
+    description: str
+    icon: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
 
 # ──────────────────────────────────────────────────────────────
 # 1. BASE AND COMMON SCHEMAS
@@ -1037,12 +1045,12 @@ class PackageCreate(BaseSchema):
     name: str = Field(..., max_length=64)
     description: str
     cover_image: Optional[str] = Field(None, max_length=500)
-    
+
     # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: float = Field(..., gt=0)
-    
+
     # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
     currency: str = Field(default="USD", max_length=3)
@@ -1053,7 +1061,7 @@ class PackageCreate(BaseSchema):
         values = info.data
         base_price = values.get("base_price")
         taxes = values.get("taxes")
-        
+
         if base_price is not None and taxes is not None:
             total = round(base_price + taxes, 2)
             if round(v, 2) != total:
@@ -1095,12 +1103,12 @@ class PackageUpdate(BaseSchema):
     name: Optional[str] = Field(None, max_length=64)
     description: Optional[str] = None
     cover_image: Optional[str] = None
-    
+
     # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: Optional[float] = Field(None, gt=0)
-    
+
     is_active: Optional[bool] = None
     currency: Optional[str] = Field(None, max_length=3)
 
@@ -1111,7 +1119,7 @@ class PackageUpdate(BaseSchema):
             values = info.data
             base_price = values.get("base_price")
             taxes = values.get("taxes")
-            
+
             if base_price is not None and taxes is not None:
                 total = round(base_price + taxes, 2)
                 if round(v, 2) != total:
@@ -1129,13 +1137,13 @@ class ComponentPackageOut(BaseSchema):
     title: Optional[str]
     start_date: Optional[date]
     end_date: Optional[date]
-    
+
     # Related product information
     product_type: str
     product_name: str
-    currency: str
+    #currency: str
     available_id: Optional[int] = None
-    availability_data: Optional[dict] = None
+    availability_data: Optional[dict] = {}
 
 class PackageImageOut(BaseSchema):
     id: int
@@ -1152,30 +1160,31 @@ class PackageOut(BaseSchema):
     description: str
     cover_image: Optional[str]
     images: Optional[List[PackageImageOut]] = None
-    
+
     # Prices
     base_price: Optional[float]
     taxes: Optional[float]
     final_price: float
-    
+
     # Reviews
     rating_average: float
     total_reviews: int
-    
+
     # Status
     is_active: bool
-    
+
     # Dates
     created_at: datetime
     updated_at: datetime
-    
+
     # Calculated duration
     duration_days: Optional[int]
-    currency: str
+    #currency: str
 
 
 class PackageDetailOut(PackageOut):
     """Detailed output schema for packages with components"""
+    category: CategoryOut
     components: List[ComponentPackageOut]
 
 
@@ -1203,12 +1212,12 @@ class PackageCompleteCreate(BaseSchema):
     name: str = Field(..., max_length=64)
     description: str
     cover_image: Optional[str] = Field(None, max_length=500)
-    
+
     # Prices
     base_price: Optional[float] = Field(None, ge=0)
     taxes: Optional[float] = Field(None, ge=0)
     final_price: float = Field(..., gt=0)
-    
+
     # Package components
     components: List[ComponentPackageCreate] = Field(default_factory=list)
     currency: str = Field(default="USD", max_length=3)
@@ -1219,7 +1228,7 @@ class PackageCompleteCreate(BaseSchema):
         values = info.data
         base_price = values.get("base_price")
         taxes = values.get("taxes")
-        
+
         if base_price is not None and taxes is not None:
             total = round(base_price + taxes, 2)
             if round(v, 2) != total:
@@ -1231,12 +1240,12 @@ class PackageCompleteCreate(BaseSchema):
     def validate_components(cls, v):
         if not v:
             raise ValueError("Package must have at least one component.")
-        
+
         # Validate that there are no duplicate orders
         orders = [comp.order for comp in v]
         if len(orders) != len(set(orders)):
             raise ValueError("Component orders must be unique.")
-        
+
         return v
 
 
@@ -1344,7 +1353,7 @@ class ProductPatch(BaseSchema):
     unit_price: Optional[float] = None
     currency: Optional[str] = None
     supplier_id: Optional[int] = None
-    
+
     # Campos planos específicos de cada tipo de producto
     # Alojamiento
     name: Optional[str] = Field(None, max_length=128)
@@ -1360,7 +1369,7 @@ class ProductPatch(BaseSchema):
     amenities: Optional[List[str]] = None
     date_checkin: Optional[date] = None
     date_checkout: Optional[date] = None
-    
+
     # Actividad
     activity_date: Optional[date] = None
     start_time: Optional[time] = None
@@ -1372,7 +1381,7 @@ class ProductPatch(BaseSchema):
     ]] = None
     language: Optional[str] = None
     available_slots: Optional[int] = Field(None, ge=0, le=100)
-    
+
     # Vuelo
     airline: Optional[str] = None
     flight_number: Optional[str] = None
@@ -1392,16 +1401,16 @@ class ProductPatch(BaseSchema):
     terminal: Optional[str] = None
     gate: Optional[str] = None
     notes: Optional[str] = None
-    
+
     # Transporte
     transport_type: Optional[TransportationType] = None
     transport_description: Optional[str] = None
     transport_notes: Optional[str] = None
     capacity: Optional[int] = Field(None, gt=0, le=100)
-    
+
     # Campo común
     is_active: Optional[bool] = None
-    
+
     # Sub-estructuras anidadas
     rooms: Optional[List[RoomPartialUpdate]] = None
     availabilities: Optional[List[RoomAvailabilityPartialUpdate]] = None
@@ -1428,7 +1437,7 @@ class ProductPatchLodgment(ProductsMetadataUpdate):
     date_checkin: Optional[date] = None
     date_checkout: Optional[date] = None
     is_active: Optional[bool] = None
-    
+
     # Sub-estructuras anidadas
     rooms: Optional[List[RoomPartialUpdate]] = None
     availabilities: Optional[List[RoomAvailabilityPartialUpdate]] = None
@@ -1451,7 +1460,7 @@ class ProductPatchActivity(ProductsMetadataUpdate):
     language: Optional[str] = None
     available_slots: Optional[int] = Field(None, ge=0, le=100)
     is_active: Optional[bool] = None
-    
+
     # Sub-estructuras anidadas
     availabilities: Optional[List[ActivityAvailabilityPartialUpdate]] = None
 
@@ -1478,7 +1487,7 @@ class ProductPatchFlight(ProductsMetadataUpdate):
     gate: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
-    
+
     # Sub-estructuras anidadas
     flights: Optional[List[FlightPartialUpdate]] = None
 
@@ -1493,7 +1502,7 @@ class ProductPatchTransportation(ProductsMetadataUpdate):
     notes: Optional[str] = None
     capacity: Optional[int] = Field(None, gt=0, le=100)
     is_active: Optional[bool] = None
-    
+
     # Sub-estructuras anidadas
     transportations: Optional[List[TransportationPartialUpdate]] = None
 
