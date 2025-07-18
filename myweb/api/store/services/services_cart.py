@@ -236,8 +236,8 @@ def add_package(
             
             # Determinar availability_id según el tipo de producto
             availability_id = None
-            if hasattr(component, 'available_id') and component.available_id:
-                availability_id = component.available_id
+            if hasattr(component, 'availability_id') and component.availability_id:
+                availability_id = component.availability_id
             
             # 5) Reservar stock para el componente
             reserve_fn, _ = _get_stock_funcs(metadata.product_type)

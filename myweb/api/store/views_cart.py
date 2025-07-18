@@ -398,6 +398,7 @@ def add_package(request, payload: PackageAddIn):
     except HttpError:
         raise
     except Exception as e:
+        console.print_exception(show_locals=True)
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error agregando paquete al carrito: {str(e)}")

@@ -330,6 +330,7 @@ class Activities(models.Model):
         return f"*{self.__dict__}"
 
 class ActivityAvailability(models.Model):
+    id = models.AutoField("activity_availability_id", primary_key=True)
     activity = models.ForeignKey(
         "Activities",
         on_delete=models.CASCADE,
