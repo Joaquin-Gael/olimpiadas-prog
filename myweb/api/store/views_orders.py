@@ -389,3 +389,7 @@ def get_sales_summary(request: HttpRequest):
             message=f"Error interno: {str(e)}",
             error_code="INTERNAL_ERROR"
         )
+
+orders_router = Router()
+orders_router.add_router(public_router)
+orders_router.add_router(router)

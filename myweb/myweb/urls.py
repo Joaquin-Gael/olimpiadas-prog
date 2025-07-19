@@ -22,7 +22,7 @@ from api.products.views_supliers import suppliers_router
 from api.products.views_audit import audit_router
 from api.employees.views_employees import router as employees_router
 from api.store.views_cart import router as store_router
-from api.store.views_orders import router as orders_router
+from api.store.views_orders import orders_router
 from api.store.views_sales import router as sales_router
 from api.clients.views import router as clients_router
 
