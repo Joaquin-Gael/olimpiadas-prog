@@ -1,3 +1,5 @@
+from typing import Dict, Any, List
+
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.contrib.contenttypes.models import ContentType
@@ -830,7 +832,7 @@ class ProductsMetadata(SoftDeleteModel):
     is_active = models.BooleanField(default=True)
 
     @property
-    def get_content_object(self):
+    def get_content_object(self) -> Activities | Lodgments | Transportation | Flights | Any:
         _model = ContentType.objects.get_for_id(self.content_type_id.id)
         product_object = _model.model_class().objects.get(pk=self.object_id)
 
@@ -855,7 +857,7 @@ class ProductsMetadata(SoftDeleteModel):
     
     # Property to get the product type
     @property
-    def product_type(self):
+    def product_type(self) -> str:
         model_name = self.content_type_id.model.lower()
         # Mapping of model names to product types in English
         type_mapping = {
@@ -1056,6 +1058,11 @@ class ComponentPackages(models.Model):
             date_info += ")"
         
         return f"{self.product_metadata.product_type.title()}{date_info}: {self.title or self.product_metadata.content}"
+
+
+    @property
+    def metadata_per_product(self) -> List[ProductsMetadata]:
+        return ProductsMetadata.objects.filter(id=self.product_metadata.id).all()
 
 class Reviews(models.Model):
     id = models.AutoField("review_id", primary_key=True)

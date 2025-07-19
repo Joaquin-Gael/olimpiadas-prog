@@ -45,7 +45,7 @@ def get_idempotency_key(request) -> Optional[str]:
 
 router = Router(
     tags=["Orders"],
-    #auth=SyncJWTBearer() TODO: preparar para fu aplicacion
+    auth=SyncJWTBearer()
 )
 
 @router.get(

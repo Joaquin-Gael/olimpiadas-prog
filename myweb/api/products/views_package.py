@@ -17,6 +17,7 @@ from .schemas import (
     ComponentPackageCreate, ComponentPackageUpdate, ComponentPackageOut,
     PackageCompleteCreate, CategoryCreate, CategoryUpdate, CategoryOut, PackageImageOut
 )
+from .services.packages_services import PackagesServiceInterface
 
 from rich.console import Console
 
@@ -80,7 +81,9 @@ def list_packages(
             ).distinct()
         
         # Order by name for consistency
-        queryset = queryset.order_by('name')
+        queryset = PackagesServiceInterface.get_packages_filtered_by_availability(
+            queryset.order_by('name')
+        )
         
         # Serialize the queryset for response
         serialized_list: List[PackageOut] = []
