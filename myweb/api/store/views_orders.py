@@ -391,5 +391,5 @@ def get_sales_summary(request: HttpRequest):
         )
 
 orders_router = Router()
-orders_router.add_router(public_router)
-orders_router.add_router(router)
+orders_router.add_router(router=public_router, prefix="")
+orders_router.add_router(router=router, prefix="")
