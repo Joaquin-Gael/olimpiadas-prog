@@ -80,9 +80,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
                 state=order.user.state
             )
 
-        console.rule("Payment confirmation")
         OrderNotificationService.send_payment_confirmation(sale, payment_method)
-        console.rule("Payment confirmation sended")
 
         result = PaymentOut(
             sale_id=sale.id,
@@ -94,7 +92,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
             order_id=order_id,
         )
 
-        return HttpResponseRedirect(f"/checkout/success")
+        return HttpResponseRedirect(f"/checkout/success?order_id={order_id}&session_id={session_id}")
 
     except Orders.DoesNotExist:
         return ErrorResponse(
@@ -107,17 +105,14 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
 
 @router.get(
     "/pay/cancel",
-    response={200:SuccessResponse, 404:ErrorResponse, 500:ErrorResponse},
+    response={404:ErrorResponse, 500:ErrorResponse},
     summary="Verifica el estado de un pago canselado"
 )
 def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)):
     try:
         order = Orders.objects.get(id=order_id)
         PaymentService.cancel_payment(order)
-        return SuccessResponse(
-            message="Orden cancelada exitosamente",
-            data={"order_id": order.id, "state": order.state}
-        )
+        return HttpResponseRedirect(f"/checkout/cancel?order_id={order_id}&session_id={session_id}")
     except Orders.DoesNotExist:
         return ErrorResponse(
             message="Orden no encontrada",

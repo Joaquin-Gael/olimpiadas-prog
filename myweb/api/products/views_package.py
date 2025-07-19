@@ -221,7 +221,7 @@ def get_package(request, package_id: int):
                     "start_date": comp.start_date,
                     "end_date": comp.end_date,
                     "product_type": comp.product_metadata.product_type,
-                    "product_name": str(comp.product_metadata.content),
+                    "product_name": comp.product_metadata.product_name,
                     "available_id": available_id,
                     "availability_data": availability_data
                 })
