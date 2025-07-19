@@ -38,12 +38,23 @@ DEBUG = DEBUG
 DOMAIN = DOMAIN
 
 ALLOWED_HOSTS = ["*"]
-CORS_ALLOW_ALL_ORIGINS = True
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:4200",
-    "http://127.0.0.1:8080",
-]
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:4200",
+        "http://127.0.0.1:8080",
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        DOMAIN,
+        "https://checkout.stripe.com/"
+    ]
+
+if not DEBUG:
+    ALLOWED_HOSTS.append(DOMAIN)
+    ALLOWED_HOSTS.extend(CORS_ALLOWED_ORIGINS)
 
 APPEND_SLASH = True
 
