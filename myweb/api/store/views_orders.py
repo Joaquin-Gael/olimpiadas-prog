@@ -48,7 +48,11 @@ router = Router(
     auth=SyncJWTBearer()
 )
 
-@router.get(
+public_router = Router(
+    tags=["Orders"]
+)
+
+@public_router.get(
     "/pay/success",
     response={404: ErrorResponse, 500: ErrorResponse},
     summary="Verifica el estado de un pago exitoso"
@@ -103,7 +107,7 @@ def pay_success(request, session_id: str = Query(...), order_id: int = Query(...
     except Exception as e:
         return HttpError(status_code=500, message=str(e))
 
-@router.get(
+@public_router.get(
     "/pay/cancel",
     response={404:ErrorResponse, 500:ErrorResponse},
     summary="Verifica el estado de un pago canselado"
