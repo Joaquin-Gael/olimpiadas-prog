@@ -1,9 +1,12 @@
 """
 Vistas para manejo de órdenes
 """
+from urllib.parse import urlencode
+
 from typing import List, Optional
 from django.http import HttpRequest, HttpResponseRedirect
 from django.core.exceptions import ValidationError
+from django.shortcuts import redirect, reverse
 from ninja import Router, Query
 from ninja.errors import HttpError
 
@@ -116,7 +119,16 @@ def pay_cancel(request, session_id: str = Query(...), order_id: int = Query(...)
     try:
         order = Orders.objects.get(id=order_id)
         PaymentService.cancel_payment(order)
-        return HttpResponseRedirect(f"/checkout/cancel?order_id={order_id}&session_id={session_id}")
+
+        paratemers = {
+            "order_id": order_id,
+            "session_id": session_id,
+        }
+
+        final_path = reverse("checkout_cancel") + "?" + urlencode(paratemers)
+
+        return redirect(final_path)
+        #return HttpResponseRedirect(f"/checkout/cancel?order_id={order_id}&session_id={session_id}")
     except Orders.DoesNotExist:
         return ErrorResponse(
             message="Orden no encontrada",
